@@ -193,3 +193,6 @@ export {
 } from './csvUtils';
 
 export { gradeWithOpenAI } from './gradingUtils';
+
+// Export the docx utility function
+export { extractTextFromDOCX } from './docxUtils';
