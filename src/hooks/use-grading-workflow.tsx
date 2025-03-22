@@ -67,6 +67,10 @@ export function useGradingWorkflow() {
           const processedGrades: StudentGrade[] = [];
           let processedCount = 0;
           
+          // Debug log to check folders and files
+          console.log('Folders to process:', Object.keys(filesByFolder));
+          console.log('Moodle gradebook students:', moodleGradebook?.grades.map(g => g.fullName));
+          
           for (const folder in filesByFolder) {
             const folderFiles = filesByFolder[folder];
             if (folderFiles.length === 0) continue;
@@ -75,6 +79,9 @@ export function useGradingWorkflow() {
             const firstFile = folderFiles[0];
             const folderName = folder !== 'root' ? folder : '';
             const studentInfo = extractStudentInfoFromFilename(firstFile.name, folderName);
+            
+            console.log(`Processing folder: ${folderName}`);
+            console.log(`Extracted student info:`, studentInfo);
             
             // Find the best file containing the submission content
             let submissionText = '';
@@ -145,33 +152,58 @@ export function useGradingWorkflow() {
               // Try to find a matching student in preloaded grades by name
               let matchingMoodleStudent = null;
               if (moodleGradebook && moodleGradebook.grades.length > 0) {
-                // Try different matching strategies, starting with exact name match
+                // Try different matching strategies
+
+                // 1. Exact full name match (case insensitive)
                 matchingMoodleStudent = moodleGradebook.grades.find(grade => 
                   grade.fullName.toLowerCase() === studentInfo.fullName.toLowerCase()
                 );
                 
-                // If no exact match, try fuzzy matching - check if the name in gradebook contains parts of the folder name
+                // 2. If no exact match, try matching first and last name individually
+                if (!matchingMoodleStudent && studentInfo.fullName.includes(' ')) {
+                  const nameParts = studentInfo.fullName.toLowerCase().split(' ');
+                  matchingMoodleStudent = moodleGradebook.grades.find(grade => {
+                    const gradebookNameParts = grade.fullName.toLowerCase().split(' ');
+                    // Check if first name and last name match (can be in different order)
+                    return nameParts.length > 1 && gradebookNameParts.length > 1 && 
+                           nameParts.some(p => gradebookNameParts.includes(p));
+                  });
+                }
+                
+                // 3. Normalize names and try partial matching
+                if (!matchingMoodleStudent) {
+                  const normalizedFolderName = studentInfo.fullName.toLowerCase().replace(/[^a-z0-9]/g, '');
+                  matchingMoodleStudent = moodleGradebook.grades.find(grade => {
+                    const normalizedGradebookName = grade.fullName.toLowerCase().replace(/[^a-z0-9]/g, '');
+                    return normalizedGradebookName.includes(normalizedFolderName) || 
+                           normalizedFolderName.includes(normalizedGradebookName);
+                  });
+                }
+                
+                // 4. Try fuzzy matching - check if the name in gradebook contains parts of the folder name
                 if (!matchingMoodleStudent) {
                   matchingMoodleStudent = moodleGradebook.grades.find(grade => {
-                    const folderName = folder !== 'root' ? folder : '';
                     const folderNameParts = folderName.split(/[_\s]/).filter(p => p.length > 1);
                     
-                    // Consider it a match if at least 2 parts of the name match
+                    // Consider it a match if at least 1 part of the name matches
                     let matchCount = 0;
                     for (const part of folderNameParts) {
                       if (part.length > 1 && grade.fullName.toLowerCase().includes(part.toLowerCase())) {
                         matchCount++;
                       }
                     }
-                    return matchCount >= 2;
+                    return matchCount >= 1;
                   });
                 }
                 
                 if (matchingMoodleStudent) {
+                  console.log(`Found matching student in gradebook: ${matchingMoodleStudent.fullName}`);
                   studentName = matchingMoodleStudent.fullName;
                   studentEmail = matchingMoodleStudent.email;
                   studentIdentifier = matchingMoodleStudent.identifier;
                   originalRow = matchingMoodleStudent.originalRow || {};
+                } else {
+                  console.log(`NO MATCH FOUND for ${studentInfo.fullName} in gradebook`);
                 }
               }
               
@@ -446,3 +478,4 @@ export function useGradingWorkflow() {
     preloadedGrades
   };
 }
+

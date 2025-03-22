@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
 import { uploadMoodleGradebook } from "@/utils/csvUtils";
 import { Separator } from "@/components/ui/separator";
-import { FileSpreadsheet, CheckCircle, AlertCircle } from "lucide-react";
+import { FileSpreadsheet, CheckCircle, AlertCircle, Info } from "lucide-react";
 
 interface UploadStepProps {
   files: File[];
@@ -40,6 +40,7 @@ const UploadStep: React.FC<UploadStepProps> = ({
       onMoodleGradebookUploaded(gradebookData);
       setGradebookSuccess(true);
       toast.success("Moodle gradebook uploaded successfully");
+      console.log("Moodle gradebook data:", gradebookData); // Debug log
     } catch (error) {
       console.error("Error processing Moodle file:", error);
       toast.error("Error processing Moodle file. Please check the format.");
@@ -71,6 +72,17 @@ const UploadStep: React.FC<UploadStepProps> = ({
               Begin by uploading your Moodle gradebook export. This ensures student information is correctly matched 
               with their submissions and the downloaded file will exactly match your Moodle format.
             </p>
+            
+            <div className="rounded-md bg-blue-50 p-3 mb-2">
+              <div className="flex items-start">
+                <Info className="h-4 w-4 text-blue-500 mt-0.5 mr-2" />
+                <div className="text-xs text-blue-800">
+                  <p className="font-medium">Important for student matching:</p>
+                  <p>The system will match student names from folders in your submission ZIP file with names in the gradebook. 
+                  Make sure student names in the Moodle gradebook match the folder names in your submission files.</p>
+                </div>
+              </div>
+            </div>
             
             <div className="flex flex-col sm:flex-row gap-2">
               <input
