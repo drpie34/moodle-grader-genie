@@ -7,6 +7,7 @@ import { AssignmentFormData } from "./assignment/AssignmentFormTypes";
 import StudentGradeRow from "./grading/StudentGradeRow";
 import StudentPreviewDialog from "./grading/StudentPreviewDialog";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import type { StudentGrade } from "@/hooks/use-grading-workflow";
 
 interface GradingPreviewProps {
@@ -85,9 +86,12 @@ const GradingPreview: React.FC<GradingPreviewProps> = ({
         )}
         
         {hasInvalidStudentNames && (
-          <Alert variant="warning">
+          <Alert variant="default">
             <Info className="h-4 w-4" />
-            <AlertTitle>Possible name matching issues detected</AlertTitle>
+            <AlertTitle>
+              Possible name matching issues detected
+              <Badge variant="outline" className="ml-2 border-amber-500 text-amber-500">Warning</Badge>
+            </AlertTitle>
             <AlertDescription>
               Some submissions have invalid student names (like "onlinetext" or "assignsubmission"). 
               This usually happens when the folder structure doesn't include proper student names.
