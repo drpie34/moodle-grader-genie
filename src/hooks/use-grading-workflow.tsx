@@ -1,8 +1,7 @@
-
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { extractTextFromFile, findBestSubmissionFile, extractStudentInfoFromFilename } from "@/utils/fileUtils";
-import { parseMoodleCSV } from "@/utils/csvUtils";
+import { parseMoodleCSV, generateMoodleCSV } from "@/utils/csvUtils";
 import { gradeWithOpenAI } from "@/utils/gradingUtils";
 import type { AssignmentFormData } from "@/components/assignment/AssignmentFormTypes";
 
@@ -15,6 +14,14 @@ export interface StudentGrade {
   feedback: string;
   file?: File;
   edited?: boolean;
+  originalRow?: Record<string, string>; // Store the original CSV row format
+}
+
+export interface MoodleGradebookData {
+  headers: string[];
+  grades: StudentGrade[];
+  assignmentColumn?: string; // The column name for the assignment grade
+  feedbackColumn?: string;   // The column name for the feedback
 }
 
 export function useGradingWorkflow() {
@@ -24,11 +31,11 @@ export function useGradingWorkflow() {
   const [grades, setGrades] = useState<StudentGrade[]>([]);
   const [sampleDataLoaded, setSampleDataLoaded] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [moodleGrades, setMoodleGrades] = useState<StudentGrade[]>([]);
+  const [moodleGradebook, setMoodleGradebook] = useState<MoodleGradebookData | null>(null);
   
-  // Preload grades from Moodle gradebook
-  const preloadedGrades = (grades: StudentGrade[]) => {
-    setMoodleGrades(grades);
+  // Preload grades from Moodle gradebook with full format data
+  const preloadedGrades = (data: MoodleGradebookData) => {
+    setMoodleGradebook(data);
   };
   
   // Process files with OpenAI when ready
@@ -39,38 +46,43 @@ export function useGradingWorkflow() {
         toast.info(`Processing ${files.length} files with AI...`);
         
         try {
-          // Group files by student ID using improved extraction
-          const filesByStudent: { [key: string]: File[] } = {};
+          // Group files by folder (which usually contains student name)
+          const filesByFolder: { [key: string]: File[] } = {};
           
+          // First, organize files by their folder paths
           for (const file of files) {
-            // Extract student info from filename
-            const studentInfo = extractStudentInfoFromFilename(file.name);
-            const studentId = studentInfo.identifier;
+            // Get the folder path or parent directory name
+            const pathParts = file.webkitRelativePath ? file.webkitRelativePath.split('/') : file.name.split('/');
+            const folderPath = pathParts.length > 1 ? pathParts.slice(0, -1).join('/') : '';
+            const folderKey = folderPath || 'root';
             
-            if (!filesByStudent[studentId]) {
-              filesByStudent[studentId] = [];
+            if (!filesByFolder[folderKey]) {
+              filesByFolder[folderKey] = [];
             }
             
-            filesByStudent[studentId].push(file);
+            filesByFolder[folderKey].push(file);
           }
           
-          // For each student, find the best submission file and process it
+          // For each folder, find student info and the best submission file
           const processedGrades: StudentGrade[] = [];
           let processedCount = 0;
           
-          for (const studentId in filesByStudent) {
-            const studentFiles = filesByStudent[studentId];
+          for (const folder in filesByFolder) {
+            const folderFiles = filesByFolder[folder];
+            if (folderFiles.length === 0) continue;
             
-            // Get student info from the first file (we'll use the same ID for all files)
-            const studentInfo = extractStudentInfoFromFilename(studentFiles[0].name);
-            
-            // Separate onlinetext files from other files
-            const onlineTextFiles = studentFiles.filter(file => file.name.includes('onlinetext'));
-            const otherFiles = studentFiles.filter(file => !file.name.includes('onlinetext'));
+            // Extract student info from the folder name first, then fallback to file name
+            const firstFile = folderFiles[0];
+            const folderName = folder !== 'root' ? folder : '';
+            const studentInfo = extractStudentInfoFromFilename(firstFile.name, folderName);
             
             // Find the best file containing the submission content
             let submissionText = '';
             let submissionFile: File | null = null;
+            
+            // Separate onlinetext files from other files
+            const onlineTextFiles = folderFiles.filter(file => file.name.includes('onlinetext'));
+            const otherFiles = folderFiles.filter(file => !file.name.includes('onlinetext'));
             
             // First check non-onlinetext files for content
             for (const file of otherFiles) {
@@ -128,19 +140,38 @@ export function useGradingWorkflow() {
               let studentName = studentInfo.fullName;
               let studentEmail = studentInfo.email;
               let studentIdentifier = studentInfo.identifier;
+              let originalRow = {};
               
-              // Try to find a matching student in preloaded grades
-              if (moodleGrades.length > 0) {
-                // Try to match by identifier first
-                const matchingGrade = moodleGrades.find(grade => 
-                  grade.identifier === studentInfo.identifier ||
+              // Try to find a matching student in preloaded grades by name
+              let matchingMoodleStudent = null;
+              if (moodleGradebook && moodleGradebook.grades.length > 0) {
+                // Try different matching strategies, starting with exact name match
+                matchingMoodleStudent = moodleGradebook.grades.find(grade => 
                   grade.fullName.toLowerCase() === studentInfo.fullName.toLowerCase()
                 );
                 
-                if (matchingGrade) {
-                  studentName = matchingGrade.fullName;
-                  studentEmail = matchingGrade.email;
-                  studentIdentifier = matchingGrade.identifier;
+                // If no exact match, try fuzzy matching - check if the name in gradebook contains parts of the folder name
+                if (!matchingMoodleStudent) {
+                  matchingMoodleStudent = moodleGradebook.grades.find(grade => {
+                    const folderName = folder !== 'root' ? folder : '';
+                    const folderNameParts = folderName.split(/[_\s]/).filter(p => p.length > 1);
+                    
+                    // Consider it a match if at least 2 parts of the name match
+                    let matchCount = 0;
+                    for (const part of folderNameParts) {
+                      if (part.length > 1 && grade.fullName.toLowerCase().includes(part.toLowerCase())) {
+                        matchCount++;
+                      }
+                    }
+                    return matchCount >= 2;
+                  });
+                }
+                
+                if (matchingMoodleStudent) {
+                  studentName = matchingMoodleStudent.fullName;
+                  studentEmail = matchingMoodleStudent.email;
+                  studentIdentifier = matchingMoodleStudent.identifier;
+                  originalRow = matchingMoodleStudent.originalRow || {};
                 }
               }
               
@@ -161,30 +192,30 @@ export function useGradingWorkflow() {
                 grade: gradingResult.grade,
                 feedback: gradingResult.feedback,
                 file: submissionFile,
-                edited: false
+                edited: false,
+                originalRow: originalRow
               });
               
               processedCount++;
               // Update progress
-              if (processedCount % 5 === 0 || processedCount === Object.keys(filesByStudent).length) {
-                toast.info(`Processed ${processedCount}/${Object.keys(filesByStudent).length} submissions`);
+              if (processedCount % 5 === 0 || processedCount === Object.keys(filesByFolder).length) {
+                toast.info(`Processed ${processedCount}/${Object.keys(filesByFolder).length} submissions`);
               }
             }
           }
           
           // If there are preloaded moodle grades, merge them with the AI grades
-          if (moodleGrades.length > 0) {
-            const mergedGrades = [...moodleGrades];
+          if (moodleGradebook && moodleGradebook.grades.length > 0) {
+            const mergedGrades = [...moodleGradebook.grades];
             
             // For each processed grade, try to find a matching student in moodleGrades
             processedGrades.forEach(aiGrade => {
               const moodleIndex = mergedGrades.findIndex(grade => 
-                grade.identifier === aiGrade.identifier ||
                 grade.fullName.toLowerCase() === aiGrade.fullName.toLowerCase()
               );
               
               if (moodleIndex >= 0) {
-                // Update the existing grade
+                // Update the existing grade but keep the original row data
                 mergedGrades[moodleIndex] = {
                   ...mergedGrades[moodleIndex],
                   grade: aiGrade.grade,
@@ -221,7 +252,7 @@ export function useGradingWorkflow() {
     };
     
     processFilesWithAI();
-  }, [currentStep, assignmentData, files, sampleDataLoaded, isProcessing, moodleGrades]);
+  }, [currentStep, assignmentData, files, sampleDataLoaded, isProcessing, moodleGradebook]);
 
   // Helper to get API key from localStorage
   const getApiKey = (): string | null => {
@@ -234,11 +265,45 @@ export function useGradingWorkflow() {
       fetch('/sample_moodle_grades.csv')
         .then(response => response.text())
         .then(csvData => {
-          const parsedGrades = parseMoodleCSV(csvData);
+          // Parse the CSV to extract headers and keep original format
+          const rows = csvData.split('\n');
+          const headers = rows[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
           
-          // If we have moodle grades, merge them with the sample data
-          if (moodleGrades.length > 0) {
-            const mergedGrades = [...moodleGrades];
+          // Find the grade and feedback column indices
+          const gradeColumnIndex = headers.findIndex(h => 
+            h.toLowerCase().includes('grade') || h.toLowerCase().includes('mark') || h.toLowerCase().includes('score')
+          );
+          const feedbackColumnIndex = headers.findIndex(h => 
+            h.toLowerCase().includes('feedback') || h.toLowerCase().includes('comment')
+          );
+          
+          const assignmentColumn = gradeColumnIndex !== -1 ? headers[gradeColumnIndex] : 'Grade';
+          const feedbackColumn = feedbackColumnIndex !== -1 ? headers[feedbackColumnIndex] : 'Feedback comments';
+          
+          const parsedGrades = rows.slice(1).filter(row => row.trim()).map((row, idx) => {
+            const values = row.split(',').map(v => v.trim().replace(/^"|"$/g, ''));
+            
+            // Create an object with the original row data
+            const originalRow: Record<string, string> = {};
+            headers.forEach((header, i) => {
+              originalRow[header] = values[i] || '';
+            });
+            
+            return {
+              identifier: values[0] || `id_${idx}`,
+              fullName: values[1] || `Student ${idx + 1}`,
+              email: values[2] || `student${idx + 1}@example.com`,
+              status: 'Needs Grading',
+              grade: 0,
+              feedback: '',
+              edited: false,
+              originalRow
+            };
+          });
+          
+          // If we have moodle gradebook data, use it
+          if (moodleGradebook) {
+            const mergedGrades = [...moodleGradebook.grades];
             
             // Generate random grades and feedback for demonstration
             mergedGrades.forEach((grade, index) => {
@@ -259,6 +324,12 @@ export function useGradingWorkflow() {
             }));
             
             setGrades(gradesWithFiles);
+            setMoodleGradebook({
+              headers,
+              grades: gradesWithFiles,
+              assignmentColumn,
+              feedbackColumn
+            });
           }
           
           setSampleDataLoaded(true);
@@ -340,7 +411,7 @@ export function useGradingWorkflow() {
     setFiles([]);
     setAssignmentData(null);
     setGrades([]);
-    setMoodleGrades([]);
+    setMoodleGradebook(null);
     setSampleDataLoaded(false);
     toast.info("Started a new grading session");
     // Smooth scroll to top
@@ -363,6 +434,7 @@ export function useGradingWorkflow() {
     setGrades,
     isProcessing,
     sampleDataLoaded,
+    moodleGradebook,
     handleFilesSelected,
     handleStepOneComplete,
     handleAssignmentSubmit,

@@ -9,6 +9,9 @@ import { AssignmentFormData } from "./assignment/AssignmentFormTypes";
 interface ProcessFilesProps {
   files: File[];
   assignmentData: AssignmentFormData;
+  moodleFormatHeaders?: string[];
+  assignmentColumn?: string;
+  feedbackColumn?: string;
   onDownload: () => void;
   onReset: () => void;
 }
@@ -16,6 +19,9 @@ interface ProcessFilesProps {
 const ProcessFiles: React.FC<ProcessFilesProps> = ({ 
   files, 
   assignmentData, 
+  moodleFormatHeaders,
+  assignmentColumn,
+  feedbackColumn,
   onDownload,
   onReset
 }) => {
@@ -122,7 +128,17 @@ const ProcessFiles: React.FC<ProcessFilesProps> = ({
           </h3>
           <p className="text-sm text-muted-foreground">
             All student submissions have been graded and the feedback has been prepared in a Moodle-compatible format.
-            The CSV file will use the exact same format as your uploaded gradebook, with grades and feedback filled in.
+            {moodleFormatHeaders && (
+              <>
+                <br/>
+                <span className="font-medium mt-2 block">Format Preservation</span>
+                The CSV file will use the exact same column structure as your uploaded gradebook.
+                <br/>
+                {assignmentColumn && <span>• Grades will be in the "{assignmentColumn}" column</span>}
+                <br/>
+                {feedbackColumn && <span>• Feedback will be in the "{feedbackColumn}" column</span>}
+              </>
+            )}
           </p>
         </div>
 

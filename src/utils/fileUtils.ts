@@ -37,20 +37,36 @@ export async function extractTextFromFile(file: File): Promise<string> {
 }
 
 /**
- * Extract student information from file name
- * This function parses common Moodle file naming patterns
+ * Extract student information from file name or folder path
+ * This function parses common Moodle file naming patterns and folder structures
  */
-export function extractStudentInfoFromFilename(filename: string): { identifier: string, fullName: string, email: string } {
-  // Common Moodle naming patterns:
-  // Format 1: John_Doe_assignsubmission_file_JohnDoe_Essay.pdf
-  // Format 2: johndoe_12345_assignsubmission_file.html
-  // Format 3: johndoe_1234567_onlinetext.html
-  
+export function extractStudentInfoFromFilename(filename: string, folderPath?: string): { identifier: string, fullName: string, email: string } {
   let identifier = '';
   let fullName = '';
   let email = '';
   
-  // Process filename
+  // First, try to extract information from folder path if available
+  if (folderPath) {
+    // Common Moodle folder structure: "John Doe_12345_assignsubmission_file_"
+    const folderName = folderPath.split('/').pop() || '';
+    
+    // Extract full name from folder (usually the part before first underscore or ID)
+    const folderNameMatch = folderName.match(/^([^_]+(?:\s[^_]+)*)/);
+    if (folderNameMatch && folderNameMatch[1]) {
+      fullName = folderNameMatch[1].trim();
+      
+      // If we have a name with spaces, it's likely a proper full name
+      if (fullName.includes(' ')) {
+        return {
+          identifier: identifier || fullName.replace(/\s+/g, '').toLowerCase(),
+          fullName: fullName,
+          email: `${fullName.replace(/\s+/g, '.').toLowerCase()}@example.com`
+        };
+      }
+    }
+  }
+  
+  // If folder path didn't yield a proper name, process filename
   const cleanedFilename = filename.replace(/\.[^/.]+$/, ''); // Remove extension
   
   // Try to extract student ID - look for patterns like numeric ID or username

@@ -10,82 +10,135 @@ import * as XLSX from 'xlsx';
 export function parseMoodleCSV(csvContent: string) {
   const rows = csvContent.split('\n');
   
-  // Extract header row to determine format
+  // Extract header row
   const headerRow = rows[0];
-  const isStandardMoodleFormat = headerRow.includes('Identifier') && headerRow.includes('Full name');
+  const headers = parseCSVRow(headerRow);
+  
+  // Find the grade and feedback column indices
+  const identifierIndex = 0; // Usually the first column
+  const nameIndex = headers.findIndex(h => 
+    h.toLowerCase().includes('full name') || h.toLowerCase().includes('name')
+  );
+  const emailIndex = headers.findIndex(h => 
+    h.toLowerCase().includes('email')
+  );
+  const gradeColumnIndex = headers.findIndex(h => 
+    h.toLowerCase().includes('grade') || h.toLowerCase().includes('mark') || h.toLowerCase().includes('score')
+  );
+  const feedbackColumnIndex = headers.findIndex(h => 
+    h.toLowerCase().includes('feedback') || h.toLowerCase().includes('comment')
+  );
+  
+  // Use default indices if not found
+  const effectiveNameIndex = nameIndex !== -1 ? nameIndex : 1;
+  const effectiveEmailIndex = emailIndex !== -1 ? emailIndex : 2;
   
   // Skip header row
   const dataRows = rows.slice(1).filter(row => row.trim() !== '');
   
-  if (isStandardMoodleFormat) {
-    return dataRows.map(row => {
-      // This is a more robust CSV parser that handles quoted values
-      const regex = /(?:^|,)(?:"([^"]*(?:""[^"]*)*)"|([^,]*))/g;
-      const values: string[] = [];
-      let match;
-      
-      while ((match = regex.exec(row)) !== null) {
-        // If the captured group is the quoted one
-        const value = match[1] !== undefined 
-          ? match[1].replace(/""/g, '"')  // Replace double quotes with single quotes
-          : match[2];                      // Use the unquoted value
-        values.push(value || '');
-      }
-      
-      return {
-        identifier: values[0] || '',
-        fullName: values[1] || '',
-        email: values[2] || '',
-        status: values[3] || '',
-        grade: parseInt(values[4], 10) || 0,
-        feedback: values[5] || ''
-      };
+  // Parse each row
+  const grades = dataRows.map(row => {
+    const values = parseCSVRow(row);
+    
+    // Create an object with the original row data
+    const originalRow: Record<string, string> = {};
+    headers.forEach((header, i) => {
+      originalRow[header] = values[i] || '';
     });
-  } else {
-    // For non-standard formats, try to extract key information
-    return dataRows.map((row, index) => {
-      const values = row.split(',').map(v => v.trim().replace(/^"|"$/g, ''));
-      
-      // Attempt to identify columns - this is a simplistic approach
-      const idField = values[0] || '';
-      const nameField = values.find(v => v.includes(' ')) || `Student ${index + 1}`;
-      const emailField = values.find(v => v.includes('@')) || `student${index + 1}@example.com`;
-      
-      return {
-        identifier: idField,
-        fullName: nameField,
-        email: emailField,
-        status: 'Needs Grading',
-        grade: 0,
-        feedback: ''
-      };
-    });
-  }
+    
+    return {
+      identifier: values[identifierIndex] || '',
+      fullName: values[effectiveNameIndex] || '',
+      email: values[effectiveEmailIndex] || '',
+      status: 'Needs Grading',
+      grade: 0,
+      feedback: '',
+      originalRow
+    };
+  });
+  
+  return {
+    headers,
+    grades,
+    assignmentColumn: gradeColumnIndex !== -1 ? headers[gradeColumnIndex] : 'Grade',
+    feedbackColumn: feedbackColumnIndex !== -1 ? headers[feedbackColumnIndex] : 'Feedback comments'
+  };
 }
 
 /**
- * Generates a Moodle-compatible CSV file from an array of student grades
+ * Parse a CSV row with proper handling of quoted values
  */
-export function generateMoodleCSV(grades: any[]): string {
-  // Generate header row - Strict format required by Moodle
-  const csvHeader = "Identifier,Full name,Email address,Status,Grade,Feedback comments\n";
+function parseCSVRow(row: string): string[] {
+  const values: string[] = [];
+  let currentValue = '';
+  let inQuotes = false;
   
-  // Generate a row for each student grade with proper escaping
-  const csvRows = grades.map(grade => {
-    // Ensure proper formatting of fields (especially strings with commas or quotes)
-    const identifier = grade.identifier ? `"${grade.identifier.replace(/"/g, '""')}"` : '';
-    const fullName = grade.fullName ? `"${grade.fullName.replace(/"/g, '""')}"` : '';
-    const email = grade.email ? `"${grade.email.replace(/"/g, '""')}"` : '';
-    const status = grade.status ? `"${grade.status.replace(/"/g, '""')}"` : '';
-    // Grade is a number, no need to quote
-    const gradeValue = isNaN(grade.grade) ? 0 : grade.grade;
-    // Feedback should be properly escaped
-    const feedback = grade.feedback ? `"${grade.feedback.replace(/"/g, '""')}"` : '';
+  for (let i = 0; i < row.length; i++) {
+    const char = row[i];
+    const nextChar = row[i + 1];
     
-    return `${identifier},${fullName},${email},${status},${gradeValue},${feedback}`;
-  }).join("\n");
+    if (char === '"' && !inQuotes) {
+      // Start of quoted value
+      inQuotes = true;
+    } else if (char === '"' && inQuotes) {
+      if (nextChar === '"') {
+        // Double quote inside quoted value - add a single quote
+        currentValue += '"';
+        i++; // Skip the next quote
+      } else {
+        // End of quoted value
+        inQuotes = false;
+      }
+    } else if (char === ',' && !inQuotes) {
+      // End of value
+      values.push(currentValue);
+      currentValue = '';
+    } else {
+      // Regular character
+      currentValue += char;
+    }
+  }
   
-  return csvHeader + csvRows;
+  // Add the last value
+  values.push(currentValue);
+  
+  return values;
+}
+
+/**
+ * Generates a Moodle-compatible CSV file from an array of student grades, preserving original format
+ */
+export function generateMoodleCSV(grades: any[], moodleFormat: { headers: string[], assignmentColumn: string, feedbackColumn: string }): string {
+  // Use the original headers from the uploaded file
+  const headers = moodleFormat.headers;
+  const headerString = headers.map(h => `"${h.replace(/"/g, '""')}"`).join(',');
+  
+  // Find the indices for grade and feedback columns
+  const gradeColumnIndex = headers.findIndex(h => h === moodleFormat.assignmentColumn);
+  const feedbackColumnIndex = headers.findIndex(h => h === moodleFormat.feedbackColumn);
+  
+  // Generate rows maintaining the original format
+  const rows = grades.map(grade => {
+    // Start with the original row data
+    const rowData = { ...grade.originalRow };
+    
+    // Update the grade and feedback columns
+    if (gradeColumnIndex !== -1) {
+      rowData[headers[gradeColumnIndex]] = grade.grade.toString();
+    }
+    
+    if (feedbackColumnIndex !== -1) {
+      rowData[headers[feedbackColumnIndex]] = grade.feedback;
+    }
+    
+    // Build the CSV row
+    return headers.map(header => {
+      const value = rowData[header] || '';
+      return `"${value.toString().replace(/"/g, '""')}"`;
+    }).join(',');
+  }).join('\n');
+  
+  return headerString + '\n' + rows;
 }
 
 /**
@@ -108,7 +161,7 @@ export function downloadCSV(csvContent: string, filename: string): void {
 /**
  * Parse data from various spreadsheet formats
  */
-export async function parseSpreadsheetData(file: File): Promise<any[]> {
+export async function parseSpreadsheetData(file: File): Promise<any> {
   const fileExt = file.name.split('.').pop()?.toLowerCase();
   
   if (fileExt === 'csv' || fileExt === 'txt') {
@@ -143,19 +196,40 @@ export async function parseSpreadsheetData(file: File): Promise<any[]> {
     
     if (items.length > 0) {
       // Convert XML elements to CSV-like rows
+      const headers: string[] = [];
+      const dataRows: string[][] = [];
+      
+      // Extract header names from the first item
+      if (items.length > 0) {
+        Array.from(items[0].children).forEach(child => {
+          headers.push(child.nodeName);
+        });
+      }
+      
+      // Extract data from all items
       Array.from(items).forEach(item => {
         const rowValues: string[] = [];
         Array.from(item.children).forEach(child => {
           rowValues.push(child.textContent || '');
         });
-        rows.push(rowValues.join(','));
+        dataRows.push(rowValues);
       });
       
-      return parseMoodleCSV("header\n" + rows.join('\n'));
+      // Create a CSV string
+      const headerRow = headers.join(',');
+      const dataRowsText = dataRows.map(row => row.join(',')).join('\n');
+      const csvContent = headerRow + '\n' + dataRowsText;
+      
+      return parseMoodleCSV(csvContent);
     }
     
-    // If no recognizable structure, return empty array
-    return [];
+    // If no recognizable structure, return empty data
+    return {
+      headers: ['Identifier', 'Full name', 'Email address', 'Status', 'Grade', 'Feedback comments'],
+      grades: [],
+      assignmentColumn: 'Grade',
+      feedbackColumn: 'Feedback comments'
+    };
   }
   
   // Default case - unrecognized format
@@ -166,7 +240,7 @@ export async function parseSpreadsheetData(file: File): Promise<any[]> {
  * Upload and parse a Moodle gradebook file
  * Supports multiple file formats: CSV, TXT, Excel (XLSX, XLS), OpenOffice (ODS), XML
  */
-export async function uploadMoodleGradebook(file: File): Promise<any[]> {
+export async function uploadMoodleGradebook(file: File): Promise<any> {
   try {
     return await parseSpreadsheetData(file);
   } catch (error) {
@@ -177,7 +251,7 @@ export async function uploadMoodleGradebook(file: File): Promise<any[]> {
 
 /**
  * Extract text from TXT file
- * This is a local utility function that replaces the imported extractTextFromTXT
+ * This is a local utility function
  */
 async function readTextFile(file: File): Promise<string> {
   return new Promise((resolve) => {

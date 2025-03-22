@@ -6,12 +6,12 @@ import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
 import { uploadMoodleGradebook } from "@/utils/csvUtils";
 import { Separator } from "@/components/ui/separator";
-import { FileSpreadsheet } from "lucide-react";
+import { FileSpreadsheet, CheckCircle, AlertCircle } from "lucide-react";
 
 interface UploadStepProps {
   files: File[];
   onFilesSelected: (files: File[]) => void;
-  onMoodleGradebookUploaded: (grades: any[]) => void;
+  onMoodleGradebookUploaded: (data: any) => void;
   onContinue: () => void;
 }
 
@@ -23,6 +23,7 @@ const UploadStep: React.FC<UploadStepProps> = ({
 }) => {
   const [moodleFile, setMoodleFile] = useState<File | null>(null);
   const [isProcessingGradebook, setIsProcessingGradebook] = useState(false);
+  const [gradebookSuccess, setGradebookSuccess] = useState(false);
 
   const handleMoodleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -31,15 +32,18 @@ const UploadStep: React.FC<UploadStepProps> = ({
     const file = files[0];
     setMoodleFile(file);
     setIsProcessingGradebook(true);
+    setGradebookSuccess(false);
     
     try {
       // Parse the Moodle gradebook file
       const gradebookData = await uploadMoodleGradebook(file);
       onMoodleGradebookUploaded(gradebookData);
+      setGradebookSuccess(true);
       toast.success("Moodle gradebook uploaded successfully");
     } catch (error) {
       console.error("Error processing Moodle file:", error);
       toast.error("Error processing Moodle file. Please check the format.");
+      setGradebookSuccess(false);
     } finally {
       setIsProcessingGradebook(false);
     }
@@ -48,20 +52,24 @@ const UploadStep: React.FC<UploadStepProps> = ({
   return (
     <div className="space-y-8 animate-scale-in">
       <div className="space-y-6">
-        <FileUploader onFilesSelected={onFilesSelected} />
-        
-        <Card className="p-4">
+        <Card className="p-4 mb-6">
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
                 <FileSpreadsheet className="h-5 w-5 text-primary" />
-                <h3 className="text-sm font-medium">Moodle Gradebook (Optional)</h3>
+                <h3 className="text-sm font-medium">Step 1: Upload Moodle Gradebook</h3>
               </div>
+              {gradebookSuccess && (
+                <span className="text-xs text-green-600 flex items-center">
+                  <CheckCircle className="h-3 w-3 mr-1" />
+                  Gradebook uploaded
+                </span>
+              )}
             </div>
             
             <p className="text-sm text-muted-foreground">
-              Upload your Moodle gradebook export to ensure student information is correctly displayed 
-              and the downloaded file matches your Moodle format exactly.
+              Begin by uploading your Moodle gradebook export. This ensures student information is correctly matched 
+              with their submissions and the downloaded file will exactly match your Moodle format.
             </p>
             
             <div className="flex flex-col sm:flex-row gap-2">
@@ -85,6 +93,21 @@ const UploadStep: React.FC<UploadStepProps> = ({
                 </div>
               )}
             </div>
+          </div>
+        </Card>
+        
+        <Card className="p-4">
+          <div className="space-y-4">
+            <div className="flex items-center space-x-2">
+              <h3 className="text-sm font-medium">Step 2: Upload Student Submissions</h3>
+            </div>
+            
+            <p className="text-sm text-muted-foreground">
+              Now upload your student submissions (ZIP file from Moodle or individual files). 
+              The system will match student folders with the names in your gradebook.
+            </p>
+            
+            <FileUploader onFilesSelected={onFilesSelected} />
           </div>
         </Card>
       </div>

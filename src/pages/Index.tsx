@@ -22,6 +22,7 @@ const Index = () => {
     assignmentData,
     grades,
     isProcessing,
+    moodleGradebook,
     handleFilesSelected,
     handleStepOneComplete,
     handleAssignmentSubmit,
@@ -30,7 +31,6 @@ const Index = () => {
     handleContinueToDownload,
     handleReset,
     handleStepClick,
-    setGrades,
     preloadedGrades
   } = useGradingWorkflow();
 
@@ -40,19 +40,40 @@ const Index = () => {
     handleApiKeySubmit
   } = useApiKey();
 
-  const handleMoodleGradebookUploaded = (gradebookData: any[]) => {
+  const handleMoodleGradebookUploaded = (gradebookData: any) => {
     // Store the moodle grades in the workflow state
     preloadedGrades(gradebookData);
   };
 
   const handleDownload = () => {
-    // Create CSV content from the reviewed and approved grades
-    const csvContent = generateMoodleCSV(grades);
-    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-    const filename = `moodle_grades_${timestamp}.csv`;
-    
-    downloadCSV(csvContent, filename);
-    toast.success("CSV file downloaded successfully");
+    // Check if we have gradebook format information
+    if (moodleGradebook && moodleGradebook.headers && moodleGradebook.assignmentColumn) {
+      // Create CSV content using the original format from the gradebook
+      const csvContent = generateMoodleCSV(grades, {
+        headers: moodleGradebook.headers,
+        assignmentColumn: moodleGradebook.assignmentColumn,
+        feedbackColumn: moodleGradebook.feedbackColumn || 'Feedback comments'
+      });
+      
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+      const filename = `moodle_grades_${timestamp}.csv`;
+      
+      downloadCSV(csvContent, filename);
+      toast.success("CSV file downloaded in original Moodle format");
+    } else {
+      // Fallback to a standard format if no gradebook was uploaded
+      const csvContent = generateMoodleCSV(grades, {
+        headers: ['Identifier', 'Full name', 'Email address', 'Status', 'Grade', 'Feedback comments'],
+        assignmentColumn: 'Grade',
+        feedbackColumn: 'Feedback comments'
+      });
+      
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+      const filename = `moodle_grades_${timestamp}.csv`;
+      
+      downloadCSV(csvContent, filename);
+      toast.success("CSV file downloaded successfully");
+    }
   };
 
   return (
@@ -114,7 +135,10 @@ const Index = () => {
             <div className="animate-scale-in">
               <ProcessFiles 
                 files={files} 
-                assignmentData={assignmentData} 
+                assignmentData={assignmentData}
+                moodleFormatHeaders={moodleGradebook?.headers}
+                assignmentColumn={moodleGradebook?.assignmentColumn}
+                feedbackColumn={moodleGradebook?.feedbackColumn} 
                 onDownload={handleDownload}
                 onReset={handleReset}
               />
