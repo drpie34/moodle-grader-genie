@@ -10,6 +10,7 @@ interface FileUploaderProps {
   acceptedFileTypes?: string[];
   maxFileSize?: number; // in bytes
   maxFiles?: number;
+  onFolderStructureDetected?: (folderStructure: {[folder: string]: File[]}) => void;
 }
 
 interface InputElementAttributes extends React.InputHTMLAttributes<HTMLInputElement> {
@@ -22,6 +23,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({
   acceptedFileTypes = [".pdf", ".docx", ".doc", ".txt", ".zip", ".html", ".htm"],
   maxFileSize = 10 * 1024 * 1024, // 10MB default
   maxFiles = 100,
+  onFolderStructureDetected,
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -118,9 +120,67 @@ const FileUploader: React.FC<FileUploaderProps> = ({
     onFilesSelected(updatedFiles);
   }, [onFilesSelected, selectedFiles, validateFiles]);
 
+  const processFilesByFolder = (files: File[]) => {
+    const filesByFolder: {[folder: string]: File[]} = {};
+    
+    for (const file of files) {
+      const pathParts = file.webkitRelativePath ? 
+        file.webkitRelativePath.split('/') : 
+        file.name.split('/');
+      
+      if (pathParts.length <= 1 && !file.webkitRelativePath) {
+        if (!filesByFolder['root']) filesByFolder['root'] = [];
+        filesByFolder['root'].push(file);
+        continue;
+      }
+      
+      let folderPath = '';
+      if (pathParts.length > 1) {
+        if (file.webkitRelativePath) {
+          folderPath = pathParts[0];
+        } else {
+          folderPath = pathParts.slice(0, -1).join('/');
+        }
+      }
+      
+      if (!folderPath && (file.name.includes('_assignsubmission_') || file.name.includes('_onlinetext_'))) {
+        const submissionParts = file.name.split('_assignsubmission_');
+        if (submissionParts.length > 1) {
+          folderPath = submissionParts[0];
+        } else {
+          const onlineTextParts = file.name.split('_onlinetext_');
+          if (onlineTextParts.length > 1) {
+            folderPath = onlineTextParts[0];
+          }
+        }
+      }
+      
+      const folderKey = folderPath || 'root';
+      
+      if (!filesByFolder[folderKey]) {
+        filesByFolder[folderKey] = [];
+      }
+      
+      filesByFolder[folderKey].push(file);
+    }
+    
+    if (onFolderStructureDetected) {
+      onFolderStructureDetected(filesByFolder);
+    }
+    
+    console.log('Folder structure detected:', Object.keys(filesByFolder));
+    return filesByFolder;
+  };
+
   const handleFileInputChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const inputFiles = Array.from(e.target.files);
+      
+      const hasDirectoryStructure = inputFiles.some(file => file.webkitRelativePath);
+      if (hasDirectoryStructure) {
+        toast.info("Processing folder structure...");
+        processFilesByFolder(inputFiles);
+      }
       
       const zipFiles = inputFiles.filter(file => file.type === 'application/zip' || file.name.endsWith('.zip'));
       const otherFiles = inputFiles.filter(file => file.type !== 'application/zip' && !file.name.endsWith('.zip'));
@@ -136,6 +196,10 @@ const FileUploader: React.FC<FileUploaderProps> = ({
             const files = await processZipFile(zipFile);
             toast.success(`Extracted ${files.length} files from ${zipFile.name}`);
             
+            if (files.length > 0) {
+              processFilesByFolder(files);
+            }
+            
             const validExtractedFiles = validateFiles(files);
             extractedFiles = [...extractedFiles, ...validExtractedFiles];
           } catch (error) {
@@ -149,7 +213,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({
       setSelectedFiles(updatedFiles);
       onFilesSelected(updatedFiles);
     }
-  }, [onFilesSelected, selectedFiles, validateFiles]);
+  }, [onFilesSelected, selectedFiles, validateFiles, onFolderStructureDetected]);
 
   const handleDirectoryInputChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -160,6 +224,9 @@ const FileUploader: React.FC<FileUploaderProps> = ({
         return file;
       });
       
+      const filesByFolder = processFilesByFolder(inputFiles);
+      console.log(`Detected ${Object.keys(filesByFolder).length} folders from directory upload`);
+      
       const validFiles = validateFiles(inputFiles);
       const updatedFiles = [...selectedFiles, ...validFiles];
       
@@ -168,7 +235,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({
       
       toast.success(`Added ${validFiles.length} files from directory`);
     }
-  }, [onFilesSelected, selectedFiles, validateFiles]);
+  }, [onFilesSelected, selectedFiles, validateFiles, onFolderStructureDetected]);
 
   const handleBrowseClick = useCallback(() => {
     if (fileInputRef.current) {
