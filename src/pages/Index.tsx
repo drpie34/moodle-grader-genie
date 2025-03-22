@@ -158,14 +158,14 @@ const Index = () => {
                 <div className="p-4 rounded-lg border bg-muted/50">
                   <h3 className="font-medium mb-2">Import Moodle Gradebook (Optional)</h3>
                   <p className="text-sm text-muted-foreground mb-3">
-                    Upload your Moodle gradebook export (CSV) to ensure the downloaded file matches your Moodle format exactly.
+                    Upload your Moodle gradebook export to ensure the downloaded file matches your Moodle format exactly.
                   </p>
                   <div className="flex flex-col sm:flex-row gap-2">
                     <input
                       type="file"
                       id="moodleFile"
                       onChange={handleMoodleFileUpload}
-                      accept=".csv,.txt"
+                      accept=".csv,.txt,.xlsx,.xls,.xml,.ods"
                       className="text-sm"
                     />
                     {moodleFile && (

@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -208,7 +207,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({
               or <button type="button" onClick={handleBrowseClick} className="text-primary hover:underline">browse files</button>
             </p>
             <p className="text-xs text-muted-foreground">
-              Accepted files: PDF, DOCX, DOC, TXT, or ZIP
+              Accepted files: PDF, DOCX, DOC, TXT, HTML or ZIP
             </p>
           </div>
         </div>

@@ -99,11 +99,22 @@ export function downloadCSV(csvContent: string, filename: string): void {
 
 /**
  * Upload and parse a Moodle gradebook file
+ * Now supports multiple file formats
  */
 export async function uploadMoodleGradebook(file: File): Promise<any[]> {
   try {
+    const fileExt = file.name.split('.').pop()?.toLowerCase();
+    
+    // For now, we'll handle all formats as text files
+    // In a production app, we would use specialized libraries for Excel formats
     const fileContent = await extractTextFromTXT(file);
-    return parseMoodleCSV(fileContent);
+    
+    // Check if it's a CSV or TSV file
+    if (fileContent.includes(',') || fileContent.includes('\t')) {
+      return parseMoodleCSV(fileContent);
+    } else {
+      throw new Error('File format not recognized. Please upload a CSV file or Excel spreadsheet.');
+    }
   } catch (error) {
     console.error('Error parsing Moodle gradebook:', error);
     throw new Error(`Failed to parse gradebook file: ${error instanceof Error ? error.message : 'Unknown error'}`);

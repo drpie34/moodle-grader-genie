@@ -1,6 +1,5 @@
-
 import { extractTextFromPDF } from './pdfUtils';
-import { extractTextFromDOCX } from './docxUtils';
+import { extractTextFromDOCX, extractHTMLFromDOCX } from './docxUtils';
 import { extractTextFromImage } from './imageUtils';
 import { processZipFile as extractFilesFromZip } from './zipUtils';
 import { extractTextFromTXT, uploadMoodleGradebook } from './csvUtils';
@@ -27,10 +26,73 @@ export async function extractTextFromFile(file: File): Promise<string> {
     return extractTextFromHTML(file);
   } else if (fileType.includes('image/')) {
     return extractTextFromImage(file);
+  } else if (fileType.includes('excel') || file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+    return extractTextFromSpreadsheet(file);
+  } else if (fileType.includes('xml') || file.name.endsWith('.xml')) {
+    return extractTextFromXML(file);
   } else {
     // Default: try to read as text
     return extractTextFromTXT(file);
   }
+}
+
+/**
+ * Extract student information from file name
+ * This function parses common Moodle file naming patterns
+ */
+export function extractStudentInfoFromFilename(filename: string): { identifier: string, fullName: string, email: string } {
+  // Common Moodle naming patterns:
+  // Format 1: John_Doe_assignsubmission_file_JohnDoe_Essay.pdf
+  // Format 2: johndoe_12345_assignsubmission_file.html
+  // Format 3: johndoe_1234567_onlinetext.html
+  
+  let identifier = '';
+  let fullName = '';
+  let email = '';
+  
+  // Process filename
+  const cleanedFilename = filename.replace(/\.[^/.]+$/, ''); // Remove extension
+  
+  // Try to extract student ID - look for patterns like numeric ID or username
+  const idMatch = cleanedFilename.match(/[a-z0-9._-]+_(\d+)_/i);
+  if (idMatch && idMatch[1]) {
+    identifier = idMatch[1];
+  } else {
+    // Fall back to first part before underscore as identifier
+    identifier = cleanedFilename.split('_')[0];
+  }
+  
+  // Try to extract full name using common patterns
+  if (cleanedFilename.includes('assignsubmission')) {
+    // Format 1: Extract name from beginning
+    const nameParts = cleanedFilename.split('_assignsubmission')[0].split('_');
+    fullName = nameParts.join(' ');
+  } else if (cleanedFilename.includes('onlinetext')) {
+    // Format 3: For onlinetext submissions
+    const namePart = cleanedFilename.split('_onlinetext')[0];
+    const lastId = namePart.lastIndexOf('_');
+    fullName = lastId > 0 ? namePart.substring(0, lastId).replace(/_/g, ' ') : namePart.replace(/_/g, ' ');
+  } else {
+    // General case: use first part of filename and convert underscores to spaces
+    fullName = cleanedFilename.split('_')[0].replace(/([A-Z])/g, ' $1').trim();
+  }
+  
+  // Clean up full name (capitalize first letter of each word)
+  fullName = fullName.split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+  
+  // Generate email using identifier
+  if (identifier.match(/^\d+$/)) {
+    // If identifier is numeric, use name for email
+    const emailBase = fullName.toLowerCase().replace(/\s+/g, '.');
+    email = `${emailBase}@example.com`;
+  } else {
+    // Otherwise use identifier for email
+    email = `${identifier}@example.com`;
+  }
+  
+  return { identifier, fullName, email };
 }
 
 /**
@@ -67,6 +129,49 @@ export async function extractTextFromHTML(file: File): Promise<string> {
 }
 
 /**
+ * Extract text from XML file
+ */
+async function extractTextFromXML(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const content = e.target?.result as string;
+        
+        // Create a DOM parser and parse the XML
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(content, 'text/xml');
+        
+        // Extract text content from the XML
+        const textContent = doc.documentElement.textContent || '';
+        
+        // Clean up whitespace
+        const cleanedText = textContent
+          .replace(/\s+/g, ' ')
+          .trim();
+          
+        resolve(cleanedText);
+      } catch (error) {
+        console.error('Error extracting text from XML:', error);
+        reject(error);
+      }
+    };
+    reader.onerror = reject;
+    reader.readAsText(file);
+  });
+}
+
+/**
+ * Placeholder for extracting text from spreadsheet files
+ * This requires a library for parsing Excel files
+ */
+async function extractTextFromSpreadsheet(file: File): Promise<string> {
+  // For now, we'll use a simple text extraction
+  // In a real implementation, we would use a library like xlsx or exceljs
+  return extractTextFromTXT(file);
+}
+
+/**
  * Get file type from extension when mime type is not available
  */
 function getFileTypeFromExtension(filename: string): string {
@@ -87,6 +192,10 @@ function getFileTypeFromExtension(filename: string): string {
     case 'jpg':
     case 'jpeg': return 'image/jpeg';
     case 'png': return 'image/png';
+    case 'xlsx': return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    case 'xls': return 'application/vnd.ms-excel';
+    case 'xml': return 'application/xml';
+    case 'ods': return 'application/vnd.oasis.opendocument.spreadsheet';
     default: return 'application/octet-stream';
   }
 }
@@ -195,5 +304,5 @@ export {
 
 export { gradeWithOpenAI } from './gradingUtils';
 
-// Export the docx utility function
-export { extractTextFromDOCX } from './docxUtils';
+// Export the docx utility functions
+export { extractTextFromDOCX, extractHTMLFromDOCX } from './docxUtils';

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,7 +11,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { Edit, X } from "lucide-react";
-import { extractTextFromDOCX, extractTextFromHTML } from "@/utils/fileUtils";
+import { extractTextFromDOCX, extractHTMLFromDOCX, extractTextFromHTML } from "@/utils/fileUtils";
 import type { StudentGrade } from "@/hooks/use-grading-workflow";
 
 interface StudentPreviewDialogProps {
@@ -35,6 +34,7 @@ const StudentPreviewDialog: React.FC<StudentPreviewDialogProps> = ({
   const [tempFeedback, setTempFeedback] = useState("");
   const [filePreview, setFilePreview] = useState<string | null>(null);
   const [extractedText, setExtractedText] = useState<string | null>(null);
+  const [formattedHTML, setFormattedHTML] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
@@ -43,6 +43,7 @@ const StudentPreviewDialog: React.FC<StudentPreviewDialogProps> = ({
       setTempFeedback(student.feedback);
       setEditMode(false);
       setExtractedText(null);
+      setFormattedHTML(null);
       setIsProcessing(false);
       
       if (student.file) {
@@ -66,6 +67,7 @@ const StudentPreviewDialog: React.FC<StudentPreviewDialogProps> = ({
     if (!file) {
       setFilePreview(null);
       setExtractedText(null);
+      setFormattedHTML(null);
       return;
     }
 
@@ -83,9 +85,20 @@ const StudentPreviewDialog: React.FC<StudentPreviewDialogProps> = ({
       setIsProcessing(false);
     } else if (['doc', 'docx'].includes(fileExt || '')) {
       try {
-        // For DOCX files, extract text and display as text preview
+        // For DOCX files, get both plain text and formatted HTML
         const text = await extractTextFromDOCX(file);
         setExtractedText(text);
+        
+        // Try to get formatted HTML if it's a docx file
+        if (fileExt === 'docx') {
+          try {
+            const html = await extractHTMLFromDOCX(file);
+            setFormattedHTML(html);
+          } catch (error) {
+            console.error('Error extracting HTML from DOCX:', error);
+          }
+        }
+        
         setFilePreview('docx');
         setIsProcessing(false);
       } catch (error) {
@@ -98,6 +111,15 @@ const StudentPreviewDialog: React.FC<StudentPreviewDialogProps> = ({
         // For HTML files, extract text and display as text preview
         const text = await extractTextFromHTML(file);
         setExtractedText(text);
+        
+        // Also keep the raw HTML for formatted display
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const htmlContent = e.target?.result as string;
+          setFormattedHTML(htmlContent);
+        };
+        reader.readAsText(file);
+        
         setFilePreview('html');
         setIsProcessing(false);
       } catch (error) {
@@ -174,21 +196,70 @@ const StudentPreviewDialog: React.FC<StudentPreviewDialogProps> = ({
           </p>
         </div>
       );
-    } else if (filePreview === 'docx' && extractedText) {
-      return (
-        <div className="bg-white dark:bg-slate-900 p-4 rounded-md h-full overflow-auto border">
-          <h3 className="text-sm font-medium mb-2">Document Text Content:</h3>
-          <pre className="text-sm font-mono whitespace-pre-wrap">
-            {extractedText}
-          </pre>
-        </div>
-      );
-    } else if (filePreview === 'html') {
-      // Two options for HTML: either show extracted text or render in iframe
-      if (extractedText) {
+    } else if (filePreview === 'docx') {
+      // For DOCX, we now have two options: plain text or formatted HTML
+      if (formattedHTML) {
+        return (
+          <div className="h-full w-full">
+            <Tabs defaultValue="formatted" className="w-full">
+              <TabsList className="w-full justify-start mb-2">
+                <TabsTrigger value="formatted">Formatted</TabsTrigger>
+                <TabsTrigger value="plain">Plain Text</TabsTrigger>
+              </TabsList>
+              <TabsContent value="formatted" className="h-full overflow-auto">
+                <div 
+                  className="bg-white dark:bg-slate-900 p-6 rounded-md border min-h-[500px] prose max-w-none dark:prose-invert overflow-auto"
+                  dangerouslySetInnerHTML={{ __html: formattedHTML }}
+                />
+              </TabsContent>
+              <TabsContent value="plain" className="h-full overflow-auto">
+                <div className="bg-white dark:bg-slate-900 p-4 rounded-md h-full overflow-auto border">
+                  <pre className="text-sm font-mono whitespace-pre-wrap">
+                    {extractedText}
+                  </pre>
+                </div>
+              </TabsContent>
+            </Tabs>
+          </div>
+        );
+      } else if (extractedText) {
         return (
           <div className="bg-white dark:bg-slate-900 p-4 rounded-md h-full overflow-auto border">
-            <h3 className="text-sm font-medium mb-2">HTML Content:</h3>
+            <pre className="text-sm font-mono whitespace-pre-wrap">
+              {extractedText}
+            </pre>
+          </div>
+        );
+      }
+    } else if (filePreview === 'html') {
+      // Two options for HTML: either show formatted content or plain text
+      if (formattedHTML) {
+        return (
+          <div className="h-full w-full">
+            <Tabs defaultValue="formatted" className="w-full">
+              <TabsList className="w-full justify-start mb-2">
+                <TabsTrigger value="formatted">Formatted</TabsTrigger>
+                <TabsTrigger value="plain">Plain Text</TabsTrigger>
+              </TabsList>
+              <TabsContent value="formatted" className="h-full overflow-auto">
+                <div 
+                  className="bg-white dark:bg-slate-900 p-6 rounded-md border min-h-[500px] prose max-w-none dark:prose-invert overflow-auto"
+                  dangerouslySetInnerHTML={{ __html: formattedHTML }}
+                />
+              </TabsContent>
+              <TabsContent value="plain" className="h-full overflow-auto">
+                <div className="bg-white dark:bg-slate-900 p-4 rounded-md h-full overflow-auto border">
+                  <pre className="text-sm font-mono whitespace-pre-wrap">
+                    {extractedText}
+                  </pre>
+                </div>
+              </TabsContent>
+            </Tabs>
+          </div>
+        );
+      } else if (extractedText) {
+        return (
+          <div className="bg-white dark:bg-slate-900 p-4 rounded-md h-full overflow-auto border">
             <pre className="text-sm font-mono whitespace-pre-wrap">
               {extractedText}
             </pre>

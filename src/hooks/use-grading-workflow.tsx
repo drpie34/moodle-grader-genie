@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { extractTextFromFile, findBestSubmissionFile } from "@/utils/fileUtils";
+import { extractTextFromFile, findBestSubmissionFile, extractStudentInfoFromFilename } from "@/utils/fileUtils";
 import { parseMoodleCSV } from "@/utils/csvUtils";
 import { gradeWithOpenAI } from "@/utils/gradingUtils";
 import type { AssignmentFormData } from "@/components/assignment/AssignmentFormTypes";
@@ -33,13 +33,13 @@ export function useGradingWorkflow() {
         toast.info(`Processing ${files.length} files with AI...`);
         
         try {
-          // Group files by student ID (simplified approach)
+          // Group files by student ID using improved extraction
           const filesByStudent: { [key: string]: File[] } = {};
           
           for (const file of files) {
-            // Extract a student identifier from the filename
-            // This is a simplified approach - may need to be adjusted based on actual naming conventions
-            const studentId = file.name.split('_')[0];
+            // Extract student info from filename
+            const studentInfo = extractStudentInfoFromFilename(file.name);
+            const studentId = studentInfo.identifier;
             
             if (!filesByStudent[studentId]) {
               filesByStudent[studentId] = [];
@@ -54,6 +54,9 @@ export function useGradingWorkflow() {
           
           for (const studentId in filesByStudent) {
             const studentFiles = filesByStudent[studentId];
+            
+            // Get student info from the first file (we'll use the same ID for all files)
+            const studentInfo = extractStudentInfoFromFilename(studentFiles[0].name);
             
             // Separate onlinetext files from other files
             const onlineTextFiles = studentFiles.filter(file => file.name.includes('onlinetext'));
@@ -116,15 +119,13 @@ export function useGradingWorkflow() {
             
             if (submissionFile) {
               // Process with OpenAI
-              const studentName = submissionFile.name.split('.')[0].replace(/_/g, ' ');
-              
               const gradingResult = await gradeWithOpenAI(submissionText, assignmentData, getApiKey() || "");
               
-              // Add to processed grades
+              // Add to processed grades with properly extracted student info
               processedGrades.push({
-                identifier: studentId,
-                fullName: studentName,
-                email: `${studentId}@example.com`,
+                identifier: studentInfo.identifier,
+                fullName: studentInfo.fullName,
+                email: studentInfo.email,
                 status: "Graded",
                 grade: gradingResult.grade,
                 feedback: gradingResult.feedback,

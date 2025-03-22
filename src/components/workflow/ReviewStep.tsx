@@ -2,6 +2,8 @@
 import React from "react";
 import GradingPreview from "@/components/GradingPreview";
 import { Button } from "@/components/ui/button";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { AlertCircle } from "lucide-react";
 import type { StudentGrade } from "@/hooks/use-grading-workflow";
 import type { AssignmentFormData } from "@/components/assignment/AssignmentFormTypes";
 
@@ -34,6 +36,15 @@ const ReviewStep: React.FC<ReviewStepProps> = ({
             Processing your files with the OpenAI API. This may take a few moments...
           </p>
         </div>
+      ) : grades.length === 0 ? (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>No submissions found</AlertTitle>
+          <AlertDescription>
+            No student submissions could be processed. This may happen if all files were empty or in an unsupported format.
+            Please go back to the upload step and check your files.
+          </AlertDescription>
+        </Alert>
       ) : (
         <GradingPreview 
           files={files}
@@ -49,6 +60,7 @@ const ReviewStep: React.FC<ReviewStepProps> = ({
           <Button
             onClick={onContinue}
             className="rounded-md bg-primary px-6 py-2 text-sm font-medium text-primary-foreground shadow-sm transition-all hover:bg-primary/90 hover:shadow-md disabled:pointer-events-none disabled:opacity-50"
+            disabled={grades.length === 0}
           >
             Continue to Download
           </Button>
