@@ -1,3 +1,4 @@
+
 /**
  * Utilities for grading student submissions using OpenAI
  */
@@ -5,6 +6,17 @@
 // src/utils/gradingUtils.ts
 export async function gradeWithOpenAI(submissionText: string, assignmentData: any, apiKey: string, gradingScale: number = 100): Promise<{ grade: number; feedback: string }> {
   try {
+    if (!submissionText || submissionText.trim().length === 0) {
+      console.warn("Empty submission text detected - unable to grade properly");
+      return { 
+        grade: 0, 
+        feedback: "Unable to grade: The submission appears to be empty or could not be processed. Please review the original submission file manually." 
+      };
+    }
+
+    // Log the first 100 chars of submission to verify content (for debugging)
+    console.log(`Grading submission content preview: "${submissionText.substring(0, 100)}..."`);
+    
     const prompt = constructPrompt(submissionText, assignmentData);
     
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -30,10 +42,13 @@ export async function gradeWithOpenAI(submissionText: string, assignmentData: an
     // Extract grade and feedback from the response
     const { grade, feedback } = extractGradeAndFeedback(content, gradingScale);
     
-    return { grade, feedback };
+    // Validate the grade to ensure it's within proper range
+    const validatedGrade = Math.min(Math.max(0, grade), gradingScale);
+    
+    return { grade: validatedGrade, feedback };
   } catch (error) {
     console.error("Error in gradeWithOpenAI:", error);
-    return { grade: 0, feedback: "Failed to grade submission." };
+    return { grade: 0, feedback: "Failed to grade submission. Error: " + (error instanceof Error ? error.message : "Unknown error") };
   }
 }
 
@@ -60,34 +75,53 @@ function constructPrompt(submissionText: string, assignmentData: any): string {
     prompt += `Adhere to these additional instructions: ${additionalInstructions}. `;
   }
   
-  prompt += `Now, grade the following submission:\n${submissionText}\n\nRespond with the grade (out of ${gradingScale}) followed by feedback.\n\n`;
+  prompt += `Now, grade the following submission:\n\n${submissionText}\n\nProvide your response in this format:\nGrade: [numeric grade out of ${gradingScale}]\nFeedback: [your detailed feedback]\n\n`;
   
   return prompt;
 }
 
 function extractGradeAndFeedback(content: string, gradingScale: number): { grade: number; feedback: string } {
-  // Use a more robust regex to find the grade
-  const gradeMatch = content.match(/(\d+(\.\d+)?)\s*\/\s*(\d+)/);
+  // First, try to extract the grade using the structured format we requested
+  const gradeMatch = content.match(/Grade:\s*(\d+(\.\d+)?)/i);
+  
   let grade = 0;
+  let feedback = content;
   
   if (gradeMatch) {
-    // If the grade is in the format "X / Y", use X
+    // If the grade is in the format "Grade: X", use X
     grade = parseFloat(gradeMatch[1]);
+    
+    // Remove the grade line from the feedback
+    feedback = content.replace(/Grade:\s*\d+(\.\d+)?/i, '').trim();
+    
+    // If there's a "Feedback:" label, remove it
+    feedback = feedback.replace(/^Feedback:\s*/i, '').trim();
   } else {
-    // If the grade is a single number, use that
-    const singleGradeMatch = content.match(/^(\d+(\.\d+)?)/);
-    if (singleGradeMatch) {
-      grade = parseFloat(singleGradeMatch[1]);
+    // Fallback to older extraction patterns
+    const fallbackGradeMatch = content.match(/(\d+(\.\d+)?)\s*\/\s*(\d+)/);
+    
+    if (fallbackGradeMatch) {
+      // If the grade is in the format "X / Y", use X
+      grade = parseFloat(fallbackGradeMatch[1]);
+    } else {
+      // If the grade is a single number, use that
+      const singleGradeMatch = content.match(/^(\d+(\.\d+)?)/);
+      if (singleGradeMatch) {
+        grade = parseFloat(singleGradeMatch[1]);
+      }
     }
+    
+    // Normalize the grade to be out of the gradingScale
+    if (grade > gradingScale) {
+      grade = (grade / 100) * gradingScale;
+    }
+    
+    // Extract feedback by removing the grade from the content
+    feedback = content.replace(/(\d+(\.\d+)?\s*\/\s*\d+)|(\d+(\.\d+)?)/, '').trim();
   }
   
-  // Normalize the grade to be out of the gradingScale
-  if (grade > gradingScale) {
-    grade = (grade / 100) * gradingScale;
-  }
-  
-  // Extract feedback by removing the grade from the content
-  let feedback = content.replace(/(\d+(\.\d+)?\s*\/\s*\d+)|(\d+(\.\d+)?)/, '').trim();
+  // Ensure grade is within proper range
+  grade = Math.min(Math.max(0, grade), gradingScale);
   
   return { grade, feedback };
 }

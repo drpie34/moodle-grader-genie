@@ -1,293 +1,224 @@
+/**
+ * CSV file utilities for importing and exporting grade data
+ */
+
+import { StudentGrade } from '@/hooks/use-grading-workflow';
+
+export interface MoodleGradebookFormat {
+  headers: string[];
+  assignmentColumn: string;
+  feedbackColumn: string;
+}
 
 /**
- * Utilities for handling CSV files, particularly for Moodle gradebook integration
+ * Parse CSV data from a Moodle gradebook export
  */
-import * as XLSX from 'xlsx';
-
-/**
- * Parses a Moodle CSV file and returns structured data
- */
-export function parseMoodleCSV(csvContent: string) {
-  const rows = csvContent.split('\n');
-  
-  // Extract header row
-  const headerRow = rows[0];
-  const headers = parseCSVRow(headerRow);
-  
-  // Find the grade and feedback column indices
-  const identifierIndex = 0; // Usually the first column
-  const nameIndex = headers.findIndex(h => 
-    h.toLowerCase().includes('full name') || h.toLowerCase().includes('name')
-  );
-  const emailIndex = headers.findIndex(h => 
-    h.toLowerCase().includes('email')
-  );
-  // Look for first and last name columns
-  const firstNameIndex = headers.findIndex(h => 
-    h.toLowerCase().includes('first name') || h.toLowerCase() === 'first' || h.toLowerCase() === 'firstname'
-  );
-  const lastNameIndex = headers.findIndex(h => 
-    h.toLowerCase().includes('last name') || h.toLowerCase() === 'last' || h.toLowerCase() === 'lastname' || h.toLowerCase() === 'surname'
-  );
-  const gradeColumnIndex = headers.findIndex(h => 
-    h.toLowerCase().includes('grade') || h.toLowerCase().includes('mark') || h.toLowerCase().includes('score')
-  );
-  const feedbackColumnIndex = headers.findIndex(h => 
-    h.toLowerCase().includes('feedback') || h.toLowerCase().includes('comment')
-  );
-  
-  // Use default indices if not found
-  const effectiveNameIndex = nameIndex !== -1 ? nameIndex : 1;
-  const effectiveEmailIndex = emailIndex !== -1 ? emailIndex : 2;
-  
-  // Skip header row
-  const dataRows = rows.slice(1).filter(row => row.trim() !== '');
-  
-  // Parse each row
-  const grades = dataRows.map(row => {
-    const values = parseCSVRow(row);
+export async function parseMoodleCSV(file: File): Promise<any> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
     
-    // Create an object with the original row data
-    const originalRow: Record<string, string> = {};
-    headers.forEach((header, i) => {
-      originalRow[header] = values[i] || '';
-    });
-    
-    // Construct a student object
-    const studentGrade: any = {
-      identifier: values[identifierIndex] || '',
-      fullName: values[effectiveNameIndex] || '',
-      email: values[effectiveEmailIndex] || '',
-      status: 'Needs Grading',
-      grade: 0,
-      feedback: '',
-      originalRow
+    reader.onload = (e) => {
+      try {
+        const csvData = e.target?.result as string;
+        const rows = csvData.split('\n');
+        const headers = rows[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+        
+        // Find important columns in the CSV
+        const assignmentColumnIndex = headers.findIndex(h => 
+          h.toLowerCase().includes('grade') || 
+          h.toLowerCase().includes('mark') || 
+          h.toLowerCase().includes('score')
+        );
+        
+        const feedbackColumnIndex = headers.findIndex(h => 
+          h.toLowerCase().includes('feedback') || 
+          h.toLowerCase().includes('comment')
+        );
+        
+        const assignmentColumn = assignmentColumnIndex !== -1 ? headers[assignmentColumnIndex] : undefined;
+        const feedbackColumn = feedbackColumnIndex !== -1 ? headers[feedbackColumnIndex] : undefined;
+        
+        // Process each student row
+        const grades = rows.slice(1)
+          .filter(row => row.trim())
+          .map((row, idx) => {
+            // Split the row, respecting quoted values
+            const values = parseCSVRow(row);
+            
+            // Create an object to store the original row values by header
+            const originalRow: Record<string, string> = {};
+            headers.forEach((header, i) => {
+              originalRow[header] = values[i] || '';
+            });
+            
+            // Get first and last name if available
+            const firstNameIndex = headers.findIndex(h => 
+              h.toLowerCase().includes('first name') || 
+              h.toLowerCase() === 'first' || 
+              h.toLowerCase() === 'firstname'
+            );
+            
+            const lastNameIndex = headers.findIndex(h => 
+              h.toLowerCase().includes('last name') || 
+              h.toLowerCase() === 'last' || 
+              h.toLowerCase() === 'lastname' || 
+              h.toLowerCase() === 'surname'
+            );
+            
+            // Get student identifiers
+            const idIndex = headers.findIndex(h => 
+              h.toLowerCase().includes('id') || 
+              h.toLowerCase() === 'identifier' || 
+              h.toLowerCase() === 'username'
+            );
+            
+            // Get fullname
+            const nameIndex = headers.findIndex(h => 
+              h.toLowerCase().includes('full name') || 
+              h.toLowerCase() === 'fullname' || 
+              h.toLowerCase() === 'name'
+            );
+            
+            // Get email
+            const emailIndex = headers.findIndex(h => 
+              h.toLowerCase().includes('email')
+            );
+            
+            const firstName = firstNameIndex !== -1 ? values[firstNameIndex] : '';
+            const lastName = lastNameIndex !== -1 ? values[lastNameIndex] : '';
+            
+            // Determine the full name
+            let fullName = '';
+            if (nameIndex !== -1 && values[nameIndex]) {
+              // If there's a full name column, use it
+              fullName = values[nameIndex];
+            } else if (firstName && lastName) {
+              // Otherwise construct it from first and last name
+              fullName = `${firstName} ${lastName}`;
+            } else {
+              // Fallback
+              fullName = `Student ${idx + 1}`;
+            }
+            
+            return {
+              identifier: idIndex !== -1 ? values[idIndex] : `id_${idx}`,
+              fullName: fullName,
+              firstName: firstName,
+              lastName: lastName,
+              email: emailIndex !== -1 ? values[emailIndex] : `${fullName.replace(/\s+/g, '.').toLowerCase()}@example.com`,
+              status: 'Needs Grading',
+              grade: 0,
+              feedback: '',
+              edited: false,
+              originalRow
+            };
+          });
+        
+        resolve({
+          headers,
+          grades,
+          assignmentColumn,
+          feedbackColumn
+        });
+      } catch (error) {
+        console.error('Error parsing CSV:', error);
+        reject(error);
+      }
     };
     
-    // Extract first name if column exists
-    if (firstNameIndex !== -1) {
-      studentGrade.firstName = values[firstNameIndex] || '';
+    reader.onerror = reject;
+    reader.readAsText(file);
+  });
+}
+
+/**
+ * Upload a Moodle gradebook CSV file and parse it
+ */
+export async function uploadMoodleGradebook(file: File): Promise<any> {
+  return parseMoodleCSV(file);
+}
+
+/**
+ * Generate a CSV file for Moodle based on graded submissions
+ */
+export function generateMoodleCSV(grades: StudentGrade[], format: MoodleGradebookFormat): string {
+  // If we have the original gradebook format, use it
+  const { headers, assignmentColumn, feedbackColumn } = format;
+  
+  // Create header row
+  const headerRow = headers.join(',');
+  
+  // Create data rows
+  const dataRows = grades.map(grade => {
+    // Start with the original row if available
+    const rowData: Record<string, string> = { ...grade.originalRow } || {};
+    
+    // Ensure the grade is properly formatted - convert to a number and then to string
+    if (assignmentColumn && grade.grade !== undefined) {
+      rowData[assignmentColumn] = grade.grade.toString();
     }
     
-    // Extract last name if column exists
-    if (lastNameIndex !== -1) {
-      studentGrade.lastName = values[lastNameIndex] || '';
+    // Add feedback to the appropriate column
+    if (feedbackColumn && grade.feedback) {
+      // Wrap feedback in quotes and escape any quotes inside
+      rowData[feedbackColumn] = `"${grade.feedback.replace(/"/g, '""')}"`;
     }
     
-    // If we have firstName and lastName but no fullName, construct the fullName
-    if (studentGrade.firstName && studentGrade.lastName && !studentGrade.fullName) {
-      studentGrade.fullName = `${studentGrade.firstName} ${studentGrade.lastName}`;
-    }
-    
-    return studentGrade;
+    // Construct the row based on headers
+    return headers.map(header => rowData[header] || '').join(',');
   });
   
-  console.log('Parsed gradebook with headers:', headers);
-  console.log('First/Last name columns:', firstNameIndex !== -1 || lastNameIndex !== -1 ? 'Found' : 'Not found');
-  
-  return {
-    headers,
-    grades,
-    assignmentColumn: gradeColumnIndex !== -1 ? headers[gradeColumnIndex] : 'Grade',
-    feedbackColumn: feedbackColumnIndex !== -1 ? headers[feedbackColumnIndex] : 'Feedback comments'
-  };
+  // Combine header and data rows
+  return [headerRow, ...dataRows].join('\n');
 }
 
 /**
- * Parse a CSV row with proper handling of quoted values
- */
-function parseCSVRow(row: string): string[] {
-  const values: string[] = [];
-  let currentValue = '';
-  let inQuotes = false;
-  
-  for (let i = 0; i < row.length; i++) {
-    const char = row[i];
-    const nextChar = row[i + 1];
-    
-    if (char === '"' && !inQuotes) {
-      // Start of quoted value
-      inQuotes = true;
-    } else if (char === '"' && inQuotes) {
-      if (nextChar === '"') {
-        // Double quote inside quoted value - add a single quote
-        currentValue += '"';
-        i++; // Skip the next quote
-      } else {
-        // End of quoted value
-        inQuotes = false;
-      }
-    } else if (char === ',' && !inQuotes) {
-      // End of value
-      values.push(currentValue);
-      currentValue = '';
-    } else {
-      // Regular character
-      currentValue += char;
-    }
-  }
-  
-  // Add the last value
-  values.push(currentValue);
-  
-  return values;
-}
-
-/**
- * Generates a Moodle-compatible CSV file from an array of student grades, preserving original format
- */
-export function generateMoodleCSV(grades: any[], moodleFormat: { headers: string[], assignmentColumn: string, feedbackColumn: string }): string {
-  // Use the original headers from the uploaded file
-  const headers = moodleFormat.headers;
-  const headerString = headers.map(h => `"${h.replace(/"/g, '""')}"`).join(',');
-  
-  // Find the indices for grade and feedback columns
-  const gradeColumnIndex = headers.findIndex(h => h === moodleFormat.assignmentColumn);
-  const feedbackColumnIndex = headers.findIndex(h => h === moodleFormat.feedbackColumn);
-  
-  // Generate rows maintaining the original format
-  const rows = grades.map(grade => {
-    // Start with the original row data
-    const rowData = { ...grade.originalRow };
-    
-    // Update the grade and feedback columns
-    if (gradeColumnIndex !== -1) {
-      rowData[headers[gradeColumnIndex]] = grade.grade.toString();
-    }
-    
-    if (feedbackColumnIndex !== -1) {
-      rowData[headers[feedbackColumnIndex]] = grade.feedback;
-    }
-    
-    // Build the CSV row
-    return headers.map(header => {
-      const value = rowData[header] || '';
-      return `"${value.toString().replace(/"/g, '""')}"`;
-    }).join(',');
-  }).join('\n');
-  
-  return headerString + '\n' + rows;
-}
-
-/**
- * Creates and downloads a CSV file
+ * Download generated CSV content as a file
  */
 export function downloadCSV(csvContent: string, filename: string): void {
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   
-  link.setAttribute('href', url);
+  link.href = url;
   link.setAttribute('download', filename);
-  link.style.visibility = 'hidden';
-  
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
 }
 
 /**
- * Parse data from various spreadsheet formats
+ * Parse a single CSV row properly handling quoted values
  */
-export async function parseSpreadsheetData(file: File): Promise<any> {
-  const fileExt = file.name.split('.').pop()?.toLowerCase();
+function parseCSVRow(row: string): string[] {
+  const result: string[] = [];
+  let current = '';
+  let inQuotes = false;
   
-  if (fileExt === 'csv' || fileExt === 'txt') {
-    // Handle CSV or TXT files
-    const text = await readTextFile(file);
-    return parseMoodleCSV(text);
-  } else if (['xlsx', 'xls', 'ods'].includes(fileExt || '')) {
-    // Handle Excel and OpenOffice files
-    const arrayBuffer = await file.arrayBuffer();
-    const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+  for (let i = 0; i < row.length; i++) {
+    const char = row[i];
     
-    // Get the first worksheet
-    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-    
-    // Convert to CSV
-    const csvContent = XLSX.utils.sheet_to_csv(worksheet);
-    return parseMoodleCSV(csvContent);
-  } else if (fileExt === 'xml') {
-    // Handle XML files - parse as text and extract data
-    const text = await readTextFile(file);
-    
-    // Very basic XML to data extraction - for complex XML, use a proper XML parser
-    const rows: string[] = [];
-    const parser = new DOMParser();
-    const xmlDoc = parser.parseFromString(text, "text/xml");
-    
-    // Try to extract rows, assuming a simple structure
-    // This is a simplified approach; actual XML parsing depends on the XML schema
-    const items = xmlDoc.getElementsByTagName("item") || 
-                  xmlDoc.getElementsByTagName("row") || 
-                  xmlDoc.getElementsByTagName("student");
-    
-    if (items.length > 0) {
-      // Convert XML elements to CSV-like rows
-      const headers: string[] = [];
-      const dataRows: string[][] = [];
-      
-      // Extract header names from the first item
-      if (items.length > 0) {
-        Array.from(items[0].children).forEach(child => {
-          headers.push(child.nodeName);
-        });
+    if (char === '"') {
+      // If we see a quote, toggle the inQuotes state
+      // But if we're in quotes and the next char is also a quote, it's an escaped quote
+      if (inQuotes && row[i + 1] === '"') {
+        current += '"';
+        i++; // Skip the next quote
+      } else {
+        inQuotes = !inQuotes;
       }
-      
-      // Extract data from all items
-      Array.from(items).forEach(item => {
-        const rowValues: string[] = [];
-        Array.from(item.children).forEach(child => {
-          rowValues.push(child.textContent || '');
-        });
-        dataRows.push(rowValues);
-      });
-      
-      // Create a CSV string
-      const headerRow = headers.join(',');
-      const dataRowsText = dataRows.map(row => row.join(',')).join('\n');
-      const csvContent = headerRow + '\n' + dataRowsText;
-      
-      return parseMoodleCSV(csvContent);
+    } else if (char === ',' && !inQuotes) {
+      // If we see a comma and we're not in quotes, end the current field
+      result.push(current);
+      current = '';
+    } else {
+      // Otherwise add the character to the current field
+      current += char;
     }
-    
-    // If no recognizable structure, return empty data
-    return {
-      headers: ['Identifier', 'Full name', 'Email address', 'Status', 'Grade', 'Feedback comments'],
-      grades: [],
-      assignmentColumn: 'Grade',
-      feedbackColumn: 'Feedback comments'
-    };
   }
   
-  // Default case - unrecognized format
-  throw new Error('Unsupported file format');
-}
-
-/**
- * Upload and parse a Moodle gradebook file
- * Supports multiple file formats: CSV, TXT, Excel (XLSX, XLS), OpenOffice (ODS), XML
- */
-export async function uploadMoodleGradebook(file: File): Promise<any> {
-  try {
-    return await parseSpreadsheetData(file);
-  } catch (error) {
-    console.error('Error parsing Moodle gradebook:', error);
-    throw new Error(`Failed to parse gradebook file: ${error instanceof Error ? error.message : 'Unknown error'}`);
-  }
-}
-
-/**
- * Extract text from TXT file
- * This is a local utility function
- */
-async function readTextFile(file: File): Promise<string> {
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const text = e.target?.result as string || '';
-      resolve(text);
-    };
-    reader.readAsText(file);
-  });
+  // Add the last field
+  result.push(current);
+  
+  return result;
 }
