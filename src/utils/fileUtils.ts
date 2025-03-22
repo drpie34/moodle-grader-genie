@@ -100,7 +100,7 @@ export async function processZipFile(zipFile: File): Promise<File[]> {
 
 /**
  * Find the best submission file for a student from multiple files
- * Prioritizes files with content over empty files
+ * Prioritizes files with content over empty files and non-onlinetext files over onlinetext files
  */
 export async function findBestSubmissionFile(files: File[]): Promise<File | null> {
   if (!files.length) return null;
@@ -127,49 +127,40 @@ export async function findBestSubmissionFile(files: File[]): Promise<File | null
   for (const studentId in filesByStudent) {
     const studentFiles = filesByStudent[studentId];
     
-    // If there's only one file, use it
-    if (studentFiles.length === 1) {
-      bestFiles.push(studentFiles[0]);
-      continue;
-    }
+    // First, separate onlinetext HTML files from other files
+    const onlineTextFiles = studentFiles.filter(file => file.name.includes('onlinetext'));
+    const otherFiles = studentFiles.filter(file => !file.name.includes('onlinetext'));
     
-    // Check for non-HTML files first (typically uploaded documents)
-    const nonHtmlFiles = studentFiles.filter(file => 
-      !file.name.endsWith('.html') && !file.name.endsWith('.htm')
-    );
-    
-    if (nonHtmlFiles.length > 0) {
+    // If there are non-onlinetext files, prioritize them first
+    if (otherFiles.length > 0) {
       // Prefer PDF, DOCX, DOC over other formats
-      const preferredFile = nonHtmlFiles.find(file => 
+      const preferredFile = otherFiles.find(file => 
         file.name.endsWith('.pdf') || 
         file.name.endsWith('.docx') || 
         file.name.endsWith('.doc')
-      ) || nonHtmlFiles[0];
+      ) || otherFiles[0];
       
-      // Check if the file has content
+      // Check if the preferred file has content
       try {
         const content = await extractTextFromFile(preferredFile);
         if (content.trim().length > 0) {
           bestFiles.push(preferredFile);
-          continue;
+          continue; // Found a non-empty non-onlinetext file, use it and skip to next student
         }
       } catch (error) {
         console.error(`Error extracting text from ${preferredFile.name}:`, error);
       }
     }
     
-    // If no non-HTML file with content was found, try HTML files
-    const htmlFiles = studentFiles.filter(file => 
-      file.name.endsWith('.html') || file.name.endsWith('.htm')
-    );
-    
-    if (htmlFiles.length > 0) {
-      for (const htmlFile of htmlFiles) {
+    // If we're here, either there were no non-onlinetext files or they were all empty
+    // Now check onlinetext files, but only if they have content
+    if (onlineTextFiles.length > 0) {
+      for (const htmlFile of onlineTextFiles) {
         try {
           const content = await extractTextFromHTML(htmlFile);
           if (content.trim().length > 0) {
             bestFiles.push(htmlFile);
-            break; // Use the first HTML file with content
+            break; // Use the first non-empty onlinetext file
           }
         } catch (error) {
           console.error(`Error extracting text from ${htmlFile.name}:`, error);
@@ -177,9 +168,13 @@ export async function findBestSubmissionFile(files: File[]): Promise<File | null
       }
     }
     
-    // If no file with content was found, use the first file as fallback
+    // If we haven't found any file with content, use the first non-onlinetext file as a fallback
     if (!bestFiles.find(file => filesByStudent[studentId].includes(file))) {
-      bestFiles.push(studentFiles[0]);
+      if (otherFiles.length > 0) {
+        bestFiles.push(otherFiles[0]);
+      } else if (onlineTextFiles.length > 0) {
+        bestFiles.push(onlineTextFiles[0]);
+      }
     }
   }
   

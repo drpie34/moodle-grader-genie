@@ -55,14 +55,16 @@ export function useGradingWorkflow() {
           for (const studentId in filesByStudent) {
             const studentFiles = filesByStudent[studentId];
             
+            // Separate onlinetext files from other files
+            const onlineTextFiles = studentFiles.filter(file => file.name.includes('onlinetext'));
+            const otherFiles = studentFiles.filter(file => !file.name.includes('onlinetext'));
+            
             // Find the best file containing the submission content
             let submissionText = '';
             let submissionFile: File | null = null;
             
-            // First, check if there's a non-HTML file with content
-            for (const file of studentFiles.filter(f => 
-              !f.name.endsWith('.html') && !f.name.endsWith('.htm')
-            )) {
+            // First check non-onlinetext files for content
+            for (const file of otherFiles) {
               try {
                 const text = await extractTextFromFile(file);
                 if (text.trim().length > 0) {
@@ -75,11 +77,9 @@ export function useGradingWorkflow() {
               }
             }
             
-            // If no content found in non-HTML files, check HTML files
-            if (!submissionText) {
-              for (const file of studentFiles.filter(f => 
-                f.name.endsWith('.html') || f.name.endsWith('.htm')
-              )) {
+            // If no content found in non-onlinetext files, check onlinetext HTML files
+            if (!submissionText && onlineTextFiles.length > 0) {
+              for (const file of onlineTextFiles) {
                 try {
                   const text = await extractTextFromFile(file);
                   if (text.trim().length > 0) {
@@ -93,9 +93,19 @@ export function useGradingWorkflow() {
               }
             }
             
-            // If still no content, use the first file
-            if (!submissionFile && studentFiles.length > 0) {
-              submissionFile = studentFiles[0];
+            // If still no content, use the first non-onlinetext file
+            if (!submissionFile && otherFiles.length > 0) {
+              submissionFile = otherFiles[0];
+              try {
+                submissionText = await extractTextFromFile(submissionFile);
+              } catch (error) {
+                console.error(`Error extracting text from fallback file ${submissionFile.name}:`, error);
+                submissionText = '';
+              }
+            }
+            // Last resort: use the first onlinetext file if no other files exist
+            else if (!submissionFile && onlineTextFiles.length > 0) {
+              submissionFile = onlineTextFiles[0];
               try {
                 submissionText = await extractTextFromFile(submissionFile);
               } catch (error) {
