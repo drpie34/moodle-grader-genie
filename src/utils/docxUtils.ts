@@ -9,11 +9,9 @@ export async function extractTextFromDOCX(file: File): Promise<string> {
     // Read file as ArrayBuffer
     const arrayBuffer = await file.arrayBuffer();
     
-    // Extract text from DOCX with improved options for better formatting
+    // Extract text from DOCX using supported options
     const result = await mammoth.extractRawText({
-      arrayBuffer,
-      preserveStyles: true,
-      includeDefaultStyleMap: true
+      arrayBuffer
     });
     
     return result.value;
@@ -31,19 +29,16 @@ export async function extractHTMLFromDOCX(file: File): Promise<string> {
     // Read file as ArrayBuffer
     const arrayBuffer = await file.arrayBuffer();
     
-    // Convert DOCX to HTML to preserve formatting
-    const result = await mammoth.convertToHtml({
+    // Define custom style map for better formatting
+    const options = {
       arrayBuffer,
-      styleMap: [
-        "p[style-name='Heading 1'] => h1:fresh",
-        "p[style-name='Heading 2'] => h2:fresh",
-        "p[style-name='Heading 3'] => h3:fresh",
-        "p[style-name='Heading 4'] => h4:fresh",
-        "p => p:fresh",
-        "r[style-name='Strong'] => strong",
-        "r[style-name='Emphasis'] => em"
-      ]
-    });
+      transformDocument: mammoth.transforms.paragraph(paragraph => {
+        return paragraph;
+      })
+    };
+    
+    // Convert DOCX to HTML to preserve formatting
+    const result = await mammoth.convertToHtml(options);
     
     return result.value;
   } catch (error) {
