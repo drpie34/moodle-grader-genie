@@ -21,10 +21,18 @@ export async function parseMoodleCSV(file: File): Promise<any> {
     reader.onload = (e) => {
       try {
         const csvData = e.target?.result as string;
-        const rows = csvData.split('\n');
-        const headers = rows[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
         
-        console.log("CSV Headers found:", headers);
+        // Log the first 500 characters of CSV for debugging
+        console.log("CSV preview:", csvData.substring(0, 500));
+        
+        // Split into rows, handling both \r\n and \n line endings
+        const rows = csvData.split(/\r?\n/);
+        
+        // Parse headers, properly handling quoted values
+        const headerRow = rows[0];
+        const headers = parseCSVRow(headerRow);
+        
+        console.log("Raw CSV Headers:", headers);
         
         // Find important columns in the CSV with improved detection
         const assignmentColumnIndex = headers.findIndex(h => 
@@ -38,25 +46,38 @@ export async function parseMoodleCSV(file: File): Promise<any> {
           h.toLowerCase().includes('comment')
         );
         
-        // Better detection for first/last name columns with multiple variations
-        const firstNameIndex = headers.findIndex(h => 
-          h.toLowerCase().includes('first name') || 
-          h.toLowerCase() === 'first' || 
-          h.toLowerCase() === 'firstname' ||
-          h.toLowerCase() === 'given name' ||
-          h.toLowerCase() === 'givenname'
-        );
+        // Enhanced detection for first/last name columns with multiple variations
+        // Make detection case-insensitive and check for more variations
+        const firstNameIndex = headers.findIndex(h => {
+          const headerLower = h.toLowerCase();
+          return (
+            headerLower === 'first name' || 
+            headerLower === 'firstname' ||
+            headerLower === 'given name' ||
+            headerLower === 'givenname' ||
+            headerLower === 'first' ||
+            headerLower.includes('first name') ||
+            headerLower.includes('given name')
+          );
+        });
         
-        const lastNameIndex = headers.findIndex(h => 
-          h.toLowerCase().includes('last name') || 
-          h.toLowerCase() === 'last' || 
-          h.toLowerCase() === 'lastname' || 
-          h.toLowerCase() === 'surname' ||
-          h.toLowerCase() === 'family name' ||
-          h.toLowerCase() === 'familyname'
-        );
+        const lastNameIndex = headers.findIndex(h => {
+          const headerLower = h.toLowerCase();
+          return (
+            headerLower === 'last name' || 
+            headerLower === 'lastname' || 
+            headerLower === 'surname' ||
+            headerLower === 'family name' ||
+            headerLower === 'familyname' ||
+            headerLower === 'last' ||
+            headerLower.includes('last name') ||
+            headerLower.includes('surname') ||
+            headerLower.includes('family name')
+          );
+        });
         
-        console.log(`First name column index: ${firstNameIndex}, Last name column index: ${lastNameIndex}`);
+        console.log(`First name column index: ${firstNameIndex}, header: "${firstNameIndex !== -1 ? headers[firstNameIndex] : 'not found'}"`);
+        console.log(`Last name column index: ${lastNameIndex}, header: "${lastNameIndex !== -1 ? headers[lastNameIndex] : 'not found'}"`);
         
         const assignmentColumn = assignmentColumnIndex !== -1 ? headers[assignmentColumnIndex] : undefined;
         const feedbackColumn = feedbackColumnIndex !== -1 ? headers[feedbackColumnIndex] : undefined;
@@ -93,28 +114,42 @@ export async function parseMoodleCSV(file: File): Promise<any> {
               h.toLowerCase().includes('email')
             );
             
-            const firstName = firstNameIndex !== -1 ? values[firstNameIndex] : '';
-            const lastName = lastNameIndex !== -1 ? values[lastNameIndex] : '';
+            // Extract first and last names, with better handling of missing values
+            const firstName = firstNameIndex !== -1 && values[firstNameIndex] ? values[firstNameIndex].trim() : '';
+            const lastName = lastNameIndex !== -1 && values[lastNameIndex] ? values[lastNameIndex].trim() : '';
             
             // Determine the full name
             let fullName = '';
             if (nameIndex !== -1 && values[nameIndex]) {
               // If there's a full name column, use it
-              fullName = values[nameIndex];
+              fullName = values[nameIndex].trim();
             } else if (firstName && lastName) {
               // Otherwise construct it from first and last name
               fullName = `${firstName} ${lastName}`;
+            } else if (firstName) {
+              // Just use first name if that's all we have
+              fullName = firstName;
+            } else if (lastName) {
+              // Just use last name if that's all we have
+              fullName = lastName;
             } else {
               // Fallback
               fullName = `Student ${idx + 1}`;
             }
             
+            // For debugging: log values for first few students
+            if (idx < 2) {
+              console.log(`Student ${idx+1} row values:`, values);
+              console.log(`Student ${idx+1} name extraction: firstName="${firstName}", lastName="${lastName}", fullName="${fullName}"`);
+            }
+            
             return {
-              identifier: idIndex !== -1 ? values[idIndex] : `id_${idx}`,
+              identifier: idIndex !== -1 && values[idIndex] ? values[idIndex] : `id_${idx}`,
               fullName: fullName,
               firstName: firstName,
               lastName: lastName,
-              email: emailIndex !== -1 ? values[emailIndex] : `${fullName.replace(/\s+/g, '.').toLowerCase()}@example.com`,
+              email: emailIndex !== -1 && values[emailIndex] ? values[emailIndex] : 
+                     `${fullName.replace(/\s+/g, '.').toLowerCase()}@example.com`,
               status: 'Needs Grading',
               grade: 0,
               feedback: '',
@@ -124,13 +159,22 @@ export async function parseMoodleCSV(file: File): Promise<any> {
           });
         
         if (firstNameIndex !== -1 && lastNameIndex !== -1) {
-          console.log("✓ First and last name columns found in gradebook");
+          console.log(`✓ First and last name columns found in gradebook: "${headers[firstNameIndex]}" and "${headers[lastNameIndex]}"`);
         } else {
-          console.log("✗ First and last name columns NOT found in gradebook");
+          console.log("✗ First and last name columns NOT found in gradebook. This may affect matching.");
+          
+          // Add more detailed logging about why columns weren't detected
+          console.log("Available headers for name detection:", headers);
         }
         
         console.log(`Found ${grades.length} students in gradebook`);
         console.log("First few student names:", grades.slice(0, 5).map(g => g.fullName));
+        
+        // Final check on student data quality
+        const studentsWithFirstName = grades.filter(g => g.firstName).length;
+        const studentsWithLastName = grades.filter(g => g.lastName).length;
+        console.log(`Students with first name: ${studentsWithFirstName}/${grades.length}`);
+        console.log(`Students with last name: ${studentsWithLastName}/${grades.length}`);
         
         resolve({
           headers,
@@ -240,3 +284,4 @@ function parseCSVRow(row: string): string[] {
   
   return result;
 }
+
