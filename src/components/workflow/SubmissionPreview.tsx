@@ -161,7 +161,7 @@ const SubmissionPreview: React.FC<SubmissionPreviewProps> = ({
             </p>
           </div>
           <div className="space-x-2">
-            <Badge variant={matchRate >= 80 ? "success" : matchRate >= 50 ? "outline" : "destructive"}>
+            <Badge variant={matchRate >= 80 ? "secondary" : matchRate >= 50 ? "outline" : "destructive"} className={matchRate >= 80 ? "bg-green-600 hover:bg-green-500" : ""}>
               {Math.round(matchRate)}% Student Match Rate
             </Badge>
           </div>
@@ -180,7 +180,7 @@ const SubmissionPreview: React.FC<SubmissionPreviewProps> = ({
         )}
         
         {!hasRootFilesOnly && matchRate < 50 && (
-          <Alert variant="warning">
+          <Alert variant="default" className="border-orange-400 bg-orange-50 text-orange-800 dark:bg-orange-950 dark:text-orange-200 dark:border-orange-800">
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Low student matching rate</AlertTitle>
             <AlertDescription>
