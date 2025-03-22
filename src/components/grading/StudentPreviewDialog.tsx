@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Edit, X } from "lucide-react";
 import { extractTextFromDOCX, extractHTMLFromDOCX, extractTextFromHTML } from "@/utils/fileUtils";
 import type { StudentGrade } from "@/hooks/use-grading-workflow";
@@ -202,33 +204,39 @@ const StudentPreviewDialog: React.FC<StudentPreviewDialogProps> = ({
         return (
           <div className="h-full w-full">
             <Tabs defaultValue="formatted" className="w-full">
-              <TabsList className="w-full justify-start mb-2">
+              <TabsList className="w-full justify-start mb-2 sticky top-0 z-10 bg-background">
                 <TabsTrigger value="formatted">Formatted</TabsTrigger>
                 <TabsTrigger value="plain">Plain Text</TabsTrigger>
               </TabsList>
-              <TabsContent value="formatted" className="h-full overflow-auto">
-                <div 
-                  className="bg-white dark:bg-slate-900 p-6 rounded-md border min-h-[500px] prose max-w-none dark:prose-invert overflow-auto"
-                  dangerouslySetInnerHTML={{ __html: formattedHTML }}
-                />
+              <TabsContent value="formatted" className="mt-0">
+                <ScrollArea className="h-[60vh] rounded-md border">
+                  <div 
+                    className="bg-white dark:bg-slate-900 p-6 rounded-md min-h-[500px] prose max-w-none dark:prose-invert"
+                    dangerouslySetInnerHTML={{ __html: formattedHTML }}
+                  />
+                </ScrollArea>
               </TabsContent>
-              <TabsContent value="plain" className="h-full overflow-auto">
-                <div className="bg-white dark:bg-slate-900 p-4 rounded-md h-full overflow-auto border">
-                  <pre className="text-sm font-mono whitespace-pre-wrap">
-                    {extractedText}
-                  </pre>
-                </div>
+              <TabsContent value="plain" className="mt-0">
+                <ScrollArea className="h-[60vh] rounded-md border">
+                  <div className="bg-white dark:bg-slate-900 p-4">
+                    <pre className="text-sm font-mono whitespace-pre-wrap">
+                      {extractedText}
+                    </pre>
+                  </div>
+                </ScrollArea>
               </TabsContent>
             </Tabs>
           </div>
         );
       } else if (extractedText) {
         return (
-          <div className="bg-white dark:bg-slate-900 p-4 rounded-md h-full overflow-auto border">
-            <pre className="text-sm font-mono whitespace-pre-wrap">
-              {extractedText}
-            </pre>
-          </div>
+          <ScrollArea className="h-[60vh] rounded-md border">
+            <div className="bg-white dark:bg-slate-900 p-4">
+              <pre className="text-sm font-mono whitespace-pre-wrap">
+                {extractedText}
+              </pre>
+            </div>
+          </ScrollArea>
         );
       }
     } else if (filePreview === 'html') {
@@ -237,42 +245,48 @@ const StudentPreviewDialog: React.FC<StudentPreviewDialogProps> = ({
         return (
           <div className="h-full w-full">
             <Tabs defaultValue="formatted" className="w-full">
-              <TabsList className="w-full justify-start mb-2">
+              <TabsList className="w-full justify-start mb-2 sticky top-0 z-10 bg-background">
                 <TabsTrigger value="formatted">Formatted</TabsTrigger>
                 <TabsTrigger value="plain">Plain Text</TabsTrigger>
               </TabsList>
-              <TabsContent value="formatted" className="h-full overflow-auto">
-                <div 
-                  className="bg-white dark:bg-slate-900 p-6 rounded-md border min-h-[500px] prose max-w-none dark:prose-invert overflow-auto"
-                  dangerouslySetInnerHTML={{ __html: formattedHTML }}
-                />
+              <TabsContent value="formatted" className="mt-0">
+                <ScrollArea className="h-[60vh] rounded-md border">
+                  <div 
+                    className="bg-white dark:bg-slate-900 p-6 rounded-md min-h-[500px] prose max-w-none dark:prose-invert"
+                    dangerouslySetInnerHTML={{ __html: formattedHTML }}
+                  />
+                </ScrollArea>
               </TabsContent>
-              <TabsContent value="plain" className="h-full overflow-auto">
-                <div className="bg-white dark:bg-slate-900 p-4 rounded-md h-full overflow-auto border">
-                  <pre className="text-sm font-mono whitespace-pre-wrap">
-                    {extractedText}
-                  </pre>
-                </div>
+              <TabsContent value="plain" className="mt-0">
+                <ScrollArea className="h-[60vh] rounded-md border">
+                  <div className="bg-white dark:bg-slate-900 p-4">
+                    <pre className="text-sm font-mono whitespace-pre-wrap">
+                      {extractedText}
+                    </pre>
+                  </div>
+                </ScrollArea>
               </TabsContent>
             </Tabs>
           </div>
         );
       } else if (extractedText) {
         return (
-          <div className="bg-white dark:bg-slate-900 p-4 rounded-md h-full overflow-auto border">
-            <pre className="text-sm font-mono whitespace-pre-wrap">
-              {extractedText}
-            </pre>
-          </div>
+          <ScrollArea className="h-[60vh] rounded-md border">
+            <div className="bg-white dark:bg-slate-900 p-4">
+              <pre className="text-sm font-mono whitespace-pre-wrap">
+                {extractedText}
+              </pre>
+            </div>
+          </ScrollArea>
         );
       } else if (student?.file) {
         const htmlUrl = URL.createObjectURL(student.file);
         return (
-          <div className="h-full w-full overflow-hidden border rounded">
+          <div className="h-[60vh] w-full overflow-hidden border rounded">
             <iframe 
               src={htmlUrl} 
               title="HTML Preview" 
-              className="w-full h-full min-h-[500px]"
+              className="w-full h-full"
               sandbox="allow-same-origin"
             />
           </div>
@@ -280,11 +294,13 @@ const StudentPreviewDialog: React.FC<StudentPreviewDialogProps> = ({
       }
     } else if (filePreview === 'txt' && extractedText) {
       return (
-        <div className="bg-white dark:bg-slate-900 p-4 rounded-md h-full overflow-auto border">
-          <pre className="text-sm font-mono whitespace-pre-wrap">
-            {extractedText}
-          </pre>
-        </div>
+        <ScrollArea className="h-[60vh] rounded-md border">
+          <div className="bg-white dark:bg-slate-900 p-4">
+            <pre className="text-sm font-mono whitespace-pre-wrap">
+              {extractedText}
+            </pre>
+          </div>
+        </ScrollArea>
       );
     } else if (filePreview === 'unsupported') {
       return (
@@ -301,20 +317,20 @@ const StudentPreviewDialog: React.FC<StudentPreviewDialogProps> = ({
     } else if (filePreview.startsWith('blob:') || filePreview.startsWith('data:image/')) {
       if (student?.file?.type.includes('pdf')) {
         return (
-          <div className="h-full w-full overflow-auto">
+          <div className="h-[60vh] w-full overflow-auto">
             <iframe 
               src={`${filePreview}#view=FitH`} 
-              className="w-full h-full min-h-[500px]" 
+              className="w-full h-full" 
               title="PDF Preview"
             />
           </div>
         );
       } else if (student?.file?.type.includes('html') || student?.file?.name.endsWith('.html') || student?.file?.name.endsWith('.htm')) {
         return (
-          <div className="h-full w-full overflow-hidden border rounded">
+          <div className="h-[60vh] w-full overflow-hidden border rounded">
             <iframe 
               src={filePreview} 
-              className="w-full h-full min-h-[500px]" 
+              className="w-full h-full" 
               title="HTML Preview"
               sandbox="allow-same-origin"
             />
@@ -322,11 +338,11 @@ const StudentPreviewDialog: React.FC<StudentPreviewDialogProps> = ({
         );
       } else {
         return (
-          <div className="flex items-center justify-center bg-muted rounded-md h-full overflow-auto p-4">
+          <div className="flex items-center justify-center bg-muted rounded-md h-[60vh] p-4">
             <img 
               src={filePreview} 
               alt="Submission Preview" 
-              className="max-w-full max-h-[500px] object-contain"
+              className="max-w-full max-h-[60vh] object-contain"
             />
           </div>
         );
@@ -377,29 +393,31 @@ const StudentPreviewDialog: React.FC<StudentPreviewDialogProps> = ({
           </TabsList>
           
           <div className="flex-1 overflow-hidden p-4">
-            <TabsContent value="submission" className="h-full overflow-auto m-0">
+            <TabsContent value="submission" className="h-full m-0">
               {renderFilePreview()}
             </TabsContent>
             
-            <TabsContent value="feedback" className="h-full overflow-auto m-0">
+            <TabsContent value="feedback" className="h-full m-0">
               {!editMode ? (
-                <div className="space-y-4">
-                  <div className="flex items-center gap-4">
-                    <span className="text-muted-foreground">Grade:</span>
-                    <span className="text-2xl font-semibold">
-                      {student.grade}/100
-                    </span>
+                <ScrollArea className="h-[60vh] pr-4">
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-4">
+                      <span className="text-muted-foreground">Grade:</span>
+                      <span className="text-2xl font-semibold">
+                        {student.grade}/100
+                      </span>
+                    </div>
+                    <Separator />
+                    <div className="prose max-w-none dark:prose-invert">
+                      <h4>Feedback Comments:</h4>
+                      <p className="whitespace-pre-line">
+                        {student.feedback}
+                      </p>
+                    </div>
                   </div>
-                  <Separator />
-                  <div className="prose max-w-none dark:prose-invert">
-                    <h4>Feedback Comments:</h4>
-                    <p className="whitespace-pre-line">
-                      {student.feedback}
-                    </p>
-                  </div>
-                </div>
+                </ScrollArea>
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-4 overflow-auto pr-4 h-[60vh]">
                   <div className="flex items-center gap-4">
                     <label htmlFor="grade" className="text-muted-foreground">
                       Grade:

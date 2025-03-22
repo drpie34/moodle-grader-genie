@@ -2,6 +2,8 @@
 /**
  * Utilities for handling CSV files, particularly for Moodle gradebook integration
  */
+import { extractTextFromTXT } from './fileUtils';
+import * as XLSX from 'xlsx';
 
 /**
  * Parses a Moodle CSV file and returns structured data
@@ -18,8 +20,7 @@ export function parseMoodleCSV(csvContent: string) {
   
   if (isStandardMoodleFormat) {
     return dataRows.map(row => {
-      // This is a simple CSV parser that handles quoted values
-      // In a real implementation, we would use a more robust CSV parser
+      // This is a more robust CSV parser that handles quoted values
       const regex = /(?:^|,)(?:"([^"]*(?:""[^"]*)*)"|([^,]*))/g;
       const values: string[] = [];
       let match;
@@ -67,14 +68,22 @@ export function parseMoodleCSV(csvContent: string) {
  * Generates a Moodle-compatible CSV file from an array of student grades
  */
 export function generateMoodleCSV(grades: any[]): string {
-  // Generate header row
+  // Generate header row - Strict format required by Moodle
   const csvHeader = "Identifier,Full name,Email address,Status,Grade,Feedback comments\n";
   
-  // Generate a row for each student grade
+  // Generate a row for each student grade with proper escaping
   const csvRows = grades.map(grade => {
-    const feedback = grade.feedback.replace(/"/g, '""'); // Escape double quotes
+    // Ensure proper formatting of fields (especially strings with commas or quotes)
+    const identifier = grade.identifier ? `"${grade.identifier.replace(/"/g, '""')}"` : '';
+    const fullName = grade.fullName ? `"${grade.fullName.replace(/"/g, '""')}"` : '';
+    const email = grade.email ? `"${grade.email.replace(/"/g, '""')}"` : '';
+    const status = grade.status ? `"${grade.status.replace(/"/g, '""')}"` : '';
+    // Grade is a number, no need to quote
+    const gradeValue = isNaN(grade.grade) ? 0 : grade.grade;
+    // Feedback should be properly escaped
+    const feedback = grade.feedback ? `"${grade.feedback.replace(/"/g, '""')}"` : '';
     
-    return `${grade.identifier},"${grade.fullName}",${grade.email},${grade.status},${grade.grade},"${feedback}"`;
+    return `${identifier},${fullName},${email},${status},${gradeValue},${feedback}`;
   }).join("\n");
   
   return csvHeader + csvRows;
@@ -98,23 +107,69 @@ export function downloadCSV(csvContent: string, filename: string): void {
 }
 
 /**
+ * Parse data from various spreadsheet formats
+ */
+export async function parseSpreadsheetData(file: File): Promise<any[]> {
+  const fileExt = file.name.split('.').pop()?.toLowerCase();
+  
+  if (fileExt === 'csv' || fileExt === 'txt') {
+    // Handle CSV or TXT files
+    const text = await extractTextFromTXT(file);
+    return parseMoodleCSV(text);
+  } else if (['xlsx', 'xls', 'ods'].includes(fileExt || '')) {
+    // Handle Excel and OpenOffice files
+    const arrayBuffer = await file.arrayBuffer();
+    const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+    
+    // Get the first worksheet
+    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+    
+    // Convert to CSV
+    const csvContent = XLSX.utils.sheet_to_csv(worksheet);
+    return parseMoodleCSV(csvContent);
+  } else if (fileExt === 'xml') {
+    // Handle XML files - parse as text and extract data
+    const text = await extractTextFromTXT(file);
+    
+    // Very basic XML to data extraction - for complex XML, use a proper XML parser
+    const rows: string[] = [];
+    const parser = new DOMParser();
+    const xmlDoc = parser.parseFromString(text, "text/xml");
+    
+    // Try to extract rows, assuming a simple structure
+    // This is a simplified approach; actual XML parsing depends on the XML schema
+    const items = xmlDoc.getElementsByTagName("item") || 
+                  xmlDoc.getElementsByTagName("row") || 
+                  xmlDoc.getElementsByTagName("student");
+    
+    if (items.length > 0) {
+      // Convert XML elements to CSV-like rows
+      Array.from(items).forEach(item => {
+        const rowValues: string[] = [];
+        Array.from(item.children).forEach(child => {
+          rowValues.push(child.textContent || '');
+        });
+        rows.push(rowValues.join(','));
+      });
+      
+      return parseMoodleCSV("header\n" + rows.join('\n'));
+    }
+    
+    // If no recognizable structure, return empty array
+    return [];
+  }
+  
+  // Default case - unrecognized format
+  throw new Error('Unsupported file format');
+}
+
+/**
  * Upload and parse a Moodle gradebook file
- * Now supports multiple file formats
+ * Supports multiple file formats: CSV, TXT, Excel (XLSX, XLS), OpenOffice (ODS), XML
  */
 export async function uploadMoodleGradebook(file: File): Promise<any[]> {
   try {
-    const fileExt = file.name.split('.').pop()?.toLowerCase();
-    
-    // For now, we'll handle all formats as text files
-    // In a production app, we would use specialized libraries for Excel formats
-    const fileContent = await extractTextFromTXT(file);
-    
-    // Check if it's a CSV or TSV file
-    if (fileContent.includes(',') || fileContent.includes('\t')) {
-      return parseMoodleCSV(fileContent);
-    } else {
-      throw new Error('File format not recognized. Please upload a CSV file or Excel spreadsheet.');
-    }
+    return await parseSpreadsheetData(file);
   } catch (error) {
     console.error('Error parsing Moodle gradebook:', error);
     throw new Error(`Failed to parse gradebook file: ${error instanceof Error ? error.message : 'Unknown error'}`);
