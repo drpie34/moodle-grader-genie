@@ -58,8 +58,7 @@ export async function processZipFile(zipFile: File): Promise<File[]> {
 // Re-export functions from other utility files
 export { 
   extractTextFromTXT,
-  uploadMoodleGradebook,
-  gradeWithOpenAI
+  uploadMoodleGradebook
 } from './csvUtils';
 
 export {
@@ -67,3 +66,5 @@ export {
   generateMoodleCSV,
   downloadCSV
 } from './csvUtils';
+
+export { gradeWithOpenAI } from './gradingUtils';
