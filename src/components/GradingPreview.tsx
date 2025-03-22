@@ -2,10 +2,11 @@
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Check } from "lucide-react";
+import { Check, AlertCircle, Info } from "lucide-react";
 import { AssignmentFormData } from "./assignment/AssignmentFormTypes";
 import StudentGradeRow from "./grading/StudentGradeRow";
 import StudentPreviewDialog from "./grading/StudentPreviewDialog";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import type { StudentGrade } from "@/hooks/use-grading-workflow";
 
 interface GradingPreviewProps {
@@ -24,6 +25,7 @@ const GradingPreview: React.FC<GradingPreviewProps> = ({
   onApproveAll,
 }) => {
   const [selectedStudent, setSelectedStudent] = useState<number | null>(null);
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
 
   const openStudentPreview = (index: number) => {
     setSelectedStudent(index);
@@ -34,6 +36,13 @@ const GradingPreview: React.FC<GradingPreviewProps> = ({
   };
 
   const pendingReviews = grades.filter(grade => !grade.edited).length;
+  const gradedCount = grades.filter(grade => grade.file && grade.grade > 0).length;
+  const ungradedCount = grades.filter(grade => !grade.file || grade.grade === 0).length;
+  
+  const hasInvalidStudentNames = grades.some(grade => 
+    grade.fullName.toLowerCase().includes("onlinetext") || 
+    grade.fullName.toLowerCase().includes("assignsubmission")
+  );
 
   return (
     <Card className="w-full">
@@ -63,6 +72,61 @@ const GradingPreview: React.FC<GradingPreviewProps> = ({
             </Button>
           </div>
         </div>
+        
+        {gradedCount === 0 && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>No graded submissions found</AlertTitle>
+            <AlertDescription>
+              No student submissions could be graded. This could be because the system couldn't match student names from the 
+              submission folders with names in the gradebook, or the folders didn't contain valid submission files.
+            </AlertDescription>
+          </Alert>
+        )}
+        
+        {hasInvalidStudentNames && (
+          <Alert variant="warning">
+            <Info className="h-4 w-4" />
+            <AlertTitle>Possible name matching issues detected</AlertTitle>
+            <AlertDescription>
+              Some submissions have invalid student names (like "onlinetext" or "assignsubmission"). 
+              This usually happens when the folder structure doesn't include proper student names.
+              <div className="mt-2">
+                <Button variant="outline" size="sm" onClick={() => setShowDiagnostics(!showDiagnostics)}>
+                  {showDiagnostics ? "Hide Diagnostics" : "Show Diagnostics"}
+                </Button>
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
+        
+        {showDiagnostics && (
+          <div className="rounded-md bg-muted p-4 text-sm space-y-2">
+            <h4 className="font-medium">File Diagnostics:</h4>
+            <div className="max-h-40 overflow-y-auto">
+              <ul className="list-disc ml-5 space-y-1">
+                {files.slice(0, 10).map((file, index) => (
+                  <li key={index} className="text-xs">
+                    {file.webkitRelativePath || file.name}
+                  </li>
+                ))}
+                {files.length > 10 && <li className="text-xs italic">...and {files.length - 10} more files</li>}
+              </ul>
+            </div>
+            
+            <h4 className="font-medium mt-3">Gradebook Names:</h4>
+            <div className="max-h-40 overflow-y-auto">
+              <ul className="list-disc ml-5 space-y-1">
+                {grades.slice(0, 10).map((grade, index) => (
+                  <li key={index} className="text-xs">
+                    {grade.fullName} {grade.file ? "(has submission)" : "(no submission)"}
+                  </li>
+                ))}
+                {grades.length > 10 && <li className="text-xs italic">...and {grades.length - 10} more students</li>}
+              </ul>
+            </div>
+          </div>
+        )}
         
         <div className="border rounded-md">
           <div className="bg-muted px-4 py-2 border-b">

@@ -47,20 +47,46 @@ export function extractStudentInfoFromFilename(filename: string, folderPath?: st
   let email = '';
   
   // First, try to extract information from folder path if available
-  if (folderPath && folderPath !== '') {
+  if (folderPath && folderPath !== '' && folderPath !== 'root') {
     console.log(`Extracting student info from folder path: "${folderPath}"`);
     
-    // Common Moodle folder structure formats to try:
-    // 1. "John Doe_12345_assignsubmission_file_"
-    // 2. "Doe, John_12345_assignsubmission_file_"
-    // 3. "LASTNAME_FIRSTNAME_12345_assignsubmission_file_"
+    // Fix for folders with "onlinetext" in them
+    // If the folder contains "onlinetext", we need to handle it differently
+    const isOnlineText = folderPath.includes('onlinetext');
     
     // Clean up folder path (remove path separators)
     const folderName = folderPath.split('/').pop() || '';
     console.log(`Processing folder name: "${folderName}"`);
     
-    // Try to extract name from the first part before underscore or ID
-    // Check for common patterns
+    // IMPROVED EXTRACTION LOGIC FOR ONLINE TEXT SUBMISSIONS
+    if (isOnlineText) {
+      // For online text submissions, extract student name part before "_assignsubmission_onlinetext"
+      const onlineTextMatch = folderName.match(/^(.+?)_assignsubmission_onlinetext/);
+      if (onlineTextMatch && onlineTextMatch[1]) {
+        fullName = onlineTextMatch[1].replace(/_/g, ' ').trim();
+        console.log(`Extracted name from onlinetext folder: "${fullName}"`);
+        
+        // Properly format the name for comparison with gradebook
+        fullName = fullName.split(' ')
+          .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+          .join(' ');
+        
+        // Check if the name might be in "Last, First" format
+        if (fullName.includes(',')) {
+          const nameParts = fullName.split(',').map(part => part.trim());
+          if (nameParts.length === 2) {
+            fullName = `${nameParts[1]} ${nameParts[0]}`;
+            console.log(`Converted "Last, First" format to "${fullName}"`);
+          }
+        }
+        
+        return {
+          identifier: fullName.replace(/\s+/g, '').toLowerCase(),
+          fullName: fullName,
+          email: `${fullName.replace(/\s+/g, '.').toLowerCase()}@example.com`
+        };
+      }
+    }
     
     // Pattern 1: First Last_12345_ format
     let nameMatch = folderName.match(/^([^_]+(?:\s[^_]+)*)/);
@@ -100,28 +126,34 @@ export function extractStudentInfoFromFilename(filename: string, folderPath?: st
       };
     }
     
-    // Pattern 3: LAST_FIRST format
-    nameMatch = folderName.match(/^([^_]+)_([^_]+)/);
-    if (nameMatch && nameMatch[1] && nameMatch[2]) {
-      const possibleLastName = nameMatch[1].trim();
-      const possibleFirstName = nameMatch[2].trim();
+    // Pattern 3: LAST_FIRST format or general *_assignsubmission_* format
+    const assignSubmissionMatch = folderName.match(/^(.+?)_assignsubmission_/);
+    if (assignSubmissionMatch && assignSubmissionMatch[1]) {
+      const namePart = assignSubmissionMatch[1];
       
-      // Check if these parts might be a name (not assignsubmission, etc)
-      if (!possibleLastName.includes('assign') && !possibleFirstName.includes('assign')) {
-        fullName = `${possibleFirstName} ${possibleLastName}`;
-        console.log(`Found LAST_FIRST format: "${fullName}"`);
-        
-        // Properly format the name
-        fullName = fullName.split(' ')
-          .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
-          .join(' ');
-        
-        return {
-          identifier: fullName.replace(/\s+/g, '').toLowerCase(),
-          fullName: fullName,
-          email: `${possibleFirstName.toLowerCase()}.${possibleLastName.toLowerCase()}@example.com`
-        };
+      // Check if it has an ID segment (like "Smith_John_12345_assignsubmission")
+      const idMatch = namePart.match(/^(.*?)_(\d+)$/);
+      
+      if (idMatch && idMatch[1]) {
+        // Has ID, use the part before the ID
+        fullName = idMatch[1].replace(/_/g, ' ').trim();
+      } else {
+        // No ID, use the whole part before "_assignsubmission_"
+        fullName = namePart.replace(/_/g, ' ').trim();
       }
+      
+      console.log(`Extracted name from assignsubmission pattern: "${fullName}"`);
+      
+      // Properly format the name
+      fullName = fullName.split(' ')
+        .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+        .join(' ');
+      
+      return {
+        identifier: fullName.replace(/\s+/g, '').toLowerCase(),
+        fullName: fullName,
+        email: `${fullName.replace(/\s+/g, '.').toLowerCase()}@example.com`
+      };
     }
     
     // If previous patterns failed, try a more general approach
@@ -162,6 +194,7 @@ export function extractStudentInfoFromFilename(filename: string, folderPath?: st
         .filter(part => !part.includes('assign') && 
                        !part.includes('submission') && 
                        !part.includes('file') && 
+                       !part.includes('onlinetext') && 
                        !/^\d+$/.test(part));
       
       if (nameParts.length > 0) {
@@ -188,6 +221,35 @@ export function extractStudentInfoFromFilename(filename: string, folderPath?: st
   
   // If folder path didn't yield a proper name, process filename
   const cleanedFilename = filename.replace(/\.[^/.]+$/, ''); // Remove extension
+  
+  // Special handling for onlinetext filenames
+  if (cleanedFilename.includes('onlinetext')) {
+    // For online text submissions, extract student name part before "_onlinetext"
+    const onlineTextMatch = cleanedFilename.match(/^(.+?)_onlinetext/);
+    if (onlineTextMatch && onlineTextMatch[1]) {
+      const namePart = onlineTextMatch[1];
+      // Check if the name part has an ID segment
+      const idMatch = namePart.match(/^(.*?)_(\d+)$/);
+      if (idMatch && idMatch[1]) {
+        fullName = idMatch[1].replace(/_/g, ' ').trim();
+      } else {
+        fullName = namePart.replace(/_/g, ' ').trim();
+      }
+      
+      console.log(`Extracted name from onlinetext filename: "${fullName}"`);
+      
+      // Properly format the name
+      fullName = fullName.split(' ')
+        .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+        .join(' ');
+      
+      return {
+        identifier: fullName.replace(/\s+/g, '').toLowerCase(),
+        fullName: fullName,
+        email: `${fullName.replace(/\s+/g, '.').toLowerCase()}@example.com`
+      };
+    }
+  }
   
   // Try to extract student ID - look for patterns like numeric ID or username
   const idMatch = cleanedFilename.match(/[a-z0-9._-]+_(\d+)_/i);

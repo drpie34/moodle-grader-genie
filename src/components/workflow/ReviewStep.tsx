@@ -1,9 +1,10 @@
 
-import React from "react";
+import React, { useState } from "react";
 import GradingPreview from "@/components/GradingPreview";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Info, FileSpreadsheet, FolderOpen } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
 import type { StudentGrade } from "@/hooks/use-grading-workflow";
 import type { AssignmentFormData } from "@/components/assignment/AssignmentFormTypes";
 
@@ -26,6 +27,19 @@ const ReviewStep: React.FC<ReviewStepProps> = ({
   onApproveAll,
   onContinue
 }) => {
+  const [showTroubleshooting, setShowTroubleshooting] = useState(false);
+  
+  // Calculate some stats for the troubleshooting section
+  const gradedSubmissions = grades.filter(g => g.file && g.grade > 0).length;
+  const totalStudents = grades.length;
+  const missingSubmissions = grades.filter(g => !g.file).length;
+  
+  // Get folder structure for troubleshooting
+  const folderStructure = files
+    .filter(file => file.webkitRelativePath)
+    .map(file => file.webkitRelativePath.split('/')[0])
+    .filter((folder, index, self) => self.indexOf(folder) === index);
+  
   return (
     <div className="space-y-6 animate-scale-in">
       {isProcessing ? (
@@ -45,6 +59,108 @@ const ReviewStep: React.FC<ReviewStepProps> = ({
             Please go back to the upload step and check your files.
           </AlertDescription>
         </Alert>
+      ) : gradedSubmissions === 0 ? (
+        <>
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>No graded submissions found</AlertTitle>
+            <AlertDescription>
+              The system couldn't match any student submissions with student names in the gradebook.
+              This usually happens when the folder names don't match the student names in the gradebook.
+              <div className="mt-2">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setShowTroubleshooting(!showTroubleshooting)}
+                >
+                  {showTroubleshooting ? "Hide Troubleshooting" : "Show Troubleshooting"}
+                </Button>
+              </div>
+            </AlertDescription>
+          </Alert>
+          
+          {showTroubleshooting && (
+            <Card>
+              <CardContent className="pt-6 space-y-4">
+                <div className="space-y-2">
+                  <h3 className="text-lg font-medium flex items-center">
+                    <Info className="h-5 w-5 mr-2 text-blue-500" />
+                    Troubleshooting Student Name Matching
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    The system is trying to match the folder names in your ZIP file with student names in the gradebook.
+                    Here's a summary of what we found:
+                  </p>
+                </div>
+                
+                <div className="space-y-3">
+                  <div className="border-l-4 border-blue-200 pl-4 py-2">
+                    <h4 className="text-sm font-medium flex items-center">
+                      <FileSpreadsheet className="h-4 w-4 mr-2 text-blue-500" />
+                      Gradebook Information
+                    </h4>
+                    <p className="text-xs text-muted-foreground">
+                      Found {totalStudents} students in the gradebook.
+                    </p>
+                    <div className="mt-2 max-h-28 overflow-y-auto">
+                      <p className="text-xs font-medium mb-1">Sample student names from gradebook:</p>
+                      <ul className="text-xs list-disc pl-5">
+                        {grades.slice(0, 5).map((grade, idx) => (
+                          <li key={idx}>{grade.fullName}</li>
+                        ))}
+                        {grades.length > 5 && <li className="italic">...and {grades.length - 5} more</li>}
+                      </ul>
+                    </div>
+                  </div>
+                  
+                  <div className="border-l-4 border-amber-200 pl-4 py-2">
+                    <h4 className="text-sm font-medium flex items-center">
+                      <FolderOpen className="h-4 w-4 mr-2 text-amber-500" />
+                      Submission Folder Names
+                    </h4>
+                    <p className="text-xs text-muted-foreground">
+                      Found {folderStructure.length} folders in the uploaded submission.
+                    </p>
+                    <div className="mt-2 max-h-28 overflow-y-auto">
+                      <p className="text-xs font-medium mb-1">Sample folder names:</p>
+                      <ul className="text-xs list-disc pl-5">
+                        {folderStructure.slice(0, 5).map((folder, idx) => (
+                          <li key={idx}>{folder}</li>
+                        ))}
+                        {folderStructure.length > 5 && <li className="italic">...and {folderStructure.length - 5} more</li>}
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="rounded-md bg-amber-50 p-3">
+                  <div className="flex items-start">
+                    <AlertCircle className="h-4 w-4 text-amber-500 mt-0.5 mr-2" />
+                    <div className="text-xs text-amber-800">
+                      <p className="font-medium">Recommendation:</p>
+                      <p>Check that the folder names in your ZIP file match the student names in your gradebook.</p>
+                      <p className="mt-1">Common reasons for matching failures:</p>
+                      <ul className="list-disc ml-5 mt-1">
+                        <li>Different name formats (e.g., "Last, First" vs "First Last")</li>
+                        <li>Special characters or capitalization differences</li>
+                        <li>Extra text in folder names that confuses the matching algorithm</li>
+                        <li>Missing student names in folder structure (check if folders use "onlinetext" without student names)</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+          
+          <GradingPreview 
+            files={files}
+            assignmentData={assignmentData}
+            grades={grades}
+            onUpdateGrade={onUpdateGrade}
+            onApproveAll={onApproveAll}
+          />
+        </>
       ) : (
         <GradingPreview 
           files={files}

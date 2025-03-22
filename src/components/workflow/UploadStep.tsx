@@ -86,6 +86,10 @@ const UploadStep: React.FC<UploadStepProps> = ({
                     <li>Smith, Jane_12345_assignsubmission_file</li>
                     <li>SMITH_JANE_12345_assignsubmission_file</li>
                   </ul>
+                  <p className="mt-1"><strong>Example using "onlinetext" submissions:</strong></p>
+                  <ul className="list-disc ml-5 mt-1">
+                    <li>If you see folders like "Jane Smith_12345_assignsubmission_onlinetext", the system will extract "Jane Smith" correctly</li>
+                  </ul>
                 </div>
               </div>
             </div>
@@ -132,6 +136,8 @@ const UploadStep: React.FC<UploadStepProps> = ({
                   <p className="font-medium">Important note about student submissions:</p>
                   <p>For best results, upload a ZIP file exported directly from Moodle with all student submissions. 
                   This preserves the folder structure with student names that can be matched with the gradebook.</p>
+                  <p className="mt-1"><strong>Common Issue:</strong> If you're seeing submissions for "Onlinetext" instead of actual student names, 
+                  check that your ZIP file structure includes student names in the folder paths before "onlinetext" or "file".</p>
                 </div>
               </div>
             </div>
