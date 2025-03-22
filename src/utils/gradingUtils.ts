@@ -14,10 +14,22 @@ export async function gradeWithOpenAI(submissionText: string, assignmentData: an
       };
     }
 
-    // Log the first 100 chars of submission to verify content (for debugging)
-    console.log(`Grading submission content preview: "${submissionText.substring(0, 100)}..."`);
+    // Trim submission text to a reasonable length to reduce token usage
+    // Most student submissions don't need more than 10,000 characters for effective grading
+    const MAX_SUBMISSION_LENGTH = 10000;
+    const trimmedSubmission = submissionText.length > MAX_SUBMISSION_LENGTH 
+      ? submissionText.substring(0, MAX_SUBMISSION_LENGTH) + "... [submission truncated to reduce API costs]" 
+      : submissionText;
     
-    const prompt = constructPrompt(submissionText, assignmentData);
+    // Log the first 100 chars of submission to verify content (for debugging)
+    console.log(`Grading submission content preview: "${trimmedSubmission.substring(0, 100)}..."`);
+    console.log(`Submission length: ${trimmedSubmission.length} chars (original: ${submissionText.length} chars)`);
+    
+    const prompt = constructPrompt(trimmedSubmission, assignmentData);
+    
+    // Use gpt-3.5-turbo by default unless assignment complexity requires gpt-4
+    const modelToUse = shouldUseAdvancedModel(assignmentData) ? "gpt-4" : "gpt-3.5-turbo";
+    console.log(`Using OpenAI model: ${modelToUse} for grading`);
     
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -26,7 +38,7 @@ export async function gradeWithOpenAI(submissionText: string, assignmentData: an
         'Authorization': `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: "gpt-4",
+        model: modelToUse,
         messages: [{ role: "user", content: prompt }],
         temperature: 0.7,
       }),
@@ -50,6 +62,31 @@ export async function gradeWithOpenAI(submissionText: string, assignmentData: an
     console.error("Error in gradeWithOpenAI:", error);
     return { grade: 0, feedback: "Failed to grade submission. Error: " + (error instanceof Error ? error.message : "Unknown error") };
   }
+}
+
+/**
+ * Determines if the advanced GPT-4 model should be used based on assignment complexity
+ */
+function shouldUseAdvancedModel(assignmentData: any): boolean {
+  const { gradingStrictness, academicLevel, additionalInstructions, rubric } = assignmentData;
+  
+  // Use advanced model for graduate level or very complex assignments
+  if (academicLevel && academicLevel.toLowerCase().includes('graduate')) {
+    return true;
+  }
+  
+  // Use advanced model for very strict grading
+  if (gradingStrictness && gradingStrictness > 8) {
+    return true;
+  }
+  
+  // Use advanced model if there's a complex rubric
+  if (rubric && rubric.length > 500) {
+    return true;
+  }
+  
+  // Default to the cheaper model
+  return false;
 }
 
 function constructPrompt(submissionText: string, assignmentData: any): string {
