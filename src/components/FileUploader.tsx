@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -14,7 +15,7 @@ interface FileUploaderProps {
 
 const FileUploader: React.FC<FileUploaderProps> = ({
   onFilesSelected,
-  acceptedFileTypes = [".pdf", ".docx", ".doc", ".txt", ".zip"],
+  acceptedFileTypes = [".pdf", ".docx", ".doc", ".txt", ".zip", ".html", ".htm"],
   maxFileSize = 10 * 1024 * 1024, // 10MB default
   maxFiles = 100,
 }) => {
@@ -45,7 +46,10 @@ const FileUploader: React.FC<FileUploaderProps> = ({
 
     Array.from(files).forEach(file => {
       const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
-      const isValidType = acceptedFileTypes.some(type => 
+      // Special handling for onlinetext HTML from Moodle
+      const isOnlineText = file.name.includes('onlinetext');
+      
+      const isValidType = isOnlineText || acceptedFileTypes.some(type => 
         type === fileExtension || type === file.type || type === '*'
       );
       

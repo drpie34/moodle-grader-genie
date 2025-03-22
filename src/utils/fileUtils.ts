@@ -23,7 +23,7 @@ export async function extractTextFromFile(file: File): Promise<string> {
     return extractTextFromDOCX(file);
   } else if (fileType.includes('text/plain') || file.name.endsWith('.txt')) {
     return extractTextFromTXT(file);
-  } else if (fileType.includes('text/html') || file.name.endsWith('.html') || file.name.endsWith('.htm')) {
+  } else if (fileType.includes('text/html') || file.name.endsWith('.html') || file.name.endsWith('.htm') || file.name.includes('onlinetext')) {
     return extractTextFromHTML(file);
   } else if (fileType.includes('image/')) {
     return extractTextFromImage(file);
@@ -71,6 +71,12 @@ export async function extractTextFromHTML(file: File): Promise<string> {
  */
 function getFileTypeFromExtension(filename: string): string {
   const ext = filename.split('.').pop()?.toLowerCase();
+  
+  // Special case for onlinetext HTML files from Moodle
+  if (filename.includes('onlinetext')) {
+    return 'text/html';
+  }
+  
   switch (ext) {
     case 'pdf': return 'application/pdf';
     case 'docx': return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';

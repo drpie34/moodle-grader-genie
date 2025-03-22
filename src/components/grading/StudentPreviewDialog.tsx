@@ -71,6 +71,7 @@ const StudentPreviewDialog: React.FC<StudentPreviewDialogProps> = ({
 
     setIsProcessing(true);
     const fileExt = file.name.split('.').pop()?.toLowerCase();
+    const isOnlineText = file.name.includes('onlinetext');
     
     if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].includes(fileExt || '')) {
       const imageUrl = URL.createObjectURL(file);
@@ -92,7 +93,7 @@ const StudentPreviewDialog: React.FC<StudentPreviewDialogProps> = ({
         setFilePreview('doc');
         setIsProcessing(false);
       }
-    } else if (['html', 'htm'].includes(fileExt || '')) {
+    } else if (['html', 'htm'].includes(fileExt || '') || isOnlineText) {
       try {
         // For HTML files, extract text and display as text preview
         const text = await extractTextFromHTML(file);
