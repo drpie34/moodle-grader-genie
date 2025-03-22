@@ -35,9 +35,7 @@ export function useGradingWorkflow() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [moodleGradebook, setMoodleGradebook] = useState<MoodleGradebookData | null>(null);
   
-  // Preload grades from Moodle gradebook with full format data
   const preloadedGrades = (data: MoodleGradebookData) => {
-    // Extract first and last names if available in the gradebook
     const firstNameColumn = data.headers.findIndex(h => 
       h.toLowerCase().includes('first name') || h.toLowerCase() === 'first' || h.toLowerCase() === 'firstname'
     );
@@ -46,22 +44,18 @@ export function useGradingWorkflow() {
       h.toLowerCase().includes('last name') || h.toLowerCase() === 'last' || h.toLowerCase() === 'lastname' || h.toLowerCase() === 'surname'
     );
     
-    // If we found separate first/last name columns, update the grade objects
     if (firstNameColumn !== -1 || lastNameColumn !== -1) {
       data.grades = data.grades.map(grade => {
         const originalRow = grade.originalRow || {};
         
-        // Extract first name if column exists
         if (firstNameColumn !== -1) {
           grade.firstName = originalRow[data.headers[firstNameColumn]] || '';
         }
         
-        // Extract last name if column exists
         if (lastNameColumn !== -1) {
           grade.lastName = originalRow[data.headers[lastNameColumn]] || '';
         }
         
-        // If we have both first and last name, ensure fullName has both
         if (grade.firstName && grade.lastName) {
           grade.fullName = `${grade.firstName} ${grade.lastName}`;
         }
@@ -74,7 +68,6 @@ export function useGradingWorkflow() {
     console.log("Preloaded Moodle gradebook data:", data);
     console.log("Student names in gradebook:", data.grades.map(g => g.fullName));
     
-    // Log first/last name extraction if available
     if (firstNameColumn !== -1 || lastNameColumn !== -1) {
       console.log("First/Last names extracted:", data.grades.map(g => ({
         fullName: g.fullName,
@@ -84,7 +77,6 @@ export function useGradingWorkflow() {
     }
   };
   
-  // Process files with OpenAI when ready
   useEffect(() => {
     const processFilesWithAI = async () => {
       if (currentStep === 3 && assignmentData && files.length > 0 && getApiKey() && !sampleDataLoaded && !isProcessing) {
@@ -92,17 +84,26 @@ export function useGradingWorkflow() {
         toast.info(`Processing ${files.length} files with AI...`);
         
         try {
-          // Group files by folder (which usually contains student name)
           const filesByFolder: { [key: string]: File[] } = {};
           
-          // First, organize files by their folder paths
           for (const file of files) {
-            // Get the folder path or parent directory name
-            const pathParts = file.webkitRelativePath ? file.webkitRelativePath.split('/') : file.name.split('/');
-            let folderPath = pathParts.length > 1 ? pathParts.slice(0, -1).join('/') : '';
+            const pathParts = file.webkitRelativePath ? 
+              file.webkitRelativePath.split('/') : 
+              file.name.split('/');
             
-            // If it's a flat structure but has _assignsubmission_ or _onlinetext_ in the name
-            // Extract the folder from the filename pattern
+            let folderPath = '';
+            if (pathParts.length > 1) {
+              if (file.webkitRelativePath) {
+                folderPath = pathParts.slice(0, -1).join('/');
+                if (folderPath.includes('/')) {
+                  const folders = folderPath.split('/');
+                  folderPath = folders[folders.length - 1];
+                }
+              } else {
+                folderPath = pathParts.slice(0, -1).join('/');
+              }
+            }
+            
             if (!folderPath && (file.name.includes('_assignsubmission_') || file.name.includes('_onlinetext_'))) {
               const submissionParts = file.name.split('_assignsubmission_');
               if (submissionParts.length > 1) {
@@ -124,14 +125,17 @@ export function useGradingWorkflow() {
             filesByFolder[folderKey].push(file);
           }
           
-          // Debug logs for folder names
           console.log('All folders to process:', Object.keys(filesByFolder));
+          console.log('Number of folders found:', Object.keys(filesByFolder).length);
           
-          // For each folder, find student info and the best submission file
+          if (Object.keys(filesByFolder).length <= 1 && filesByFolder['root']) {
+            console.warn('WARNING: No folder structure detected in files. Student name matching may not work correctly.');
+            toast.warning('No folder structure detected in files. Student matching may not work correctly.');
+          }
+          
           const processedGrades: StudentGrade[] = [];
           let processedCount = 0;
           
-          // More detailed debug logging
           if (moodleGradebook) {
             console.log('MATCHING DEBUG - Moodle gradebook students:');
             moodleGradebook.grades.forEach((student, idx) => {
@@ -143,31 +147,30 @@ export function useGradingWorkflow() {
             const folderFiles = filesByFolder[folder];
             if (folderFiles.length === 0) continue;
             
-            // Extract student info from the folder name first, then fallback to file name
             const firstFile = folderFiles[0];
             const folderName = folder !== 'root' ? folder : '';
             
             console.log(`\nPROCESSING FOLDER: "${folderName}"`);
+            console.log(`First file in folder: ${firstFile.name}`);
+            console.log(`File has webkitRelativePath: ${!!firstFile.webkitRelativePath}`);
+            if (firstFile.webkitRelativePath) {
+              console.log(`  webkitRelativePath: ${firstFile.webkitRelativePath}`);
+            }
             
-            // Improved student info extraction from folder name
             const studentInfo = extractStudentInfoFromFilename(firstFile.name, folderName);
             console.log(`Extracted student info:`, studentInfo);
             
-            // Skip folders that appear to be "onlinetext" without a proper student name
             if (studentInfo.fullName.toLowerCase() === "onlinetext") {
               console.log(`Skipping folder with invalid student name "onlinetext"`);
               continue;
             }
             
-            // Find the best file containing the submission content
             let submissionText = '';
             let submissionFile: File | null = null;
             
-            // Separate onlinetext files from other files
             const onlineTextFiles = folderFiles.filter(file => file.name.includes('onlinetext'));
             const otherFiles = folderFiles.filter(file => !file.name.includes('onlinetext'));
             
-            // First check non-onlinetext files for content
             for (const file of otherFiles) {
               try {
                 const text = await extractTextFromFile(file);
@@ -181,7 +184,6 @@ export function useGradingWorkflow() {
               }
             }
             
-            // If no content found in non-onlinetext files, check onlinetext HTML files
             if (!submissionText && onlineTextFiles.length > 0) {
               for (const file of onlineTextFiles) {
                 try {
@@ -197,7 +199,6 @@ export function useGradingWorkflow() {
               }
             }
             
-            // If still no content, use the first non-onlinetext file
             if (!submissionFile && otherFiles.length > 0) {
               submissionFile = otherFiles[0];
               try {
@@ -206,9 +207,7 @@ export function useGradingWorkflow() {
                 console.error(`Error extracting text from fallback file ${submissionFile.name}:`, error);
                 submissionText = '';
               }
-            }
-            // Last resort: use the first onlinetext file if no other files exist
-            else if (!submissionFile && onlineTextFiles.length > 0) {
+            } else if (!submissionFile && onlineTextFiles.length > 0) {
               submissionFile = onlineTextFiles[0];
               try {
                 submissionText = await extractTextFromFile(submissionFile);
@@ -219,21 +218,17 @@ export function useGradingWorkflow() {
             }
             
             if (submissionFile) {
-              // Check if there's a matching student in the preloaded Moodle grades
               let studentName = studentInfo.fullName;
               let studentEmail = studentInfo.email;
               let studentIdentifier = studentInfo.identifier;
               let originalRow = {};
               let matchFound = false;
               
-              // Try to find a matching student in preloaded grades by name
               let matchingMoodleStudent = null;
               if (moodleGradebook && moodleGradebook.grades.length > 0) {
                 console.log(`MATCHING - Trying to match "${studentInfo.fullName}" with students in gradebook`);
                 
-                // We'll try multiple matching strategies and score them
                 const matchingStrategies = [
-                  // 1. Exact full name match (case insensitive)
                   () => {
                     const exact = moodleGradebook.grades.find(grade => 
                       grade.fullName.toLowerCase() === studentInfo.fullName.toLowerCase()
@@ -245,7 +240,6 @@ export function useGradingWorkflow() {
                     return null;
                   },
                   
-                  // 2. NEW: Match against concatenated first+last name if available
                   () => {
                     const withFirstLastName = moodleGradebook.grades.find(grade => 
                       grade.firstName && grade.lastName && 
@@ -258,7 +252,6 @@ export function useGradingWorkflow() {
                     return null;
                   },
                   
-                  // 3. NEW: Match Last, First format against first+last name
                   () => {
                     if (studentInfo.fullName.includes(',')) {
                       const parts = studentInfo.fullName.split(',').map(p => p.trim());
@@ -281,13 +274,10 @@ export function useGradingWorkflow() {
                     return null;
                   },
                   
-                  // 4. Match first and last name individually
                   () => {
                     if (studentInfo.fullName.includes(' ')) {
-                      // Get student name parts
                       const studentNameParts = studentInfo.fullName.toLowerCase().split(' ');
                       
-                      // Find best matching student by comparing name parts
                       let bestMatch = null;
                       let bestMatchScore = 0;
                       
@@ -295,14 +285,12 @@ export function useGradingWorkflow() {
                         const gradebookNameParts = grade.fullName.toLowerCase().split(' ');
                         let matchScore = 0;
                         
-                        // Count matching parts between the two names
                         studentNameParts.forEach(part => {
                           if (gradebookNameParts.includes(part)) {
                             matchScore++;
                           }
                         });
                         
-                        // Check if this is a better match than we've found so far
                         if (matchScore > bestMatchScore) {
                           bestMatchScore = matchScore;
                           bestMatch = grade;
@@ -317,19 +305,15 @@ export function useGradingWorkflow() {
                     return null;
                   },
                   
-                  // 5. Normalize names and try partial matching
                   () => {
                     const normalizedStudentName = studentInfo.fullName.toLowerCase().replace(/[^a-z0-9]/g, '');
                     
-                    // Find best matching student by normalized name similarity
                     let bestMatch = null;
                     let bestMatchScore = 0;
                     
                     moodleGradebook.grades.forEach(grade => {
                       const normalizedGradebookName = grade.fullName.toLowerCase().replace(/[^a-z0-9]/g, '');
                       
-                      // Check if either name contains the other
-                      let matchScore = 0;
                       if (normalizedGradebookName.includes(normalizedStudentName)) {
                         matchScore = normalizedStudentName.length / normalizedGradebookName.length;
                       } else if (normalizedStudentName.includes(normalizedGradebookName)) {
@@ -342,14 +326,13 @@ export function useGradingWorkflow() {
                       }
                     });
                     
-                    if (bestMatch && bestMatchScore > 0.5) {  // Only use if the match is reasonably strong
+                    if (bestMatch && bestMatchScore > 0.5) {
                       console.log(`✓ MATCH FOUND [Normalized]: "${studentInfo.fullName}" normalized matches "${bestMatch.fullName}" with score ${bestMatchScore}`);
                       return bestMatch;
                     }
                     return null;
                   },
                   
-                  // 6. Fuzzy matching - check each word in student name against each word in gradebook names
                   () => {
                     if (studentInfo.fullName) {
                       const studentWords = studentInfo.fullName.toLowerCase().split(/\s+/).filter(w => w.length > 2);
@@ -363,7 +346,6 @@ export function useGradingWorkflow() {
                         
                         studentWords.forEach(sWord => {
                           gradeWords.forEach(gWord => {
-                            // Check if words are similar or contain each other
                             if (sWord === gWord || sWord.includes(gWord) || gWord.includes(sWord)) {
                               matchScore++;
                             }
@@ -384,33 +366,25 @@ export function useGradingWorkflow() {
                     return null;
                   },
                   
-                  // 7. Try matching folder name directly against full names
                   () => {
                     if (folderName && folderName !== 'root') {
-                      // Clean up folder name - replace underscores and dashes with spaces
                       let cleanedFolderName = folderName;
                       
-                      // Remove _assignsubmission_, _onlinetext_, etc.
                       cleanedFolderName = cleanedFolderName.replace(/_assignsubmission_.*$/, '');
                       cleanedFolderName = cleanedFolderName.replace(/_onlinetext_.*$/, '');
                       
-                      // Remove ID number if present
                       cleanedFolderName = cleanedFolderName.replace(/_\d+$/, '');
                       
-                      // Replace separators with spaces
                       cleanedFolderName = cleanedFolderName.replace(/[_-]/g, ' ').trim();
                       
                       let bestMatch = null;
                       let bestMatchScore = 0;
                       
                       moodleGradebook.grades.forEach(grade => {
-                        // Try exact match first
                         if (grade.fullName.toLowerCase() === cleanedFolderName.toLowerCase()) {
                           bestMatch = grade;
-                          bestMatchScore = 100; // Perfect match
-                        }
-                        // Then try contains match
-                        else if (bestMatchScore < 50) {
+                          bestMatchScore = 100;
+                        } else if (bestMatchScore < 50) {
                           const normalizedGrade = grade.fullName.toLowerCase();
                           const normalizedFolder = cleanedFolderName.toLowerCase();
                           
@@ -429,45 +403,41 @@ export function useGradingWorkflow() {
                     return null;
                   },
                   
-                  // 8. Advanced match first name and last name separately
                   () => {
-                    // Extract first and last name from student info
-                    const studentNameParts = studentInfo.fullName.split(' ');
-                    if (studentNameParts.length >= 2) {
-                      const studentFirstName = studentNameParts[0].toLowerCase();
-                      const studentLastName = studentNameParts[studentNameParts.length - 1].toLowerCase();
-                      
-                      // Find students with matching first and last names
-                      const namePartsMatch = moodleGradebook.grades.find(grade => {
-                        // If we have firstName/lastName fields, use those
-                        if (grade.firstName && grade.lastName) {
-                          return grade.firstName.toLowerCase() === studentFirstName && 
-                                 grade.lastName.toLowerCase() === studentLastName;
-                        }
+                    if (folderName && folderName !== 'root') {
+                      const studentNameParts = studentInfo.fullName.split(' ');
+                      if (studentNameParts.length >= 2) {
+                        const studentFirstName = studentNameParts[0].toLowerCase();
+                        const studentLastName = studentNameParts[studentNameParts.length - 1].toLowerCase();
                         
-                        // Otherwise, try to extract from fullName
-                        const gradeNameParts = grade.fullName.split(' ');
-                        if (gradeNameParts.length >= 2) {
-                          const gradeFirstName = gradeNameParts[0].toLowerCase();
-                          const gradeLastName = gradeNameParts[gradeNameParts.length - 1].toLowerCase();
+                        const namePartsMatch = moodleGradebook.grades.find(grade => {
+                          if (grade.firstName && grade.lastName) {
+                            return grade.firstName.toLowerCase() === studentFirstName && 
+                                   grade.lastName.toLowerCase() === studentLastName;
+                          }
                           
-                          return gradeFirstName === studentFirstName && 
-                                 gradeLastName === studentLastName;
-                        }
+                          const gradeNameParts = grade.fullName.split(' ');
+                          if (gradeNameParts.length >= 2) {
+                            const gradeFirstName = gradeNameParts[0].toLowerCase();
+                            const gradeLastName = gradeNameParts[gradeNameParts.length - 1].toLowerCase();
+                            
+                            return gradeFirstName === studentFirstName && 
+                                   gradeLastName === studentLastName;
+                          }
+                          
+                          return false;
+                        });
                         
-                        return false;
-                      });
-                      
-                      if (namePartsMatch) {
-                        console.log(`✓ MATCH FOUND [First+Last Parts]: "${studentFirstName} ${studentLastName}" matches "${namePartsMatch.fullName}"`);
-                        return namePartsMatch;
+                        if (namePartsMatch) {
+                          console.log(`✓ MATCH FOUND [First+Last Parts]: "${studentFirstName} ${studentLastName}" matches "${namePartsMatch.fullName}"`);
+                          return namePartsMatch;
+                        }
                       }
                     }
                     return null;
                   }
                 ];
                 
-                // Try each matching strategy in order
                 for (const strategy of matchingStrategies) {
                   matchingMoodleStudent = strategy();
                   if (matchingMoodleStudent) {
@@ -487,15 +457,13 @@ export function useGradingWorkflow() {
                 }
               }
               
-              // Process with OpenAI
               const gradingResult = await gradeWithOpenAI(
                 submissionText, 
                 assignmentData, 
                 getApiKey() || "",
-                assignmentData.gradingScale // Pass the grading scale to the AI
+                assignmentData.gradingScale
               );
               
-              // Add to processed grades with properly extracted student info
               processedGrades.push({
                 identifier: studentIdentifier,
                 fullName: studentName,
@@ -509,7 +477,6 @@ export function useGradingWorkflow() {
               });
               
               processedCount++;
-              // Update progress
               if (processedCount % 5 === 0 || processedCount === Object.keys(filesByFolder).length) {
                 toast.info(`Processed ${processedCount}/${Object.keys(filesByFolder).length} submissions`);
               }
@@ -518,11 +485,9 @@ export function useGradingWorkflow() {
           
           console.log("FINISHED PROCESSING - Processed Grades:", processedGrades.map(g => g.fullName));
           
-          // If there are preloaded moodle grades, merge them with the AI grades
           if (moodleGradebook && moodleGradebook.grades.length > 0) {
             const mergedGrades = [...moodleGradebook.grades];
             
-            // For each processed grade, try to find a matching student in moodleGrades
             processedGrades.forEach(aiGrade => {
               console.log(`Merging grade for ${aiGrade.fullName}`);
               
@@ -532,7 +497,6 @@ export function useGradingWorkflow() {
               
               if (moodleIndex >= 0) {
                 console.log(`Found matching student in merged grades at index ${moodleIndex}`);
-                // Update the existing grade but keep the original row data
                 mergedGrades[moodleIndex] = {
                   ...mergedGrades[moodleIndex],
                   grade: aiGrade.grade,
@@ -541,7 +505,6 @@ export function useGradingWorkflow() {
                   edited: false
                 };
               } else {
-                // No matching student, add the new grade
                 console.log(`No matching student found in merged grades for ${aiGrade.fullName}, adding new entry`);
                 mergedGrades.push(aiGrade);
               }
@@ -558,13 +521,11 @@ export function useGradingWorkflow() {
           console.error("Error processing files:", error);
           toast.error("Error processing files. Please check your API key and try again.");
           
-          // Fallback to sample data if processing fails
           fetchSampleData();
         } finally {
           setIsProcessing(false);
         }
       } else if (currentStep === 3 && assignmentData && files.length > 0 && !getApiKey() && !sampleDataLoaded) {
-        // If no API key, load sample data
         fetchSampleData();
       }
     };
@@ -572,22 +533,18 @@ export function useGradingWorkflow() {
     processFilesWithAI();
   }, [currentStep, assignmentData, files, sampleDataLoaded, isProcessing, moodleGradebook]);
 
-  // Helper to get API key from localStorage
   const getApiKey = (): string | null => {
     return localStorage.getItem("openai_api_key");
   };
 
-  // Fallback function to load sample data
   const fetchSampleData = () => {
     if (!sampleDataLoaded) {
       fetch('/sample_moodle_grades.csv')
         .then(response => response.text())
         .then(csvData => {
-          // Parse the CSV to extract headers and keep original format
           const rows = csvData.split('\n');
           const headers = rows[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
           
-          // Find the grade and feedback column indices
           const gradeColumnIndex = headers.findIndex(h => 
             h.toLowerCase().includes('grade') || h.toLowerCase().includes('mark') || h.toLowerCase().includes('score')
           );
@@ -601,7 +558,6 @@ export function useGradingWorkflow() {
           const parsedGrades = rows.slice(1).filter(row => row.trim()).map((row, idx) => {
             const values = row.split(',').map(v => v.trim().replace(/^"|"$/g, ''));
             
-            // Create an object with the original row data
             const originalRow: Record<string, string> = {};
             headers.forEach((header, i) => {
               originalRow[header] = values[i] || '';
@@ -619,14 +575,12 @@ export function useGradingWorkflow() {
             };
           });
           
-          // If we have moodle gradebook data, use it
           if (moodleGradebook) {
             const mergedGrades = [...moodleGradebook.grades];
             
-            // Generate random grades and feedback for demonstration
             mergedGrades.forEach((grade, index) => {
               const maxPoints = assignmentData?.gradingScale || 100;
-              grade.grade = Math.floor(Math.random() * (maxPoints * 0.7)) + (maxPoints * 0.3); // Random grade between 30% and 100%
+              grade.grade = Math.floor(Math.random() * (maxPoints * 0.7)) + (maxPoints * 0.3);
               grade.feedback = `This is sample feedback for ${grade.fullName}. In a real scenario, this would be generated by AI based on the submission content.`;
               grade.file = files[index % files.length];
               grade.edited = false;
@@ -634,7 +588,6 @@ export function useGradingWorkflow() {
             
             setGrades(mergedGrades);
           } else {
-            // Attach files to grades
             const gradesWithFiles = parsedGrades.map((grade, index) => ({
               ...grade,
               file: files[index % files.length],
@@ -675,7 +628,6 @@ export function useGradingWorkflow() {
     }
     
     setCurrentStep(2);
-    // Smooth scroll to top
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -683,7 +635,6 @@ export function useGradingWorkflow() {
     setAssignmentData(data);
     setCurrentStep(3);
     setSampleDataLoaded(false);
-    // Smooth scroll to top
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -711,7 +662,6 @@ export function useGradingWorkflow() {
   };
 
   const handleContinueToDownload = () => {
-    // Check if all grades have been reviewed
     const pendingReviews = grades.filter(grade => !grade.edited).length;
     
     if (pendingReviews > 0) {
@@ -720,7 +670,6 @@ export function useGradingWorkflow() {
     }
     
     setCurrentStep(4);
-    // Smooth scroll to top
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -732,14 +681,12 @@ export function useGradingWorkflow() {
     setMoodleGradebook(null);
     setSampleDataLoaded(false);
     toast.info("Started a new grading session");
-    // Smooth scroll to top
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const handleStepClick = (step: number) => {
     if (step < currentStep) {
       setCurrentStep(step);
-      // Smooth scroll to top
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
   };

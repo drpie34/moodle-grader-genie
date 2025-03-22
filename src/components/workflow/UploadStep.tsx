@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
 import { uploadMoodleGradebook } from "@/utils/csvUtils";
 import { Separator } from "@/components/ui/separator";
-import { FileSpreadsheet, CheckCircle, AlertCircle, Info } from "lucide-react";
+import { FileSpreadsheet, CheckCircle, AlertCircle, Info, Folder } from "lucide-react";
 
 interface UploadStepProps {
   files: File[];
@@ -60,6 +60,11 @@ const UploadStep: React.FC<UploadStepProps> = ({
       setIsProcessingGradebook(false);
     }
   };
+
+  // Calculate how many files have folder paths (to show in UI)
+  const filesWithFolderPaths = files.filter(file => 
+    file.webkitRelativePath && file.webkitRelativePath.includes('/')
+  ).length;
 
   return (
     <div className="space-y-8 animate-scale-in">
@@ -137,19 +142,56 @@ const UploadStep: React.FC<UploadStepProps> = ({
             </div>
             
             <p className="text-sm text-muted-foreground">
-              Now upload your student submissions (ZIP file from Moodle or individual files). 
-              The system will match student folders with the names in your gradebook.
+              Now upload your student submissions. For best results, use the "upload folder" button to 
+              preserve the folder structure with student names that can be matched with the gradebook.
             </p>
+            
+            <div className="rounded-md bg-blue-50 p-3 mb-2">
+              <div className="flex items-start">
+                <Folder className="h-4 w-4 text-blue-500 mt-0.5 mr-2" />
+                <div className="text-xs text-blue-800">
+                  <p className="font-medium">Using the "Upload Folder" Option (Recommended):</p>
+                  <p>This option preserves the folder structure that contains student names which are essential for matching.
+                  Select the parent folder that contains all student folders.</p>
+                  <p className="mt-1 font-medium">Folder Structure Example:</p>
+                  <pre className="bg-white/50 p-1 rounded mt-1">
+                    MainFolder/<br/>
+                    ├── Jane Smith_12345_assignsubmission_file/<br/>
+                    │   └── essay.pdf<br/>
+                    ├── John Doe_67890_assignsubmission_file/<br/>
+                    │   └── assignment.docx<br/>
+                  </pre>
+                </div>
+              </div>
+            </div>
+            
+            {files.length > 0 && (
+              <div className="rounded-md bg-muted p-3 mb-2">
+                <div className="flex items-start">
+                  <Info className="h-4 w-4 text-muted-foreground mt-0.5 mr-2" />
+                  <div className="text-xs">
+                    <p><span className="font-medium">Upload Status:</span> {files.length} files selected</p>
+                    <p><span className="font-medium">Files with folder structure:</span> {filesWithFolderPaths}</p>
+                    {filesWithFolderPaths === 0 && (
+                      <p className="text-amber-600 mt-1">
+                        ⚠️ No folder structure detected! Student matching may not work correctly.
+                        Try using the "Upload Folder" button instead of individual files.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
             
             <div className="rounded-md bg-amber-50 p-3 mb-2">
               <div className="flex items-start">
                 <AlertCircle className="h-4 w-4 text-amber-500 mt-0.5 mr-2" />
                 <div className="text-xs text-amber-800">
                   <p className="font-medium">Important note about student submissions:</p>
-                  <p>For best results, upload a ZIP file exported directly from Moodle with all student submissions. 
-                  This preserves the folder structure with student names that can be matched with the gradebook.</p>
+                  <p>For best results, upload the parent folder that contains all student submission folders or a ZIP file 
+                  exported directly from Moodle with all student submissions.</p>
                   <p className="mt-1"><strong>Common Issue:</strong> If you're seeing submissions for "Onlinetext" instead of actual student names, 
-                  check that your ZIP file structure includes student names in the folder paths before "onlinetext" or "file".</p>
+                  check that your folder structure includes student names in the folder paths before "onlinetext" or "file".</p>
                 </div>
               </div>
             </div>

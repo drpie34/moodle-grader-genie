@@ -2,7 +2,7 @@
 import JSZip from 'jszip';
 
 /**
- * Extract files from a ZIP archive
+ * Extract files from a ZIP archive, preserving folder structure
  */
 export async function processZipFile(zipFile: File): Promise<File[]> {
   try {
@@ -19,28 +19,40 @@ export async function processZipFile(zipFile: File): Promise<File[]> {
       
       // Skip directories
       if (zipEntry.dir) {
+        console.log(`Skipping directory: ${filename}`);
         return;
       }
       
       // Skip macOS metadata files
       if (filename.includes('__MACOSX') || filename.startsWith('.') || filename.includes('/.')) {
+        console.log(`Skipping metadata file: ${filename}`);
         return;
       }
       
       // Get file content as Blob
       const content = await zipEntry.async('blob');
       
-      // Create File object with proper name handling
-      const cleanedFilename = filename.split('/').pop() || filename;
-      const file = new File([content], cleanedFilename, {
-        type: getFileTypeFromName(cleanedFilename)
+      // Preserve full path for folder structure
+      const preservedPath = filename;
+      
+      // Create File object with extended properties for folder structure information
+      const file = new File([content], preservedPath.split('/').pop() || preservedPath, {
+        type: getFileTypeFromName(preservedPath)
       });
       
+      // Add custom property to preserve folder path
+      Object.defineProperty(file, 'webkitRelativePath', {
+        value: preservedPath,
+        writable: false
+      });
+      
+      console.log(`Extracted file with path: ${file.webkitRelativePath}`);
       extractedFiles.push(file);
     });
     
     await Promise.all(filePromises);
     
+    console.log(`Extracted ${extractedFiles.length} files from ZIP with folder structure`);
     return extractedFiles;
   } catch (error) {
     console.error('Error processing ZIP file:', error);

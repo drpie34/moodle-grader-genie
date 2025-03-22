@@ -21,6 +21,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const directoryInputRef = useRef<HTMLInputElement>(null);
 
   const handleDragEnter = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -45,7 +46,6 @@ const FileUploader: React.FC<FileUploaderProps> = ({
 
     Array.from(files).forEach(file => {
       const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
-      // Special handling for onlinetext HTML from Moodle
       const isOnlineText = file.name.includes('onlinetext');
       
       const isValidType = isOnlineText || acceptedFileTypes.some(type => 
@@ -146,9 +146,34 @@ const FileUploader: React.FC<FileUploaderProps> = ({
     }
   }, [onFilesSelected, selectedFiles, validateFiles]);
 
+  const handleDirectoryInputChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      console.log("Directory selected, files count:", e.target.files.length);
+      
+      const inputFiles = Array.from(e.target.files).map(file => {
+        console.log("File from directory:", file.webkitRelativePath || file.name);
+        return file;
+      });
+      
+      const validFiles = validateFiles(inputFiles);
+      const updatedFiles = [...selectedFiles, ...validFiles];
+      
+      setSelectedFiles(updatedFiles);
+      onFilesSelected(updatedFiles);
+      
+      toast.success(`Added ${validFiles.length} files from directory`);
+    }
+  }, [onFilesSelected, selectedFiles, validateFiles]);
+
   const handleBrowseClick = useCallback(() => {
     if (fileInputRef.current) {
       fileInputRef.current.click();
+    }
+  }, []);
+
+  const handleBrowseFolderClick = useCallback(() => {
+    if (directoryInputRef.current) {
+      directoryInputRef.current.click();
     }
   }, []);
 
@@ -184,6 +209,15 @@ const FileUploader: React.FC<FileUploaderProps> = ({
         accept={acceptedFileTypes.join(',')}
       />
       
+      <input
+        type="file"
+        ref={directoryInputRef}
+        onChange={handleDirectoryInputChange}
+        className="hidden"
+        webkitdirectory="true"
+        directory=""
+      />
+      
       <div 
         className={`relative rounded-lg border-2 border-dashed p-12 text-center transition-all duration-300 ease-in-out ${
           isDragging 
@@ -203,8 +237,10 @@ const FileUploader: React.FC<FileUploaderProps> = ({
             <h3 className="text-lg font-medium">
               {isDragging ? 'Drop files here' : 'Drag & drop files here'}
             </h3>
-            <p className="text-sm text-muted-foreground">
-              or <button type="button" onClick={handleBrowseClick} className="text-primary hover:underline">browse files</button>
+            <p className="text-sm text-muted-foreground space-x-2">
+              <button type="button" onClick={handleBrowseClick} className="text-primary hover:underline">browse files</button>
+              <span>or</span>
+              <button type="button" onClick={handleBrowseFolderClick} className="text-primary hover:underline font-medium">upload folder</button>
             </p>
             <p className="text-xs text-muted-foreground">
               Accepted files: PDF, DOCX, DOC, TXT, HTML or ZIP
@@ -238,7 +274,9 @@ const FileUploader: React.FC<FileUploaderProps> = ({
                   <div className="flex items-center space-x-3">
                     <FileText className="h-5 w-5 text-muted-foreground" />
                     <div className="overflow-hidden">
-                      <p className="truncate text-sm font-medium">{file.name}</p>
+                      <p className="truncate text-sm font-medium">
+                        {file.webkitRelativePath ? file.webkitRelativePath : file.name}
+                      </p>
                       <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
                     </div>
                   </div>
