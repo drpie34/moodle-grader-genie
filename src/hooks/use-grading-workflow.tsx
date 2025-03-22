@@ -157,7 +157,7 @@ export function useGradingWorkflow() {
       if (text.length < 20 && file.size > 1000) {
         console.warn(`Warning: Extracted very short text (${text.length} chars) from large file (${file.size} bytes): ${file.name}`);
         if (file.name.endsWith('.html') || file.type.includes('html')) {
-          const rawContent = await extractTextFromTXT(file);
+          const rawContent = await extractTextFromHTML(file);
           if (rawContent.length > text.length) {
             text = rawContent;
           }

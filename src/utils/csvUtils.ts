@@ -1,3 +1,4 @@
+
 /**
  * CSV file utilities for importing and exporting grade data
  */
@@ -151,7 +152,7 @@ export function generateMoodleCSV(grades: StudentGrade[], format: MoodleGradeboo
   // Create data rows
   const dataRows = grades.map(grade => {
     // Start with the original row if available
-    const rowData: Record<string, string> = { ...grade.originalRow } || {};
+    const rowData: Record<string, string> = grade.originalRow ? { ...grade.originalRow } : {};
     
     // Ensure the grade is properly formatted - convert to a number and then to string
     if (assignmentColumn && grade.grade !== undefined) {

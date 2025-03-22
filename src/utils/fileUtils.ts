@@ -1,9 +1,8 @@
-
 import { extractTextFromPDF } from './pdfUtils';
 import { extractTextFromDOCX, extractHTMLFromDOCX } from './docxUtils';
 import { extractTextFromImage } from './imageUtils';
 import { processZipFile as extractFilesFromZip } from './zipUtils';
-import { parseSpreadsheetData, uploadMoodleGradebook, generateMoodleCSV, downloadCSV } from './csvUtils';
+import { uploadMoodleGradebook, generateMoodleCSV, downloadCSV } from './csvUtils';
 import { gradeWithOpenAI } from './gradingUtils';
 
 /**
