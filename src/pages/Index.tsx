@@ -10,7 +10,8 @@ import ProcessFiles from "@/components/ProcessFiles";
 import { WORKFLOW_STEPS } from "@/components/workflow/steps";
 import { useGradingWorkflow } from "@/hooks/use-grading-workflow";
 import { useApiKey } from "@/hooks/use-api-key";
-import { downloadCSV, generateMoodleCSV, uploadMoodleGradebook } from "@/utils/fileUtils";
+import { downloadCSV, generateMoodleCSV } from "@/utils/csvUtils";
+import { uploadMoodleGradebook } from "@/utils/csvUtils";
 import { toast } from "sonner";
 
 const Index = () => {

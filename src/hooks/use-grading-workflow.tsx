@@ -1,7 +1,8 @@
-
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { extractTextFromFile, gradeWithOpenAI, parseMoodleCSV } from "@/utils/fileUtils";
+import { extractTextFromFile } from "@/utils/fileUtils";
+import { parseMoodleCSV } from "@/utils/csvUtils";
+import { gradeWithOpenAI } from "@/utils/gradingUtils";
 import type { AssignmentFormData } from "@/components/assignment/AssignmentFormTypes";
 
 export interface StudentGrade {
