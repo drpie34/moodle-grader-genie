@@ -123,35 +123,41 @@ const FileUploader: React.FC<FileUploaderProps> = ({
   const processFilesByFolder = (files: File[]) => {
     const filesByFolder: {[folder: string]: File[]} = {};
     
+    console.log("Processing files by folder, total files:", files.length);
+    console.log("First few files:");
+    files.slice(0, 5).forEach(file => {
+      console.log(`- ${file.webkitRelativePath || file.name}`);
+    });
+    
+    const hasWebkitPath = files.some(file => file.webkitRelativePath && file.webkitRelativePath.includes('/'));
+    
     for (const file of files) {
-      const pathParts = file.webkitRelativePath ? 
-        file.webkitRelativePath.split('/') : 
-        file.name.split('/');
-      
-      if (pathParts.length <= 1 && !file.webkitRelativePath) {
-        if (!filesByFolder['root']) filesByFolder['root'] = [];
-        filesByFolder['root'].push(file);
-        continue;
-      }
-      
       let folderPath = '';
-      if (pathParts.length > 1) {
-        if (file.webkitRelativePath) {
-          folderPath = pathParts[0];
-        } else {
-          folderPath = pathParts.slice(0, -1).join('/');
-        }
-      }
       
-      if (!folderPath && (file.name.includes('_assignsubmission_') || file.name.includes('_onlinetext_'))) {
+      if (hasWebkitPath && file.webkitRelativePath) {
+        const pathParts = file.webkitRelativePath.split('/');
+        
+        if (pathParts.length > 1) {
+          folderPath = pathParts[0];
+          console.log(`From webkitRelativePath: file=${file.name}, folder=${folderPath}`);
+        }
+      } else if (file.name.includes('_assignsubmission_') || file.name.includes('_onlinetext_')) {
         const submissionParts = file.name.split('_assignsubmission_');
         if (submissionParts.length > 1) {
           folderPath = submissionParts[0];
+          console.log(`From _assignsubmission_ pattern: file=${file.name}, folder=${folderPath}`);
         } else {
           const onlineTextParts = file.name.split('_onlinetext_');
           if (onlineTextParts.length > 1) {
             folderPath = onlineTextParts[0];
+            console.log(`From _onlinetext_ pattern: file=${file.name}, folder=${folderPath}`);
           }
+        }
+      } else {
+        const pathParts = file.name.split('/');
+        if (pathParts.length > 1) {
+          folderPath = pathParts[0];
+          console.log(`From filename slash: file=${file.name}, folder=${folderPath}`);
         }
       }
       
@@ -164,11 +170,15 @@ const FileUploader: React.FC<FileUploaderProps> = ({
       filesByFolder[folderKey].push(file);
     }
     
+    console.log("Identified folders:", Object.keys(filesByFolder));
+    Object.keys(filesByFolder).forEach(folder => {
+      console.log(`Folder "${folder}": ${filesByFolder[folder].length} files`);
+    });
+    
     if (onFolderStructureDetected) {
       onFolderStructureDetected(filesByFolder);
     }
     
-    console.log('Folder structure detected:', Object.keys(filesByFolder));
     return filesByFolder;
   };
 
@@ -226,6 +236,11 @@ const FileUploader: React.FC<FileUploaderProps> = ({
       
       const filesByFolder = processFilesByFolder(inputFiles);
       console.log(`Detected ${Object.keys(filesByFolder).length} folders from directory upload`);
+      
+      if (Object.keys(filesByFolder).length <= 1 && inputFiles.length > 1) {
+        console.warn("WARNING: Folder structure not properly detected. This could affect student matching.");
+        toast.warning("Folder structure might not be properly preserved. This could affect student matching.");
+      }
       
       const validFiles = validateFiles(inputFiles);
       const updatedFiles = [...selectedFiles, ...validFiles];

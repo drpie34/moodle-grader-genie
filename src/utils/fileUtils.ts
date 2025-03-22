@@ -1,3 +1,4 @@
+
 /**
  * Utilities for handling files and extracting student information
  */
@@ -19,13 +20,15 @@ export function extractStudentInfoFromFilename(fileName: string, folderPath?: st
     // Log the path we're processing
     console.log(`Extracting student info from: "${sourcePath}"`);
     
-    // Remove common Moodle suffixes
+    // Remove common Moodle suffixes and prefixes
     let cleanName = sourcePath
+      .replace(/^.*[\/\\]/, '') // Remove any directory path before the filename
       .replace(/_assignsubmission_.*$/, '')
       .replace(/_onlinetext_.*$/, '')
-      .replace(/_file_.*$/, '');
-    
-    // Extract student ID if present (usually after an underscore)
+      .replace(/_file_.*$/, '')
+      .replace(/^\d+SP\s+/, ''); // Remove semester prefix like "25SP "
+      
+    // Look for Moodle ID pattern (typically after the student name)
     const idMatch = cleanName.match(/_(\d+)$/);
     const studentId = idMatch ? idMatch[1] : '';
     
@@ -34,8 +37,16 @@ export function extractStudentInfoFromFilename(fileName: string, folderPath?: st
       cleanName = cleanName.replace(/_\d+$/, '');
     }
     
-    // Replace underscores and hyphens with spaces
-    cleanName = cleanName.replace(/[_-]/g, ' ').trim();
+    // Replace separators with spaces
+    cleanName = cleanName.replace(/[_\-]/g, ' ').trim();
+    
+    // Try to extract course info
+    if (cleanName.match(/^[A-Z]{3}-\d{3}/)) {
+      // This looks like a course code (e.g., "SOC-395-A"), remove it
+      cleanName = cleanName.replace(/^[A-Z]{3}-\d{3}-[A-Z]\s*/, '');
+      // Also remove anything after a dash followed by numbers (assignment info)
+      cleanName = cleanName.replace(/-\d+.*$/, '').trim();
+    }
     
     // Handle "Last, First" format if present
     let firstName = '';
@@ -55,14 +66,22 @@ export function extractStudentInfoFromFilename(fileName: string, folderPath?: st
       lastName = parts[parts.length - 1];
     }
     
-    console.log(`Extracted student name: "${cleanName}" (ID: ${studentId || 'none'}, First: ${firstName || 'unknown'}, Last: ${lastName || 'unknown'})`);
+    // Generate email based on first and last name if both are present
+    let email = '';
+    if (firstName && lastName) {
+      email = `${firstName.toLowerCase()}.${lastName.toLowerCase()}@example.com`;
+    } else {
+      email = `${cleanName.replace(/\s+/g, '.').toLowerCase()}@example.com`;
+    }
+    
+    console.log(`Extracted student info: name="${cleanName}", ID=${studentId || 'none'}, First="${firstName || 'unknown'}", Last="${lastName || 'unknown'}"`);
     
     return {
       identifier: studentId || cleanName.replace(/\s+/g, '').toLowerCase(),
       fullName: cleanName,
       firstName: firstName,
       lastName: lastName,
-      email: `${cleanName.replace(/\s+/g, '.').toLowerCase()}@example.com`
+      email: email
     };
   } catch (error) {
     console.error("Error extracting student info from filename:", error);

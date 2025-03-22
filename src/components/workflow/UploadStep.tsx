@@ -28,6 +28,7 @@ const UploadStep: React.FC<UploadStepProps> = ({
   const [folderStructure, setFolderStructure] = useState<{[folder: string]: File[]}>({});
   const [gradebookStudents, setGradebookStudents] = useState<string[]>([]);
   const [showPreview, setShowPreview] = useState(false);
+  const [detectedStudents, setDetectedStudents] = useState<string[]>([]);
 
   const handleMoodleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -59,6 +60,7 @@ const UploadStep: React.FC<UploadStepProps> = ({
         toast.info("First and last name columns detected in gradebook");
       } else {
         console.log("First and last name columns NOT found in gradebook");
+        toast.warning("First and last name columns NOT found in gradebook. This may impact student matching.");
       }
     } catch (error) {
       console.error("Error processing Moodle file:", error);
@@ -72,6 +74,26 @@ const UploadStep: React.FC<UploadStepProps> = ({
   const handleFolderStructureDetected = (structure: {[folder: string]: File[]}) => {
     setFolderStructure(structure);
     console.log("Folder structure detected:", Object.keys(structure));
+    
+    // Extract student names from folders for debugging
+    const studentFolderNames = Object.keys(structure)
+      .filter(folder => folder !== 'root')
+      .map(folder => {
+        // Extract student name from folder path
+        const cleanName = folder
+          .replace(/_assignsubmission_.*$/, '')
+          .replace(/_onlinetext_.*$/, '')
+          .replace(/_file_.*$/, '')
+          .replace(/^\d+SP\s+/, '')
+          .replace(/_\d+$/, '')
+          .replace(/[_\-]/g, ' ')
+          .trim();
+        
+        return cleanName;
+      });
+    
+    setDetectedStudents(studentFolderNames);
+    console.log("Detected student names from folders:", studentFolderNames);
   };
   
   const handleFilesSelected = (selectedFiles: File[]) => {
@@ -203,12 +225,27 @@ const UploadStep: React.FC<UploadStepProps> = ({
                     <Info className="h-4 w-4 text-muted-foreground mt-0.5 mr-2" />
                     <div className="text-xs">
                       <p><span className="font-medium">Upload Status:</span> {files.length} files selected</p>
-                      <p><span className="font-medium">Files with folder structure:</span> {filesWithFolderPaths}</p>
-                      {filesWithFolderPaths === 0 && Object.keys(folderStructure).length <= 1 && (
+                      
+                      <p><span className="font-medium">Detected folders:</span> {Object.keys(folderStructure).length}</p>
+                      <p><span className="font-medium">Root level files:</span> {folderStructure['root']?.length || 0}</p>
+                      
+                      {Object.keys(folderStructure).length <= 1 && files.length > 0 && (
                         <p className="text-amber-600 mt-1">
                           ⚠️ No folder structure detected! Student matching may not work correctly.
                           Try using the "Upload Folder" button instead of individual files.
                         </p>
+                      )}
+                      
+                      {detectedStudents.length > 0 && (
+                        <div className="mt-2">
+                          <p className="font-medium">Detected student folders:</p>
+                          <ul className="list-disc ml-5 mt-1">
+                            {detectedStudents.slice(0, 5).map((student, idx) => (
+                              <li key={idx}>{student}</li>
+                            ))}
+                            {detectedStudents.length > 5 && <li>...and {detectedStudents.length - 5} more</li>}
+                          </ul>
+                        </div>
                       )}
                     </div>
                   </div>

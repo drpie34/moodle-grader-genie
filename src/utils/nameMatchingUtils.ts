@@ -34,6 +34,12 @@ export function findBestStudentMatch(
     studentInfo = { ...studentInfo, fullName: cleanStudentName };
   }
   
+  // Log all gradebook students for debugging
+  console.log("Available gradebook students:");
+  gradebookStudents.forEach((student, idx) => {
+    console.log(`[${idx}] "${student.fullName}"${student.firstName ? ` (${student.firstName} ${student.lastName})` : ''}`);
+  });
+  
   // Try different matching strategies in order of precision
   const matchingStrategies = [
     // 1. Exact full name match
@@ -122,7 +128,29 @@ export function findBestStudentMatch(
       return null;
     },
     
-    // 5. Match by name parts
+    // 5. Last name only match
+    () => {
+      const lastNameToMatch = studentInfo.lastName || 
+                             (studentInfo.fullName.includes(' ') ? 
+                              studentInfo.fullName.split(' ').pop() : '');
+      
+      if (lastNameToMatch && lastNameToMatch.length > 2) {
+        const matches = gradebookStudents.filter(student => {
+          const studentLastName = student.lastName || 
+                                 (student.fullName.includes(' ') ? 
+                                  student.fullName.split(' ').pop() : '');
+          return studentLastName?.toLowerCase() === lastNameToMatch.toLowerCase();
+        });
+        
+        if (matches.length === 1) {
+          console.log(`✓ MATCH FOUND [Last Name Only]: "${lastNameToMatch}" = "${matches[0].fullName}"`);
+          return matches[0];
+        }
+      }
+      return null;
+    },
+    
+    // 6. Match by name parts
     () => {
       if (studentInfo.fullName.includes(' ')) {
         const studentNameParts = studentInfo.fullName.toLowerCase().split(' ');
@@ -155,7 +183,7 @@ export function findBestStudentMatch(
       return null;
     },
     
-    // 6. Fuzzy matching (for handling typos, abbreviations)
+    // 7. Fuzzy matching (for handling typos, abbreviations)
     () => {
       // Clean up the names by removing spaces, punctuation, etc.
       const normalizedStudentName = studentInfo.fullName.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -187,16 +215,15 @@ export function findBestStudentMatch(
         }
       });
       
-      // Only consider it a match if the score is above a certain threshold
-      // Lower the threshold slightly to catch more potential matches
-      if (bestMatch && bestMatchScore > 0.5) {
+      // Lower the threshold from 0.5 to 0.4 to catch more potential matches
+      if (bestMatch && bestMatchScore > 0.4) {
         console.log(`✓ MATCH FOUND [Fuzzy]: "${studentInfo.fullName}" fuzzy matches "${bestMatch.fullName}" with score ${bestMatchScore.toFixed(2)}`);
         return bestMatch;
       }
       return null;
     },
     
-    // 7. Initial match (for cases like "E. Smith" matching "Emma Smith")
+    // 8. Initial match (for cases like "E. Smith" matching "Emma Smith")
     () => {
       // Extract potential initials from the student name
       const nameParts = studentInfo.fullName.split(' ');
@@ -230,9 +257,9 @@ export function findBestStudentMatch(
       return null;
     },
     
-    // 8. Special case for unique names (like "Esi" or "Jediah")
+    // 9. Special case for unique names (like "Esi" or "Jediah")
     () => {
-      const uniqueNames = ['esi', 'jediah', 'beatrice', 'miaoen', 'hayeon'];
+      const uniqueNames = ['esi', 'jediah', 'beatrice', 'miaoen', 'hayeon', 'lainey', 'bri', 'jenna', 'wade', 'king', 'zhou', 'yang', 'vanderleest', 'utama', 'moore', 'entsir'];
       
       for (const uniqueName of uniqueNames) {
         if (studentInfo.fullName.toLowerCase().includes(uniqueName)) {
@@ -243,6 +270,8 @@ export function findBestStudentMatch(
           if (matches.length === 1) {
             console.log(`✓ MATCH FOUND [Unique Name]: "${studentInfo.fullName}" contains unique name "${uniqueName}", matched with "${matches[0].fullName}"`);
             return matches[0];
+          } else if (matches.length > 1) {
+            console.log(`Found ${matches.length} students with the unique name part "${uniqueName}"`);
           }
         }
       }
@@ -271,7 +300,16 @@ function cleanUpMoodleName(name: string): string {
   let cleanName = name
     .replace(/_assignsubmission_.*$/, '')
     .replace(/_onlinetext_.*$/, '')
-    .replace(/_file_.*$/, '');
+    .replace(/_file_.*$/, '')
+    .replace(/^\d+SP\s+/, ''); // Remove semester prefix like "25SP "
+  
+  // Try to extract course info
+  if (cleanName.match(/^[A-Z]{3}-\d{3}/)) {
+    // This looks like a course code (e.g., "SOC-395-A"), remove it
+    cleanName = cleanName.replace(/^[A-Z]{3}-\d{3}-[A-Z]\s*/, '');
+    // Also remove anything after a dash followed by numbers (assignment info)
+    cleanName = cleanName.replace(/-\d+.*$/, '').trim();
+  }
   
   // Extract student ID if present (usually after an underscore)
   const idMatch = cleanName.match(/_(\d+)$/);
@@ -282,7 +320,7 @@ function cleanUpMoodleName(name: string): string {
   }
   
   // Replace underscores and hyphens with spaces
-  cleanName = cleanName.replace(/[_-]/g, ' ').trim();
+  cleanName = cleanName.replace(/[_\-]/g, ' ').trim();
   
   // Handle "Last, First" format if present
   if (cleanName.includes(',')) {
