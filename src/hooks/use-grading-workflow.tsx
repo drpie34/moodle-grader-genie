@@ -313,6 +313,7 @@ export function useGradingWorkflow() {
                     
                     moodleGradebook.grades.forEach(grade => {
                       const normalizedGradebookName = grade.fullName.toLowerCase().replace(/[^a-z0-9]/g, '');
+                      let matchScore = 0;
                       
                       if (normalizedGradebookName.includes(normalizedStudentName)) {
                         matchScore = normalizedStudentName.length / normalizedGradebookName.length;

@@ -3,13 +3,18 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Check, Upload, FileText, FilePlus, FileX, X } from "lucide-react";
-import { processZipFile } from '@/utils/fileUtils';
+import { processZipFile } from '@/utils/zipUtils';
 
 interface FileUploaderProps {
   onFilesSelected: (files: File[]) => void;
   acceptedFileTypes?: string[];
   maxFileSize?: number; // in bytes
   maxFiles?: number;
+}
+
+interface InputElementAttributes extends React.InputHTMLAttributes<HTMLInputElement> {
+  webkitdirectory?: string;
+  directory?: string;
 }
 
 const FileUploader: React.FC<FileUploaderProps> = ({
@@ -214,8 +219,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({
         ref={directoryInputRef}
         onChange={handleDirectoryInputChange}
         className="hidden"
-        webkitdirectory="true"
-        directory=""
+        {...{webkitdirectory: "true", directory: ""} as InputElementAttributes}
       />
       
       <div 
