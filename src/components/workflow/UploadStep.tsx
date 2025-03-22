@@ -29,6 +29,7 @@ const UploadStep: React.FC<UploadStepProps> = ({
   const [gradebookStudents, setGradebookStudents] = useState<string[]>([]);
   const [showPreview, setShowPreview] = useState(false);
   const [detectedStudents, setDetectedStudents] = useState<string[]>([]);
+  const [hasFirstLastColumns, setHasFirstLastColumns] = useState<boolean>(false);
 
   const handleMoodleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -55,13 +56,19 @@ const UploadStep: React.FC<UploadStepProps> = ({
       const hasFirstName = gradebookData.grades.some(g => g.firstName);
       const hasLastName = gradebookData.grades.some(g => g.lastName);
       
+      setHasFirstLastColumns(hasFirstName && hasLastName);
+      
       if (hasFirstName && hasLastName) {
         console.log("First and last name columns found in gradebook");
-        toast.info("First and last name columns detected in gradebook");
+        toast.success("First and last name columns detected in gradebook");
       } else {
         console.log("First and last name columns NOT found in gradebook");
         toast.warning("First and last name columns NOT found in gradebook. This may impact student matching.");
       }
+      
+      // Log some student names to verify extraction
+      console.log("First 5 student names from gradebook:", studentNames.slice(0, 5));
+      
     } catch (error) {
       console.error("Error processing Moodle file:", error);
       toast.error("Error processing Moodle file. Please check the format.");
@@ -134,6 +141,9 @@ const UploadStep: React.FC<UploadStepProps> = ({
                   <span className="text-xs text-green-600 flex items-center">
                     <CheckCircle className="h-3 w-3 mr-1" />
                     Gradebook uploaded
+                    {hasFirstLastColumns && (
+                      <span className="ml-2 bg-green-100 text-green-800 text-xs px-2 py-0.5 rounded">First & Last Name Columns Found</span>
+                    )}
                   </span>
                 )}
               </div>
@@ -186,6 +196,28 @@ const UploadStep: React.FC<UploadStepProps> = ({
                   </div>
                 )}
               </div>
+              
+              {gradebookSuccess && !hasFirstLastColumns && (
+                <div className="rounded-md bg-amber-50 p-3 mb-2">
+                  <div className="flex items-start">
+                    <AlertCircle className="h-4 w-4 text-amber-500 mt-0.5 mr-2" />
+                    <div className="text-xs text-amber-800">
+                      <p className="font-medium">Warning: First and last name columns not detected</p>
+                      <p>Your gradebook doesn't appear to have separate columns for first and last names. 
+                      The system will use the full name for matching, which may be less accurate.</p>
+                      <p className="mt-1">If your gradebook does contain first and last name columns, please ensure they're labeled as such 
+                      (e.g. "First Name", "Last Name", "Given Name", "Surname", etc.)</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {gradebookSuccess && gradebookStudents.length > 0 && (
+                <div className="text-xs">
+                  <p className="font-medium">Detected {gradebookStudents.length} students in gradebook</p>
+                  <p className="text-muted-foreground mt-1">First few students: {gradebookStudents.slice(0, 5).join(", ")}{gradebookStudents.length > 5 ? ", ..." : ""}</p>
+                </div>
+              )}
             </div>
           </Card>
           

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
@@ -36,137 +35,59 @@ const SubmissionPreview: React.FC<SubmissionPreviewProps> = ({
   const foldersToShow = showAllFolders ? Object.keys(folderStructure) : Object.keys(folderStructure).slice(0, 5);
   
   useEffect(() => {
-    // Enhanced matching algorithm for preview
+    // Convert gradebook student names to student info objects for matching
+    const gradebookStudentObjects = gradebookStudents.map(name => ({
+      identifier: '',
+      fullName: name
+    }));
+    
+    console.log("Gradebook student names available for matching:", gradebookStudents);
+    
+    // Find matches for each folder
     const matches: {[folderName: string]: string} = {};
     
     Object.keys(folderStructure).forEach(folderName => {
       if (folderName === 'root') return;
       
-      // Parse folder name to extract student information, handling Moodle format
-      // Example: "Esi Entsir-Eghan_3991733_assignsubmission_onlinetext"
-      const studentInfo = extractStudentInfoFromFolder(folderName);
+      // Clean up folder name to extract student info
+      const cleanName = folderName
+        .replace(/_assignsubmission_.*$/, '')
+        .replace(/_onlinetext_.*$/, '')
+        .replace(/_file_.*$/, '')
+        .replace(/^\d+SP\s+/, '')
+        .replace(/_\d+$/, '')
+        .replace(/[_\-]/g, ' ')
+        .trim();
       
-      if (studentInfo.fullName) {
-        console.log(`Attempting to match: "${studentInfo.fullName}" from folder "${folderName}"`);
-        
-        // Try direct match first
-        const directMatch = gradebookStudents.find(student => 
-          student.toLowerCase() === studentInfo.fullName.toLowerCase()
-        );
-        
-        if (directMatch) {
-          console.log(`✓ Direct match found: "${studentInfo.fullName}" = "${directMatch}"`);
-          matches[folderName] = directMatch;
-          return;
-        }
-        
-        // Try name parts match
-        const nameParts = studentInfo.fullName.toLowerCase().split(/\s+/);
-        
-        for (const gradebookStudent of gradebookStudents) {
-          const gradebookParts = gradebookStudent.toLowerCase().split(/\s+/);
-          
-          // Check if first names match
-          if (nameParts[0] && gradebookParts[0] && nameParts[0] === gradebookParts[0]) {
-            console.log(`✓ First name match: "${studentInfo.fullName}" = "${gradebookStudent}"`);
-            matches[folderName] = gradebookStudent;
-            return;
-          }
-          
-          // Check if last names match
-          if (nameParts.length > 1 && gradebookParts.length > 1 && 
-              nameParts[nameParts.length-1] === gradebookParts[gradebookParts.length-1]) {
-            console.log(`✓ Last name match: "${studentInfo.fullName}" = "${gradebookStudent}"`);
-            matches[folderName] = gradebookStudent;
-            return;
-          }
-          
-          // Check for significant overlap in name parts
-          let matchingParts = 0;
-          for (const part of nameParts) {
-            if (gradebookParts.includes(part)) {
-              matchingParts++;
-            }
-          }
-          
-          if (matchingParts >= Math.min(2, nameParts.length)) {
-            console.log(`✓ Partial match: "${studentInfo.fullName}" = "${gradebookStudent}" (${matchingParts} matching parts)`);
-            matches[folderName] = gradebookStudent;
-            return;
-          }
-        }
-        
-        // Special cases for unique names
-        if (studentInfo.fullName.toLowerCase().includes('esi')) {
-          const esiMatch = gradebookStudents.find(student => 
-            student.toLowerCase().includes('esi')
-          );
-          
-          if (esiMatch) {
-            console.log(`✓ Special case match: "${studentInfo.fullName}" = "${esiMatch}" (unique name: Esi)`);
-            matches[folderName] = esiMatch;
-            return;
-          }
-        }
-        
-        if (studentInfo.fullName.toLowerCase().includes('jediah')) {
-          const jediahMatch = gradebookStudents.find(student => 
-            student.toLowerCase().includes('jediah')
-          );
-          
-          if (jediahMatch) {
-            console.log(`✓ Special case match: "${studentInfo.fullName}" = "${jediahMatch}" (unique name: Jediah)`);
-            matches[folderName] = jediahMatch;
-            return;
-          }
-        }
-        
-        console.log(`✗ No match found for "${studentInfo.fullName}"`);
+      console.log(`Processing folder: "${folderName}", cleaned name: "${cleanName}"`);
+      
+      // Create student info object
+      const studentInfo = {
+        identifier: '',
+        fullName: cleanName
+      };
+      
+      // Use the sophisticated matching algorithm from nameMatchingUtils
+      const bestMatch = findBestStudentMatch(studentInfo, gradebookStudentObjects);
+      
+      if (bestMatch) {
+        console.log(`✓ Match found for "${cleanName}": "${bestMatch.fullName}"`);
+        matches[folderName] = bestMatch.fullName;
+      } else {
+        console.log(`✗ No match found for "${cleanName}" in gradebook`);
       }
     });
     
     setMatchedStudents(matches);
+    
+    // Log statistics about the matching success
+    const matchCount = Object.keys(matches).length;
+    const folderCount = Object.keys(folderStructure).filter(f => f !== 'root').length;
+    const matchRate = folderCount > 0 ? (matchCount / folderCount) * 100 : 0;
+    
+    console.log(`Student matching statistics: ${matchCount}/${folderCount} matched (${matchRate.toFixed(1)}%)`);
+    
   }, [folderStructure, gradebookStudents]);
-  
-  // Extract student name from Moodle folder format
-  const extractStudentInfoFromFolder = (folderName: string) => {
-    try {
-      // Remove common Moodle suffixes
-      const cleanName = folderName
-        .replace(/_assignsubmission_.*$/, '')
-        .replace(/_onlinetext_.*$/, '')
-        .replace(/_file_.*$/, '');
-      
-      // Extract student ID if present (usually after an underscore)
-      const idMatch = cleanName.match(/_(\d+)$/);
-      const studentId = idMatch ? idMatch[1] : '';
-      
-      // Remove the ID part for the name
-      let fullName = cleanName;
-      if (studentId) {
-        fullName = fullName.replace(/_\d+$/, '');
-      }
-      
-      // Replace underscores and hyphens with spaces
-      fullName = fullName.replace(/[_-]/g, ' ').trim();
-      
-      // Handle "Last, First" format if present
-      if (fullName.includes(',')) {
-        const parts = fullName.split(',').map(p => p.trim());
-        if (parts.length === 2) {
-          fullName = `${parts[1]} ${parts[0]}`;
-        }
-      }
-      
-      return {
-        fullName,
-        studentId
-      };
-    } catch (error) {
-      console.error("Error extracting student info from folder name:", error);
-      return { fullName: '', studentId: '' };
-    }
-  };
   
   const previewFile = async (folderName: string) => {
     if (previewContent[folderName]) {
