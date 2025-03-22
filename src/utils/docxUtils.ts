@@ -29,16 +29,11 @@ export async function extractHTMLFromDOCX(file: File): Promise<string> {
     // Read file as ArrayBuffer
     const arrayBuffer = await file.arrayBuffer();
     
-    // Define custom style map for better formatting
-    const options = {
-      arrayBuffer,
-      transformDocument: mammoth.transforms.paragraph(paragraph => {
-        return paragraph;
-      })
-    };
-    
-    // Convert DOCX to HTML to preserve formatting
-    const result = await mammoth.convertToHtml(options);
+    // Convert DOCX to HTML with basic options
+    // Note: mammoth.js doesn't expose transforms directly in TypeScript definitions
+    const result = await mammoth.convertToHtml({
+      arrayBuffer
+    });
     
     return result.value;
   } catch (error) {
