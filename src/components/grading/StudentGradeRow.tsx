@@ -7,10 +7,16 @@ import type { StudentGrade } from "@/hooks/use-grading-workflow";
 interface StudentGradeRowProps {
   student: StudentGrade;
   index: number;
+  maxPoints: number;
   onReview: (index: number) => void;
 }
 
-const StudentGradeRow: React.FC<StudentGradeRowProps> = ({ student, index, onReview }) => {
+const StudentGradeRow: React.FC<StudentGradeRowProps> = ({ 
+  student, 
+  index, 
+  maxPoints,
+  onReview 
+}) => {
   return (
     <div 
       className={`grid grid-cols-12 gap-4 px-4 py-3 text-sm hover:bg-muted/50 ${
@@ -22,7 +28,7 @@ const StudentGradeRow: React.FC<StudentGradeRowProps> = ({ student, index, onRev
         <span className="text-xs text-muted-foreground">{student.email}</span>
       </div>
       <div className="col-span-2 font-medium">
-        {student.grade}/100
+        {student.grade}/{maxPoints}
       </div>
       <div className="col-span-5">
         <p className="line-clamp-2 text-muted-foreground">

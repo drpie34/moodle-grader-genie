@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,6 +21,7 @@ interface StudentPreviewDialogProps {
   student: StudentGrade | null;
   studentIndex: number | null;
   onUpdateGrade: (index: number, grade: number, feedback: string) => void;
+  maxPoints: number;
 }
 
 const StudentPreviewDialog: React.FC<StudentPreviewDialogProps> = ({
@@ -30,6 +30,7 @@ const StudentPreviewDialog: React.FC<StudentPreviewDialogProps> = ({
   student,
   studentIndex,
   onUpdateGrade,
+  maxPoints,
 }) => {
   const [editMode, setEditMode] = useState(false);
   const [tempGrade, setTempGrade] = useState(0);
@@ -426,7 +427,7 @@ const StudentPreviewDialog: React.FC<StudentPreviewDialogProps> = ({
                       id="grade"
                       type="number"
                       min="0"
-                      max="100"
+                      max={maxPoints}
                       value={tempGrade}
                       onChange={(e) => setTempGrade(Number(e.target.value))}
                       className="w-20 px-2 py-1 border rounded-md"

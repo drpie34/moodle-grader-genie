@@ -80,6 +80,7 @@ const GradingPreview: React.FC<GradingPreviewProps> = ({
                 key={index}
                 student={student}
                 index={index}
+                maxPoints={assignmentData.gradingScale}
                 onReview={openStudentPreview}
               />
             ))}
@@ -91,6 +92,7 @@ const GradingPreview: React.FC<GradingPreviewProps> = ({
           onClose={closeStudentPreview}
           student={selectedStudent !== null ? grades[selectedStudent] : null}
           studentIndex={selectedStudent}
+          maxPoints={assignmentData.gradingScale}
           onUpdateGrade={onUpdateGrade}
         />
       </CardContent>

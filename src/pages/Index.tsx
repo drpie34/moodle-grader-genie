@@ -11,7 +11,6 @@ import { WORKFLOW_STEPS } from "@/components/workflow/steps";
 import { useGradingWorkflow } from "@/hooks/use-grading-workflow";
 import { useApiKey } from "@/hooks/use-api-key";
 import { downloadCSV, generateMoodleCSV } from "@/utils/csvUtils";
-import { uploadMoodleGradebook } from "@/utils/csvUtils";
 import { toast } from "sonner";
 
 const Index = () => {
@@ -31,7 +30,8 @@ const Index = () => {
     handleContinueToDownload,
     handleReset,
     handleStepClick,
-    setGrades
+    setGrades,
+    preloadedGrades
   } = useGradingWorkflow();
 
   const {
@@ -40,52 +40,9 @@ const Index = () => {
     handleApiKeySubmit
   } = useApiKey();
 
-  const handleMoodleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
-    const file = files[0];
-    setMoodleFile(file);
-    
-    try {
-      // Parse the Moodle gradebook file
-      const gradebookData = await uploadMoodleGradebook(file);
-      
-      // Merge with existing grades
-      if (grades.length > 0) {
-        // Create a map of existing grades by student identifier or name
-        const existingGradesMap = new Map();
-        grades.forEach(grade => {
-          const key = grade.identifier || grade.fullName;
-          if (key) existingGradesMap.set(key, grade);
-        });
-        
-        // Update gradebook data with AI grading results
-        const updatedGrades = gradebookData.map(entry => {
-          const key = entry.identifier || entry.fullName;
-          const matchingGrade = key ? existingGradesMap.get(key) : null;
-          
-          if (matchingGrade) {
-            return {
-              ...entry,
-              grade: matchingGrade.grade,
-              feedback: matchingGrade.feedback,
-              file: matchingGrade.file,
-              edited: matchingGrade.edited
-            };
-          }
-          return entry;
-        });
-        
-        setGrades(updatedGrades);
-        toast.success("Moodle gradebook data merged with AI grades");
-      } else {
-        toast.info("Moodle gradebook file loaded");
-      }
-    } catch (error) {
-      console.error("Error processing Moodle file:", error);
-      toast.error("Error processing Moodle file. Please check the format.");
-    }
+  const handleMoodleGradebookUploaded = (gradebookData: any[]) => {
+    // Store the moodle grades in the workflow state
+    preloadedGrades(gradebookData);
   };
 
   const handleDownload = () => {
@@ -130,6 +87,7 @@ const Index = () => {
             <UploadStep 
               files={files}
               onFilesSelected={handleFilesSelected}
+              onMoodleGradebookUploaded={handleMoodleGradebookUploaded}
               onContinue={handleStepOneComplete}
             />
           )}
@@ -154,28 +112,6 @@ const Index = () => {
           
           {currentStep === 4 && assignmentData && (
             <div className="animate-scale-in">
-              <div className="mb-4">
-                <div className="p-4 rounded-lg border bg-muted/50">
-                  <h3 className="font-medium mb-2">Import Moodle Gradebook (Optional)</h3>
-                  <p className="text-sm text-muted-foreground mb-3">
-                    Upload your Moodle gradebook export to ensure the downloaded file matches your Moodle format exactly.
-                  </p>
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <input
-                      type="file"
-                      id="moodleFile"
-                      onChange={handleMoodleFileUpload}
-                      accept=".csv,.txt,.xlsx,.xls,.xml,.ods"
-                      className="text-sm"
-                    />
-                    {moodleFile && (
-                      <div className="text-xs text-muted-foreground">
-                        Using format from: {moodleFile.name}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
               <ProcessFiles 
                 files={files} 
                 assignmentData={assignmentData} 

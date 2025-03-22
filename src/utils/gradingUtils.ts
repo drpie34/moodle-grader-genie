@@ -1,128 +1,93 @@
-
 /**
- * Utility functions for grading assignments with OpenAI
+ * Utilities for grading student submissions using OpenAI
  */
 
-/**
- * Send data to OpenAI for grading
- */
-export async function gradeWithOpenAI(
-  text: string, 
-  assignmentData: any, 
-  apiKey: string
-): Promise<{ grade: number; feedback: string }> {
+// src/utils/gradingUtils.ts
+export async function gradeWithOpenAI(submissionText: string, assignmentData: any, apiKey: string, gradingScale: number = 100): Promise<{ grade: number; feedback: string }> {
   try {
-    // Prepare the prompt with feedback style instructions based on user preferences
-    const lengthGuidance = getLengthGuidance(assignmentData.feedbackLength || 5);
-    const formalityGuidance = getFormalityGuidance(assignmentData.feedbackFormality || 5);
-    const toneGuidance = assignmentData.instructorTone 
-      ? `Match this tone in your feedback: "${assignmentData.instructorTone}"`
-      : "";
-    const additionalInstructions = assignmentData.additionalInstructions
-      ? `Additional instructions: ${assignmentData.additionalInstructions}`
-      : "";
-
+    const prompt = constructPrompt(submissionText, assignmentData);
+    
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
+        'Authorization': `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: 'gpt-4o',
-        messages: [
-          {
-            role: 'system',
-            content: `You are an AI assistant that grades student assignments. 
-                      The assignment is for ${assignmentData.courseName}, 
-                      titled "${assignmentData.assignmentName}". 
-                      The academic level is ${assignmentData.academicLevel}. 
-                      Use a ${assignmentData.gradingScale}-point scale with 
-                      ${assignmentData.gradingStrictness}/10 strictness. 
-                      
-                      Feedback style instructions:
-                      - ${lengthGuidance}
-                      - ${formalityGuidance}
-                      ${toneGuidance ? `- ${toneGuidance}` : ''}
-                      ${additionalInstructions ? `- ${additionalInstructions}` : ''}
-                      
-                      Assignment instructions: ${assignmentData.assignmentInstructions}
-                      
-                      Rubric: ${assignmentData.rubric || 'No specific rubric provided.'}`
-          },
-          {
-            role: 'user',
-            content: `Here is the student's submission: \n\n${text}\n\nPlease grade this submission and provide feedback. Return your response in JSON format with two fields: "grade" (a number) and "feedback" (a string with your comments).`
-          }
-        ],
+        model: "gpt-4",
+        messages: [{ role: "user", content: prompt }],
         temperature: 0.7,
-        max_tokens: 1000
-      })
+      }),
     });
-
+    
     if (!response.ok) {
-      throw new Error(`OpenAI API error: ${response.statusText}`);
+      throw new Error(`OpenAI API error: ${response.status} ${response.statusText}`);
     }
-
+    
     const data = await response.json();
     const content = data.choices[0].message.content;
     
-    // Try to parse the JSON response
-    try {
-      // The model should return JSON, but it might include markdown formatting
-      // Let's try to extract just the JSON part
-      const jsonMatch = content.match(/```json\n([\s\S]*)\n```/) || 
-                        content.match(/```\n([\s\S]*)\n```/) || 
-                        content.match(/{[\s\S]*}/);
-      
-      const jsonString = jsonMatch ? jsonMatch[1] || jsonMatch[0] : content;
-      const result = JSON.parse(jsonString);
-      
-      return {
-        grade: Number(result.grade),
-        feedback: result.feedback
-      };
-    } catch (e) {
-      // If parsing fails, extract grade and feedback manually
-      const gradeMatch = content.match(/grade["\s:]+(\d+)/i);
-      const grade = gradeMatch ? parseInt(gradeMatch[1], 10) : 0;
-      
-      // Remove any JSON-like formatting and just use the content as feedback
-      const feedback = content.replace(/{|}|"grade":|"feedback":|"/g, '');
-      
-      return { grade, feedback };
-    }
+    // Extract grade and feedback from the response
+    const { grade, feedback } = extractGradeAndFeedback(content, gradingScale);
+    
+    return { grade, feedback };
   } catch (error) {
-    console.error('Error grading with OpenAI:', error);
-    return {
-      grade: 0,
-      feedback: `Error grading assignment: ${error instanceof Error ? error.message : 'Unknown error'}`
-    };
+    console.error("Error in gradeWithOpenAI:", error);
+    return { grade: 0, feedback: "Failed to grade submission." };
   }
 }
 
-/**
- * Get length guidance based on user preference
- */
-export function getLengthGuidance(lengthPreference: number): string {
-  if (lengthPreference <= 3) {
-    return "Keep feedback very concise and focused on the most important points (2-3 sentences)";
-  } else if (lengthPreference <= 7) {
-    return "Provide moderately detailed feedback with specific examples (1-2 paragraphs)";
-  } else {
-    return "Give comprehensive, detailed feedback covering multiple aspects of the work (several paragraphs)";
+function constructPrompt(submissionText: string, assignmentData: any): string {
+  const { assignmentName, courseName, assignmentInstructions, rubric, academicLevel, gradingScale, gradingStrictness, feedbackLength, feedbackFormality, instructorTone, additionalInstructions } = assignmentData;
+  
+  let prompt = `You are an AI grading assistant for ${courseName} at the ${academicLevel} level. \
+  Your task is to grade student submissions for the assignment "${assignmentName}" out of ${gradingScale} points. \
+  Follow these instructions: ${assignmentInstructions}. `;
+  
+  if (rubric) {
+    prompt += `Use this rubric to guide your grading: ${rubric}. `;
   }
+  
+  prompt += `Be ${gradingStrictness <= 3 ? "lenient" : gradingStrictness <= 7 ? "moderately strict" : "very strict"} in your grading. \
+  Provide feedback that is ${feedbackLength <= 3 ? "concise" : feedbackLength <= 7 ? "moderately detailed" : "very detailed"}. \
+  The tone of your feedback should be ${feedbackFormality <= 3 ? "casual" : feedbackFormality <= 7 ? "moderately formal" : "very formal"}. `;
+  
+  if (instructorTone) {
+    prompt += `Adopt this tone as if you were the instructor: ${instructorTone}. `;
+  }
+  
+  if (additionalInstructions) {
+    prompt += `Adhere to these additional instructions: ${additionalInstructions}. `;
+  }
+  
+  prompt += `Now, grade the following submission:\n${submissionText}\n\nRespond with the grade (out of ${gradingScale}) followed by feedback.\n\n`;
+  
+  return prompt;
 }
 
-/**
- * Get formality guidance based on user preference
- */
-export function getFormalityGuidance(formalityPreference: number): string {
-  if (formalityPreference <= 3) {
-    return "Use casual, conversational language with contractions and first-person address";
-  } else if (formalityPreference <= 7) {
-    return "Use a balanced, semi-formal tone that is professional but approachable";
+function extractGradeAndFeedback(content: string, gradingScale: number): { grade: number; feedback: string } {
+  // Use a more robust regex to find the grade
+  const gradeMatch = content.match(/(\d+(\.\d+)?)\s*\/\s*(\d+)/);
+  let grade = 0;
+  
+  if (gradeMatch) {
+    // If the grade is in the format "X / Y", use X
+    grade = parseFloat(gradeMatch[1]);
   } else {
-    return "Use formal academic language, avoiding contractions and colloquialisms";
+    // If the grade is a single number, use that
+    const singleGradeMatch = content.match(/^(\d+(\.\d+)?)/);
+    if (singleGradeMatch) {
+      grade = parseFloat(singleGradeMatch[1]);
+    }
   }
+  
+  // Normalize the grade to be out of the gradingScale
+  if (grade > gradingScale) {
+    grade = (grade / 100) * gradingScale;
+  }
+  
+  // Extract feedback by removing the grade from the content
+  let feedback = content.replace(/(\d+(\.\d+)?\s*\/\s*\d+)|(\d+(\.\d+)?)/, '').trim();
+  
+  return { grade, feedback };
 }

@@ -24,6 +24,12 @@ export function useGradingWorkflow() {
   const [grades, setGrades] = useState<StudentGrade[]>([]);
   const [sampleDataLoaded, setSampleDataLoaded] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [moodleGrades, setMoodleGrades] = useState<StudentGrade[]>([]);
+  
+  // Preload grades from Moodle gradebook
+  const preloadedGrades = (grades: StudentGrade[]) => {
+    setMoodleGrades(grades);
+  };
   
   // Process files with OpenAI when ready
   useEffect(() => {
@@ -118,14 +124,39 @@ export function useGradingWorkflow() {
             }
             
             if (submissionFile) {
+              // Check if there's a matching student in the preloaded Moodle grades
+              let studentName = studentInfo.fullName;
+              let studentEmail = studentInfo.email;
+              let studentIdentifier = studentInfo.identifier;
+              
+              // Try to find a matching student in preloaded grades
+              if (moodleGrades.length > 0) {
+                // Try to match by identifier first
+                const matchingGrade = moodleGrades.find(grade => 
+                  grade.identifier === studentInfo.identifier ||
+                  grade.fullName.toLowerCase() === studentInfo.fullName.toLowerCase()
+                );
+                
+                if (matchingGrade) {
+                  studentName = matchingGrade.fullName;
+                  studentEmail = matchingGrade.email;
+                  studentIdentifier = matchingGrade.identifier;
+                }
+              }
+              
               // Process with OpenAI
-              const gradingResult = await gradeWithOpenAI(submissionText, assignmentData, getApiKey() || "");
+              const gradingResult = await gradeWithOpenAI(
+                submissionText, 
+                assignmentData, 
+                getApiKey() || "",
+                assignmentData.gradingScale // Pass the grading scale to the AI
+              );
               
               // Add to processed grades with properly extracted student info
               processedGrades.push({
-                identifier: studentInfo.identifier,
-                fullName: studentInfo.fullName,
-                email: studentInfo.email,
+                identifier: studentIdentifier,
+                fullName: studentName,
+                email: studentEmail,
                 status: "Graded",
                 grade: gradingResult.grade,
                 feedback: gradingResult.feedback,
@@ -141,7 +172,37 @@ export function useGradingWorkflow() {
             }
           }
           
-          setGrades(processedGrades);
+          // If there are preloaded moodle grades, merge them with the AI grades
+          if (moodleGrades.length > 0) {
+            const mergedGrades = [...moodleGrades];
+            
+            // For each processed grade, try to find a matching student in moodleGrades
+            processedGrades.forEach(aiGrade => {
+              const moodleIndex = mergedGrades.findIndex(grade => 
+                grade.identifier === aiGrade.identifier ||
+                grade.fullName.toLowerCase() === aiGrade.fullName.toLowerCase()
+              );
+              
+              if (moodleIndex >= 0) {
+                // Update the existing grade
+                mergedGrades[moodleIndex] = {
+                  ...mergedGrades[moodleIndex],
+                  grade: aiGrade.grade,
+                  feedback: aiGrade.feedback,
+                  file: aiGrade.file,
+                  edited: false
+                };
+              } else {
+                // No matching student, add the new grade
+                mergedGrades.push(aiGrade);
+              }
+            });
+            
+            setGrades(mergedGrades);
+          } else {
+            setGrades(processedGrades);
+          }
+          
           setSampleDataLoaded(true);
           toast.success("All files processed successfully!");
         } catch (error) {
@@ -160,7 +221,7 @@ export function useGradingWorkflow() {
     };
     
     processFilesWithAI();
-  }, [currentStep, assignmentData, files, sampleDataLoaded, isProcessing]);
+  }, [currentStep, assignmentData, files, sampleDataLoaded, isProcessing, moodleGrades]);
 
   // Helper to get API key from localStorage
   const getApiKey = (): string | null => {
@@ -175,14 +236,31 @@ export function useGradingWorkflow() {
         .then(csvData => {
           const parsedGrades = parseMoodleCSV(csvData);
           
-          // Attach files to grades
-          const gradesWithFiles = parsedGrades.map((grade, index) => ({
-            ...grade,
-            file: files[index % files.length],
-            edited: false
-          }));
+          // If we have moodle grades, merge them with the sample data
+          if (moodleGrades.length > 0) {
+            const mergedGrades = [...moodleGrades];
+            
+            // Generate random grades and feedback for demonstration
+            mergedGrades.forEach((grade, index) => {
+              const maxPoints = assignmentData?.gradingScale || 100;
+              grade.grade = Math.floor(Math.random() * (maxPoints * 0.7)) + (maxPoints * 0.3); // Random grade between 30% and 100%
+              grade.feedback = `This is sample feedback for ${grade.fullName}. In a real scenario, this would be generated by AI based on the submission content.`;
+              grade.file = files[index % files.length];
+              grade.edited = false;
+            });
+            
+            setGrades(mergedGrades);
+          } else {
+            // Attach files to grades
+            const gradesWithFiles = parsedGrades.map((grade, index) => ({
+              ...grade,
+              file: files[index % files.length],
+              edited: false
+            }));
+            
+            setGrades(gradesWithFiles);
+          }
           
-          setGrades(gradesWithFiles);
           setSampleDataLoaded(true);
           
           if (!getApiKey()) {
@@ -262,6 +340,7 @@ export function useGradingWorkflow() {
     setFiles([]);
     setAssignmentData(null);
     setGrades([]);
+    setMoodleGrades([]);
     setSampleDataLoaded(false);
     toast.info("Started a new grading session");
     // Smooth scroll to top
@@ -291,6 +370,7 @@ export function useGradingWorkflow() {
     handleApproveAll,
     handleContinueToDownload,
     handleReset,
-    handleStepClick
+    handleStepClick,
+    preloadedGrades
   };
 }

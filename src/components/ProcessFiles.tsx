@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Check, Download, File, FileText, FilesIcon } from "lucide-react";
-import { AssignmentFormData } from "./AssignmentForm";
+import { AssignmentFormData } from "./assignment/AssignmentFormTypes";
 
 interface ProcessFilesProps {
   files: File[];
@@ -49,13 +49,10 @@ const ProcessFiles: React.FC<ProcessFilesProps> = ({
   // Get total size of all files
   const totalSize = files.reduce((acc, file) => acc + file.size, 0);
 
-  // In a real implementation, we would actually process the files here
-  // For now, we'll just simulate that we've successfully processed them
-
   return (
     <Card className="w-full">
       <CardHeader>
-        <CardTitle className="text-2xl font-medium">Ready for Processing</CardTitle>
+        <CardTitle className="text-2xl font-medium">Ready for Download</CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="space-y-4">
@@ -75,16 +72,14 @@ const ProcessFiles: React.FC<ProcessFilesProps> = ({
                 <p className="font-medium capitalize">{assignmentData.academicLevel}</p>
               </div>
               <div>
-                <span className="text-muted-foreground">Grading Mode:</span>
-                <p className="font-medium">
-                  {assignmentData.gradingMode === 'full' ? 'Full AI Grading' : 'Suggestions Only'}
-                </p>
+                <span className="text-muted-foreground">Grading Scale:</span>
+                <p className="font-medium">{assignmentData.gradingScale} points</p>
               </div>
             </div>
           </div>
 
           <div>
-            <h3 className="mb-2 font-medium">Files to Process</h3>
+            <h3 className="mb-2 font-medium">Files Processed</h3>
             <Card>
               <div className="max-h-60 overflow-y-auto">
                 <table className="w-full">
@@ -126,7 +121,8 @@ const ProcessFiles: React.FC<ProcessFilesProps> = ({
             Ready for Moodle
           </h3>
           <p className="text-sm text-muted-foreground">
-            The files have been prepared for processing. In a real implementation, we would process these files by extracting text, applying AI analysis, and generating a CSV file that's compatible with Moodle's grading upload format.
+            All student submissions have been graded and the feedback has been prepared in a Moodle-compatible format.
+            The CSV file will use the exact same format as your uploaded gradebook, with grades and feedback filled in.
           </p>
         </div>
 
