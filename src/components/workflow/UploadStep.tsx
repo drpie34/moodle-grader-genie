@@ -78,8 +78,14 @@ const UploadStep: React.FC<UploadStepProps> = ({
                 <Info className="h-4 w-4 text-blue-500 mt-0.5 mr-2" />
                 <div className="text-xs text-blue-800">
                   <p className="font-medium">Important for student matching:</p>
-                  <p>The system will match student names from folders in your submission ZIP file with names in the gradebook. 
-                  Make sure student names in the Moodle gradebook match the folder names in your submission files.</p>
+                  <p>The system matches student names from folders in your submission ZIP file with names in the gradebook. 
+                  The folder names <strong>MUST</strong> contain student names that match the student names in the gradebook.</p>
+                  <p className="mt-1"><strong>Example folder names that work well:</strong></p>
+                  <ul className="list-disc ml-5 mt-1">
+                    <li>Jane Smith_12345_assignsubmission_file</li>
+                    <li>Smith, Jane_12345_assignsubmission_file</li>
+                    <li>SMITH_JANE_12345_assignsubmission_file</li>
+                  </ul>
                 </div>
               </div>
             </div>
@@ -118,6 +124,17 @@ const UploadStep: React.FC<UploadStepProps> = ({
               Now upload your student submissions (ZIP file from Moodle or individual files). 
               The system will match student folders with the names in your gradebook.
             </p>
+            
+            <div className="rounded-md bg-amber-50 p-3 mb-2">
+              <div className="flex items-start">
+                <AlertCircle className="h-4 w-4 text-amber-500 mt-0.5 mr-2" />
+                <div className="text-xs text-amber-800">
+                  <p className="font-medium">Important note about student submissions:</p>
+                  <p>For best results, upload a ZIP file exported directly from Moodle with all student submissions. 
+                  This preserves the folder structure with student names that can be matched with the gradebook.</p>
+                </div>
+              </div>
+            </div>
             
             <FileUploader onFilesSelected={onFilesSelected} />
           </div>

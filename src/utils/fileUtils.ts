@@ -1,3 +1,4 @@
+
 import { extractTextFromPDF } from './pdfUtils';
 import { extractTextFromDOCX, extractHTMLFromDOCX } from './docxUtils';
 import { extractTextFromImage } from './imageUtils';
@@ -46,23 +47,142 @@ export function extractStudentInfoFromFilename(filename: string, folderPath?: st
   let email = '';
   
   // First, try to extract information from folder path if available
-  if (folderPath) {
-    // Common Moodle folder structure: "John Doe_12345_assignsubmission_file_"
-    const folderName = folderPath.split('/').pop() || '';
+  if (folderPath && folderPath !== '') {
+    console.log(`Extracting student info from folder path: "${folderPath}"`);
     
-    // Extract full name from folder (usually the part before first underscore or ID)
-    const folderNameMatch = folderName.match(/^([^_]+(?:\s[^_]+)*)/);
-    if (folderNameMatch && folderNameMatch[1]) {
-      fullName = folderNameMatch[1].trim();
+    // Common Moodle folder structure formats to try:
+    // 1. "John Doe_12345_assignsubmission_file_"
+    // 2. "Doe, John_12345_assignsubmission_file_"
+    // 3. "LASTNAME_FIRSTNAME_12345_assignsubmission_file_"
+    
+    // Clean up folder path (remove path separators)
+    const folderName = folderPath.split('/').pop() || '';
+    console.log(`Processing folder name: "${folderName}"`);
+    
+    // Try to extract name from the first part before underscore or ID
+    // Check for common patterns
+    
+    // Pattern 1: First Last_12345_ format
+    let nameMatch = folderName.match(/^([^_]+(?:\s[^_]+)*)/);
+    if (nameMatch && nameMatch[1] && nameMatch[1].includes(' ')) {
+      fullName = nameMatch[1].trim();
+      console.log(`Found name with space in folder name: "${fullName}"`);
       
-      // If we have a name with spaces, it's likely a proper full name
-      if (fullName.includes(' ')) {
+      // Properly format the name for comparison with gradebook
+      fullName = fullName.split(' ')
+        .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+        .join(' ');
+      
+      return {
+        identifier: identifier || fullName.replace(/\s+/g, '').toLowerCase(),
+        fullName: fullName,
+        email: `${fullName.replace(/\s+/g, '.').toLowerCase()}@example.com`
+      };
+    }
+    
+    // Pattern 2: Last, First format
+    nameMatch = folderName.match(/^([^,]+),\s*([^_]+)/);
+    if (nameMatch && nameMatch[1] && nameMatch[2]) {
+      const lastName = nameMatch[1].trim();
+      const firstName = nameMatch[2].trim();
+      fullName = `${firstName} ${lastName}`;
+      console.log(`Found Last, First format: "${fullName}"`);
+      
+      // Properly format the name
+      fullName = fullName.split(' ')
+        .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+        .join(' ');
+      
+      return {
+        identifier: fullName.replace(/\s+/g, '').toLowerCase(),
+        fullName: fullName,
+        email: `${firstName.toLowerCase()}.${lastName.toLowerCase()}@example.com`
+      };
+    }
+    
+    // Pattern 3: LAST_FIRST format
+    nameMatch = folderName.match(/^([^_]+)_([^_]+)/);
+    if (nameMatch && nameMatch[1] && nameMatch[2]) {
+      const possibleLastName = nameMatch[1].trim();
+      const possibleFirstName = nameMatch[2].trim();
+      
+      // Check if these parts might be a name (not assignsubmission, etc)
+      if (!possibleLastName.includes('assign') && !possibleFirstName.includes('assign')) {
+        fullName = `${possibleFirstName} ${possibleLastName}`;
+        console.log(`Found LAST_FIRST format: "${fullName}"`);
+        
+        // Properly format the name
+        fullName = fullName.split(' ')
+          .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+          .join(' ');
+        
         return {
-          identifier: identifier || fullName.replace(/\s+/g, '').toLowerCase(),
+          identifier: fullName.replace(/\s+/g, '').toLowerCase(),
           fullName: fullName,
-          email: `${fullName.replace(/\s+/g, '.').toLowerCase()}@example.com`
+          email: `${possibleFirstName.toLowerCase()}.${possibleLastName.toLowerCase()}@example.com`
         };
       }
+    }
+    
+    // If previous patterns failed, try a more general approach
+    // Replace common separators with spaces
+    const normalizedFolderName = folderName.replace(/[_-]/g, ' ');
+    const words = normalizedFolderName.split(/\s+/);
+    
+    // Try to extract name parts (likely in the beginning)
+    if (words.length >= 2) {
+      // Use first two words as name if they don't look like numbers or codes
+      if (!/^\d+$/.test(words[0]) && !/^\d+$/.test(words[1])) {
+        const nameCandidate = `${words[0]} ${words[1]}`;
+        if (nameCandidate.length > 3) {
+          fullName = nameCandidate;
+          console.log(`Extracted name candidate from folder: "${fullName}"`);
+          
+          // Properly format the name
+          fullName = fullName.split(' ')
+            .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+            .join(' ');
+          
+          return {
+            identifier: fullName.replace(/\s+/g, '').toLowerCase(),
+            fullName: fullName,
+            email: `${words[0].toLowerCase()}.${words[1].toLowerCase()}@example.com`
+          };
+        }
+      }
+    }
+    
+    // If we've reached here, we'll just use the folder name as-is for fullName
+    if (folderName.length > 0) {
+      // Clean up the folder name - replace separators with spaces
+      const cleanedName = folderName.replace(/[_-]/g, ' ').trim();
+      
+      // Filter out common Moodle keywords
+      const nameParts = cleanedName.split(/\s+/)
+        .filter(part => !part.includes('assign') && 
+                       !part.includes('submission') && 
+                       !part.includes('file') && 
+                       !/^\d+$/.test(part));
+      
+      if (nameParts.length > 0) {
+        fullName = nameParts.join(' ');
+        console.log(`Using cleaned folder name as fallback: "${fullName}"`);
+        
+        // Properly format the name
+        fullName = fullName.split(' ')
+          .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+          .join(' ');
+      } else {
+        // Last resort: use the raw folder name
+        fullName = cleanedName;
+        console.log(`Using raw folder name as last resort: "${fullName}"`);
+      }
+      
+      return {
+        identifier: fullName.replace(/\s+/g, '').toLowerCase(),
+        fullName: fullName,
+        email: `${fullName.replace(/\s+/g, '.').toLowerCase()}@example.com`
+      };
     }
   }
   
