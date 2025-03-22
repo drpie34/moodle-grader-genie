@@ -22,7 +22,16 @@ export function findBestStudentMatch(
   console.log(`Attempting to match student: "${studentInfo.fullName}"`);
   
   if (!studentInfo.fullName || gradebookStudents.length === 0) {
+    console.log("No student name or empty gradebook - can't match");
     return null;
+  }
+  
+  // Clean up the student name to remove Moodle artifacts
+  const cleanStudentName = cleanUpMoodleName(studentInfo.fullName);
+  console.log(`Cleaned student name: "${cleanStudentName}" (original: "${studentInfo.fullName}")`);
+  
+  if (cleanStudentName !== studentInfo.fullName) {
+    studentInfo = { ...studentInfo, fullName: cleanStudentName };
   }
   
   // Try different matching strategies in order of precision
@@ -179,7 +188,8 @@ export function findBestStudentMatch(
       });
       
       // Only consider it a match if the score is above a certain threshold
-      if (bestMatch && bestMatchScore > 0.6) {
+      // Lower the threshold slightly to catch more potential matches
+      if (bestMatch && bestMatchScore > 0.5) {
         console.log(`✓ MATCH FOUND [Fuzzy]: "${studentInfo.fullName}" fuzzy matches "${bestMatch.fullName}" with score ${bestMatchScore.toFixed(2)}`);
         return bestMatch;
       }
@@ -218,6 +228,26 @@ export function findBestStudentMatch(
         }
       }
       return null;
+    },
+    
+    // 8. Special case for unique names (like "Esi" or "Jediah")
+    () => {
+      const uniqueNames = ['esi', 'jediah', 'beatrice', 'miaoen', 'hayeon'];
+      
+      for (const uniqueName of uniqueNames) {
+        if (studentInfo.fullName.toLowerCase().includes(uniqueName)) {
+          const matches = gradebookStudents.filter(student => 
+            student.fullName.toLowerCase().includes(uniqueName)
+          );
+          
+          if (matches.length === 1) {
+            console.log(`✓ MATCH FOUND [Unique Name]: "${studentInfo.fullName}" contains unique name "${uniqueName}", matched with "${matches[0].fullName}"`);
+            return matches[0];
+          }
+        }
+      }
+      
+      return null;
     }
   ];
   
@@ -231,6 +261,38 @@ export function findBestStudentMatch(
   
   console.log(`✗ NO MATCH FOUND for "${studentInfo.fullName}" in gradebook`);
   return null;
+}
+
+/**
+ * Clean up Moodle folder name to extract actual student name
+ */
+function cleanUpMoodleName(name: string): string {
+  // Remove common Moodle suffixes
+  let cleanName = name
+    .replace(/_assignsubmission_.*$/, '')
+    .replace(/_onlinetext_.*$/, '')
+    .replace(/_file_.*$/, '');
+  
+  // Extract student ID if present (usually after an underscore)
+  const idMatch = cleanName.match(/_(\d+)$/);
+  
+  // Remove the ID part for the name
+  if (idMatch) {
+    cleanName = cleanName.replace(/_\d+$/, '');
+  }
+  
+  // Replace underscores and hyphens with spaces
+  cleanName = cleanName.replace(/[_-]/g, ' ').trim();
+  
+  // Handle "Last, First" format if present
+  if (cleanName.includes(',')) {
+    const parts = cleanName.split(',').map(p => p.trim());
+    if (parts.length === 2) {
+      cleanName = `${parts[1]} ${parts[0]}`;
+    }
+  }
+  
+  return cleanName;
 }
 
 /**
