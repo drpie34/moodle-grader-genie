@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { extractTextFromFile, extractTextFromHTML, findBestSubmissionFile, extractStudentInfoFromFilename } from "@/utils/fileUtils";
-import { parseMoodleCSV, generateMoodleCSV } from "@/utils/csvUtils";
+import { uploadMoodleGradebook, generateMoodleCSV } from "@/utils/csv";
 import { gradeWithOpenAI } from "@/utils/gradingUtils";
 import type { AssignmentFormData } from "@/components/assignment/AssignmentFormTypes";
 import { findBestStudentMatch } from "@/utils/nameMatchingUtils";

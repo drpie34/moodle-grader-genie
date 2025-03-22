@@ -1,10 +1,9 @@
-
 import React, { useState } from "react";
 import FileUploader from "@/components/FileUploader";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
-import { uploadMoodleGradebook } from "@/utils/csvUtils";
+import { uploadMoodleGradebook } from "@/utils/csv";
 import { Separator } from "@/components/ui/separator";
 import { FileSpreadsheet, CheckCircle, AlertCircle, Info, Folder } from "lucide-react";
 import SubmissionPreview from "./SubmissionPreview";
@@ -41,29 +40,24 @@ const UploadStep: React.FC<UploadStepProps> = ({
     setGradebookSuccess(false);
     
     try {
-      // Parse the Moodle gradebook file
       const gradebookData = await uploadMoodleGradebook(file);
       
-      // Log the entire gradebook data for debugging
       console.log("Raw gradebook data received:", JSON.stringify(gradebookData, null, 2));
       
       onMoodleGradebookUploaded(gradebookData);
       setGradebookSuccess(true);
       toast.success("Moodle gradebook uploaded successfully");
-      console.log("Moodle gradebook data:", gradebookData); // Debug log
+      console.log("Moodle gradebook data:", gradebookData);
       
-      // Extract student names for preview matching
       const studentNames = gradebookData.grades.map(g => g.fullName);
       setGradebookStudents(studentNames);
       
-      // Log if first/last name columns were found
       const hasFirstName = gradebookData.grades.some(g => g.firstName);
       const hasLastName = gradebookData.grades.some(g => g.lastName);
       
       console.log("First name column detection:", hasFirstName ? "FOUND" : "NOT FOUND");
       console.log("Last name column detection:", hasLastName ? "FOUND" : "NOT FOUND");
       
-      // Check the first few students for first/last name data
       gradebookData.grades.slice(0, 5).forEach((student, idx) => {
         console.log(`Student ${idx + 1} name data:`, {
           fullName: student.fullName,
@@ -82,7 +76,6 @@ const UploadStep: React.FC<UploadStepProps> = ({
         toast.warning("First and last name columns NOT found in gradebook. This may impact student matching.");
       }
       
-      // Log some student names to verify extraction
       console.log("First 5 student names from gradebook:", studentNames.slice(0, 5));
       
     } catch (error) {
@@ -98,11 +91,9 @@ const UploadStep: React.FC<UploadStepProps> = ({
     setFolderStructure(structure);
     console.log("Folder structure detected:", Object.keys(structure));
     
-    // Extract student names from folders for debugging
     const studentFolderNames = Object.keys(structure)
       .filter(folder => folder !== 'root')
       .map(folder => {
-        // Extract student name from folder path
         const cleanName = folder
           .replace(/_assignsubmission_.*$/, '')
           .replace(/_onlinetext_.*$/, '')
@@ -123,7 +114,6 @@ const UploadStep: React.FC<UploadStepProps> = ({
     onFilesSelected(selectedFiles);
   };
 
-  // Calculate how many files have folder paths (to show in UI)
   const filesWithFolderPaths = files.filter(file => 
     file.webkitRelativePath && file.webkitRelativePath.includes('/')
   ).length;
@@ -137,7 +127,6 @@ const UploadStep: React.FC<UploadStepProps> = ({
     if (filesWithFolderPaths > 0 || Object.keys(folderStructure).length > 1) {
       setShowPreview(true);
     } else {
-      // If there's no folder structure to preview, just continue
       onContinue();
     }
   };

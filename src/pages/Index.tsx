@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import Header from "@/components/Header";
 import StepIndicator from "@/components/StepIndicator";
@@ -10,7 +9,7 @@ import ProcessFiles from "@/components/ProcessFiles";
 import { WORKFLOW_STEPS } from "@/components/workflow/steps";
 import { useGradingWorkflow } from "@/hooks/use-grading-workflow";
 import { useApiKey } from "@/hooks/use-api-key";
-import { downloadCSV, generateMoodleCSV } from "@/utils/csvUtils";
+import { downloadCSV, generateMoodleCSV } from "@/utils/csv";
 import { toast } from "sonner";
 
 const Index = () => {
