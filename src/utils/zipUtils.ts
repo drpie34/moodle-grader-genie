@@ -22,12 +22,18 @@ export async function processZipFile(zipFile: File): Promise<File[]> {
         return;
       }
       
+      // Skip macOS metadata files
+      if (filename.includes('__MACOSX') || filename.startsWith('.') || filename.includes('/.')) {
+        return;
+      }
+      
       // Get file content as Blob
       const content = await zipEntry.async('blob');
       
-      // Create File object
-      const file = new File([content], filename.split('/').pop() || filename, {
-        type: getFileTypeFromName(filename)
+      // Create File object with proper name handling
+      const cleanedFilename = filename.split('/').pop() || filename;
+      const file = new File([content], cleanedFilename, {
+        type: getFileTypeFromName(cleanedFilename)
       });
       
       extractedFiles.push(file);
@@ -52,6 +58,8 @@ function getFileTypeFromName(filename: string): string {
     case 'docx': return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
     case 'doc': return 'application/msword';
     case 'txt': return 'text/plain';
+    case 'html':
+    case 'htm': return 'text/html';
     case 'jpg':
     case 'jpeg': return 'image/jpeg';
     case 'png': return 'image/png';

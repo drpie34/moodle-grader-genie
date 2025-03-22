@@ -1,6 +1,7 @@
+
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { extractTextFromFile } from "@/utils/fileUtils";
+import { extractTextFromFile, findBestSubmissionFile } from "@/utils/fileUtils";
 import { parseMoodleCSV } from "@/utils/csvUtils";
 import { gradeWithOpenAI } from "@/utils/gradingUtils";
 import type { AssignmentFormData } from "@/components/assignment/AssignmentFormTypes";
@@ -32,36 +33,101 @@ export function useGradingWorkflow() {
         toast.info(`Processing ${files.length} files with AI...`);
         
         try {
-          // For each file, extract text and send to OpenAI for grading
-          const processedGrades: StudentGrade[] = [];
+          // Group files by student ID (simplified approach)
+          const filesByStudent: { [key: string]: File[] } = {};
           
-          for (let i = 0; i < files.length; i++) {
-            const file = files[i];
-            
+          for (const file of files) {
             // Extract a student identifier from the filename
-            const studentId = `student${i + 1}`;
-            const studentName = file.name.split('.')[0].replace(/_/g, ' ');
+            // This is a simplified approach - may need to be adjusted based on actual naming conventions
+            const studentId = file.name.split('_')[0];
             
-            // Extract text from the file
-            const fileContent = await extractTextFromFile(file);
+            if (!filesByStudent[studentId]) {
+              filesByStudent[studentId] = [];
+            }
             
-            // Process with OpenAI
-            const gradingResult = await gradeWithOpenAI(fileContent, assignmentData, getApiKey() || "");
+            filesByStudent[studentId].push(file);
+          }
+          
+          // For each student, find the best submission file and process it
+          const processedGrades: StudentGrade[] = [];
+          let processedCount = 0;
+          
+          for (const studentId in filesByStudent) {
+            const studentFiles = filesByStudent[studentId];
             
-            // Add to processed grades
-            processedGrades.push({
-              identifier: studentId,
-              fullName: studentName,
-              email: `${studentId}@example.com`,
-              status: "Graded",
-              grade: gradingResult.grade,
-              feedback: gradingResult.feedback,
-              file: file,
-              edited: false
-            });
+            // Find the best file containing the submission content
+            let submissionText = '';
+            let submissionFile: File | null = null;
             
-            // Update progress
-            toast.info(`Processed ${i + 1}/${files.length} files`);
+            // First, check if there's a non-HTML file with content
+            for (const file of studentFiles.filter(f => 
+              !f.name.endsWith('.html') && !f.name.endsWith('.htm')
+            )) {
+              try {
+                const text = await extractTextFromFile(file);
+                if (text.trim().length > 0) {
+                  submissionText = text;
+                  submissionFile = file;
+                  break;
+                }
+              } catch (error) {
+                console.error(`Error extracting text from ${file.name}:`, error);
+              }
+            }
+            
+            // If no content found in non-HTML files, check HTML files
+            if (!submissionText) {
+              for (const file of studentFiles.filter(f => 
+                f.name.endsWith('.html') || f.name.endsWith('.htm')
+              )) {
+                try {
+                  const text = await extractTextFromFile(file);
+                  if (text.trim().length > 0) {
+                    submissionText = text;
+                    submissionFile = file;
+                    break;
+                  }
+                } catch (error) {
+                  console.error(`Error extracting text from ${file.name}:`, error);
+                }
+              }
+            }
+            
+            // If still no content, use the first file
+            if (!submissionFile && studentFiles.length > 0) {
+              submissionFile = studentFiles[0];
+              try {
+                submissionText = await extractTextFromFile(submissionFile);
+              } catch (error) {
+                console.error(`Error extracting text from fallback file ${submissionFile.name}:`, error);
+                submissionText = '';
+              }
+            }
+            
+            if (submissionFile) {
+              // Process with OpenAI
+              const studentName = submissionFile.name.split('.')[0].replace(/_/g, ' ');
+              
+              const gradingResult = await gradeWithOpenAI(submissionText, assignmentData, getApiKey() || "");
+              
+              // Add to processed grades
+              processedGrades.push({
+                identifier: studentId,
+                fullName: studentName,
+                email: `${studentId}@example.com`,
+                status: "Graded",
+                grade: gradingResult.grade,
+                feedback: gradingResult.feedback,
+                file: submissionFile,
+                edited: false
+              });
+              
+              processedCount++;
+              // Update progress
+              if (processedCount % 5 === 0 || processedCount === Object.keys(filesByStudent).length) {
+                toast.info(`Processed ${processedCount}/${Object.keys(filesByStudent).length} submissions`);
+              }
+            }
           }
           
           setGrades(processedGrades);

@@ -12,7 +12,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { Edit, X } from "lucide-react";
-import { extractTextFromDOCX } from "@/utils/docxUtils";
+import { extractTextFromDOCX, extractTextFromHTML } from "@/utils/fileUtils";
 import type { StudentGrade } from "@/hooks/use-grading-workflow";
 
 interface StudentPreviewDialogProps {
@@ -34,14 +34,16 @@ const StudentPreviewDialog: React.FC<StudentPreviewDialogProps> = ({
   const [tempGrade, setTempGrade] = useState(0);
   const [tempFeedback, setTempFeedback] = useState("");
   const [filePreview, setFilePreview] = useState<string | null>(null);
-  const [docxText, setDocxText] = useState<string | null>(null);
+  const [extractedText, setExtractedText] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
     if (student) {
       setTempGrade(student.grade);
       setTempFeedback(student.feedback);
       setEditMode(false);
-      setDocxText(null);
+      setExtractedText(null);
+      setIsProcessing(false);
       
       if (student.file) {
         generateFilePreview(student.file);
@@ -63,50 +65,97 @@ const StudentPreviewDialog: React.FC<StudentPreviewDialogProps> = ({
   const generateFilePreview = async (file: File | undefined) => {
     if (!file) {
       setFilePreview(null);
-      setDocxText(null);
+      setExtractedText(null);
       return;
     }
 
+    setIsProcessing(true);
     const fileExt = file.name.split('.').pop()?.toLowerCase();
     
     if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].includes(fileExt || '')) {
       const imageUrl = URL.createObjectURL(file);
       setFilePreview(imageUrl);
+      setIsProcessing(false);
     } else if (fileExt === 'pdf') {
       const pdfUrl = URL.createObjectURL(file);
       setFilePreview(pdfUrl);
+      setIsProcessing(false);
     } else if (['doc', 'docx'].includes(fileExt || '')) {
       try {
         // For DOCX files, extract text and display as text preview
-        const extractedText = await extractTextFromDOCX(file);
-        setDocxText(extractedText);
+        const text = await extractTextFromDOCX(file);
+        setExtractedText(text);
         setFilePreview('docx');
+        setIsProcessing(false);
       } catch (error) {
         console.error('Error extracting DOCX text:', error);
         setFilePreview('doc');
+        setIsProcessing(false);
+      }
+    } else if (['html', 'htm'].includes(fileExt || '')) {
+      try {
+        // For HTML files, extract text and display as text preview
+        const text = await extractTextFromHTML(file);
+        setExtractedText(text);
+        setFilePreview('html');
+        setIsProcessing(false);
+      } catch (error) {
+        console.error('Error extracting HTML text:', error);
+        
+        // Fallback to iframe for HTML files
+        const htmlUrl = URL.createObjectURL(file);
+        setFilePreview(htmlUrl);
+        setIsProcessing(false);
       }
     } else if (fileExt === 'txt') {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const content = e.target?.result as string;
-        setFilePreview(`data:text/plain;charset=utf-8,${encodeURIComponent(content)}`);
-      };
-      reader.readAsText(file);
+      try {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const content = e.target?.result as string;
+          setExtractedText(content);
+          setFilePreview('txt');
+          setIsProcessing(false);
+        };
+        reader.onerror = (error) => {
+          console.error('Error reading text file:', error);
+          setFilePreview('unsupported');
+          setIsProcessing(false);
+        };
+        reader.readAsText(file);
+      } catch (error) {
+        console.error('Error with text file:', error);
+        setFilePreview('unsupported');
+        setIsProcessing(false);
+      }
     } else {
       setFilePreview('unsupported');
+      setIsProcessing(false);
     }
   };
 
   useEffect(() => {
     return () => {
-      if (filePreview && !filePreview.startsWith('data:') && 
-          filePreview !== 'doc' && filePreview !== 'docx' && filePreview !== 'unsupported') {
+      if (filePreview && 
+          typeof filePreview === 'string' && 
+          filePreview.startsWith('blob:') && 
+          !['docx', 'doc', 'html', 'txt', 'unsupported'].includes(filePreview)) {
         URL.revokeObjectURL(filePreview);
       }
     };
   }, [filePreview]);
 
   const renderFilePreview = () => {
+    if (isProcessing) {
+      return (
+        <div className="flex flex-col items-center justify-center bg-muted p-8 rounded-md h-full">
+          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary mb-4"></div>
+          <p className="text-muted-foreground">
+            Processing file...
+          </p>
+        </div>
+      );
+    }
+    
     if (!filePreview) return <p>No file available</p>;
     
     if (filePreview === 'doc') {
@@ -124,11 +173,44 @@ const StudentPreviewDialog: React.FC<StudentPreviewDialogProps> = ({
           </p>
         </div>
       );
-    } else if (filePreview === 'docx' && docxText) {
+    } else if (filePreview === 'docx' && extractedText) {
+      return (
+        <div className="bg-white dark:bg-slate-900 p-4 rounded-md h-full overflow-auto border">
+          <h3 className="text-sm font-medium mb-2">Document Text Content:</h3>
+          <pre className="text-sm font-mono whitespace-pre-wrap">
+            {extractedText}
+          </pre>
+        </div>
+      );
+    } else if (filePreview === 'html') {
+      // Two options for HTML: either show extracted text or render in iframe
+      if (extractedText) {
+        return (
+          <div className="bg-white dark:bg-slate-900 p-4 rounded-md h-full overflow-auto border">
+            <h3 className="text-sm font-medium mb-2">HTML Content:</h3>
+            <pre className="text-sm font-mono whitespace-pre-wrap">
+              {extractedText}
+            </pre>
+          </div>
+        );
+      } else if (student?.file) {
+        const htmlUrl = URL.createObjectURL(student.file);
+        return (
+          <div className="h-full w-full overflow-hidden border rounded">
+            <iframe 
+              src={htmlUrl} 
+              title="HTML Preview" 
+              className="w-full h-full min-h-[500px]"
+              sandbox="allow-same-origin"
+            />
+          </div>
+        );
+      }
+    } else if (filePreview === 'txt' && extractedText) {
       return (
         <div className="bg-white dark:bg-slate-900 p-4 rounded-md h-full overflow-auto border">
           <pre className="text-sm font-mono whitespace-pre-wrap">
-            {docxText}
+            {extractedText}
           </pre>
         </div>
       );
@@ -144,14 +226,6 @@ const StudentPreviewDialog: React.FC<StudentPreviewDialogProps> = ({
           </p>
         </div>
       );
-    } else if (filePreview.startsWith('data:text/plain')) {
-      return (
-        <div className="bg-white dark:bg-slate-900 p-4 rounded-md h-full overflow-auto border">
-          <pre className="text-sm font-mono whitespace-pre-wrap">
-            {decodeURIComponent(filePreview.replace('data:text/plain;charset=utf-8,', ''))}
-          </pre>
-        </div>
-      );
     } else if (filePreview.startsWith('blob:') || filePreview.startsWith('data:image/')) {
       if (student?.file?.type.includes('pdf')) {
         return (
@@ -160,6 +234,17 @@ const StudentPreviewDialog: React.FC<StudentPreviewDialogProps> = ({
               src={`${filePreview}#view=FitH`} 
               className="w-full h-full min-h-[500px]" 
               title="PDF Preview"
+            />
+          </div>
+        );
+      } else if (student?.file?.type.includes('html') || student?.file?.name.endsWith('.html') || student?.file?.name.endsWith('.htm')) {
+        return (
+          <div className="h-full w-full overflow-hidden border rounded">
+            <iframe 
+              src={filePreview} 
+              className="w-full h-full min-h-[500px]" 
+              title="HTML Preview"
+              sandbox="allow-same-origin"
             />
           </div>
         );
