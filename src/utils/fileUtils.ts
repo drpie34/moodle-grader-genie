@@ -1,33 +1,51 @@
 
 /**
- * Generates a sample Moodle-compatible CSV file
- * 
- * In a real implementation, this would parse the files, extract content,
- * use AI to generate feedback, and format the output as a proper CSV.
+ * Parses a Moodle CSV file and returns structured data
  */
-export function generateMoodleCSV(files: File[]): string {
+export function parseMoodleCSV(csvContent: string) {
+  const rows = csvContent.split('\n');
+  
+  // Skip header row
+  const dataRows = rows.slice(1).filter(row => row.trim() !== '');
+  
+  return dataRows.map(row => {
+    // This is a simple CSV parser that handles quoted values
+    // In a real implementation, we would use a more robust CSV parser
+    const regex = /(?:^|,)(?:"([^"]*(?:""[^"]*)*)"|([^,]*))/g;
+    const values: string[] = [];
+    let match;
+    
+    while ((match = regex.exec(row)) !== null) {
+      // If the captured group is the quoted one
+      const value = match[1] !== undefined 
+        ? match[1].replace(/""/g, '"')  // Replace double quotes with single quotes
+        : match[2];                      // Use the unquoted value
+      values.push(value || '');
+    }
+    
+    return {
+      identifier: values[0] || '',
+      fullName: values[1] || '',
+      email: values[2] || '',
+      status: values[3] || '',
+      grade: parseInt(values[4], 10) || 0,
+      feedback: values[5] || ''
+    };
+  });
+}
+
+/**
+ * Generates a Moodle-compatible CSV file from an array of student grades
+ */
+export function generateMoodleCSV(grades: any[]): string {
   // Generate header row
   const csvHeader = "Identifier,Full name,Email address,Status,Grade,Feedback comments\n";
   
-  // Generate a row for each file
-  const csvRows = files.map((file, index) => {
-    const studentId = `student${index + 1}`;
-    const studentName = `Student ${index + 1}`;
-    const email = `student${index + 1}@example.com`;
-    const status = "Graded";
+  // Generate a row for each student grade
+  const csvRows = grades.map(grade => {
+    const feedback = grade.feedback.replace(/"/g, '""'); // Escape double quotes
     
-    // In a real implementation, this would be the result of AI analysis
-    const grade = Math.floor(Math.random() * 30) + 70; // Random grade between 70-100
-    
-    // Sample feedback comments that would come from AI in a real implementation
-    const feedback = [
-      "Good work overall. The introduction effectively establishes the topic.",
-      "Well-structured with clear arguments. Consider adding more examples to support your claims.",
-      "Good analysis of key concepts. Your conclusion effectively summarizes the main points.",
-      "The assignment demonstrates solid understanding of the subject matter."
-    ].join(" ");
-    
-    return `${studentId},"${studentName}",${email},${status},${grade},"${feedback}"`;
+    return `${grade.identifier},"${grade.fullName}",${grade.email},${grade.status},${grade.grade},"${feedback}"`;
   }).join("\n");
   
   return csvHeader + csvRows;
