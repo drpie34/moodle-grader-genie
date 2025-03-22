@@ -1,3 +1,4 @@
+
 /**
  * Parses a Moodle CSV file and returns structured data
  */
@@ -140,6 +141,13 @@ export async function gradeWithOpenAI(
   apiKey: string
 ): Promise<{ grade: number; feedback: string }> {
   try {
+    // Prepare the prompt with feedback style instructions based on user preferences
+    const lengthGuidance = getLengthGuidance(assignmentData.feedbackLength || 5);
+    const formalityGuidance = getFormalityGuidance(assignmentData.feedbackFormality || 5);
+    const toneGuidance = assignmentData.instructorTone 
+      ? `Match this tone in your feedback: "${assignmentData.instructorTone}"`
+      : "";
+
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -157,6 +165,11 @@ export async function gradeWithOpenAI(
                       The academic level is ${assignmentData.academicLevel}. 
                       Use a ${assignmentData.gradingScale}-point scale with 
                       ${assignmentData.gradingStrictness}/10 strictness. 
+                      
+                      Feedback style instructions:
+                      - ${lengthGuidance}
+                      - ${formalityGuidance}
+                      ${toneGuidance ? `- ${toneGuidance}` : ''}
                       
                       Assignment instructions: ${assignmentData.assignmentInstructions}
                       
@@ -211,5 +224,31 @@ export async function gradeWithOpenAI(
       grade: 0,
       feedback: `Error grading assignment: ${error instanceof Error ? error.message : 'Unknown error'}`
     };
+  }
+}
+
+/**
+ * Get length guidance based on user preference
+ */
+function getLengthGuidance(lengthPreference: number): string {
+  if (lengthPreference <= 3) {
+    return "Keep feedback very concise and focused on the most important points (2-3 sentences)";
+  } else if (lengthPreference <= 7) {
+    return "Provide moderately detailed feedback with specific examples (1-2 paragraphs)";
+  } else {
+    return "Give comprehensive, detailed feedback covering multiple aspects of the work (several paragraphs)";
+  }
+}
+
+/**
+ * Get formality guidance based on user preference
+ */
+function getFormalityGuidance(formalityPreference: number): string {
+  if (formalityPreference <= 3) {
+    return "Use casual, conversational language with contractions and first-person address";
+  } else if (formalityPreference <= 7) {
+    return "Use a balanced, semi-formal tone that is professional but approachable";
+  } else {
+    return "Use formal academic language, avoiding contractions and colloquialisms";
   }
 }

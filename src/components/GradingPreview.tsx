@@ -1,5 +1,4 @@
-
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -45,17 +44,23 @@ const GradingPreview: React.FC<GradingPreviewProps> = ({
   const [editMode, setEditMode] = useState(false);
   const [tempGrade, setTempGrade] = useState(0);
   const [tempFeedback, setTempFeedback] = useState("");
+  const [filePreview, setFilePreview] = useState<string | null>(null);
 
   const openStudentPreview = (index: number) => {
     setSelectedStudent(index);
     setTempGrade(grades[index].grade);
     setTempFeedback(grades[index].feedback);
     setEditMode(false);
+    
+    if (grades[index].file) {
+      generateFilePreview(grades[index].file);
+    }
   };
 
   const closeStudentPreview = () => {
     setSelectedStudent(null);
     setEditMode(false);
+    setFilePreview(null);
   };
 
   const toggleEditMode = () => {
@@ -69,44 +74,108 @@ const GradingPreview: React.FC<GradingPreviewProps> = ({
     }
   };
 
-  const renderFilePreview = (file: File | undefined) => {
-    if (!file) return <p>No file available</p>;
+  const generateFilePreview = async (file: File | undefined) => {
+    if (!file) {
+      setFilePreview(null);
+      return;
+    }
 
     const fileExt = file.name.split('.').pop()?.toLowerCase();
     
-    if (fileExt === 'txt') {
+    if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].includes(fileExt || '')) {
+      const imageUrl = URL.createObjectURL(file);
+      setFilePreview(imageUrl);
+    } else if (fileExt === 'pdf') {
+      const pdfUrl = URL.createObjectURL(file);
+      setFilePreview(pdfUrl);
+    } else if (['doc', 'docx', 'txt'].includes(fileExt || '')) {
+      if (fileExt === 'txt') {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const content = e.target?.result as string;
+          setFilePreview(`data:text/plain;charset=utf-8,${encodeURIComponent(content)}`);
+        };
+        reader.readAsText(file);
+      } else {
+        setFilePreview('doc');
+      }
+    } else {
+      setFilePreview('unsupported');
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (filePreview && !filePreview.startsWith('data:') && 
+          filePreview !== 'doc' && filePreview !== 'unsupported') {
+        URL.revokeObjectURL(filePreview);
+      }
+    };
+  }, [filePreview]);
+
+  const renderFilePreview = () => {
+    if (!filePreview) return <p>No file available</p>;
+    
+    if (filePreview === 'doc') {
       return (
-        <div className="bg-muted p-4 rounded-md max-h-96 overflow-auto">
-          <p className="text-sm font-mono whitespace-pre-wrap">
-            [Text content would be displayed here in a real implementation]
-          </p>
-        </div>
-      );
-    } else if (['pdf', 'doc', 'docx'].includes(fileExt || '')) {
-      return (
-        <div className="flex flex-col items-center justify-center bg-muted p-8 rounded-md max-h-96 overflow-auto">
+        <div className="flex flex-col items-center justify-center bg-muted p-8 rounded-md h-full">
+          <div className="text-4xl mb-4">📄</div>
           <p className="text-muted-foreground mb-2">
-            {fileExt?.toUpperCase()} Document Preview
+            Word Document
           </p>
           <p className="text-sm">
-            [In a full implementation, we would render a preview of {file.name} here]
+            {selectedStudent !== null && grades[selectedStudent]?.file?.name}
+          </p>
+          <p className="mt-4 text-sm text-muted-foreground">
+            Word documents cannot be previewed directly in the browser.
           </p>
         </div>
       );
-    } else if (['jpg', 'jpeg', 'png', 'gif'].includes(fileExt || '')) {
+    } else if (filePreview === 'unsupported') {
       return (
-        <div className="flex flex-col items-center justify-center bg-muted p-4 rounded-md max-h-96 overflow-auto">
-          <p className="text-muted-foreground mb-2">Image Preview</p>
-          <p className="text-sm">[Image preview would appear here]</p>
+        <div className="flex flex-col items-center justify-center bg-muted p-8 rounded-md h-full">
+          <div className="text-4xl mb-4">📎</div>
+          <p className="text-muted-foreground mb-2">
+            Unsupported File Format
+          </p>
+          <p className="text-sm">
+            {selectedStudent !== null && grades[selectedStudent]?.file?.name}
+          </p>
         </div>
       );
+    } else if (filePreview.startsWith('data:text/plain')) {
+      return (
+        <div className="bg-white dark:bg-slate-900 p-4 rounded-md h-full overflow-auto border">
+          <pre className="text-sm font-mono whitespace-pre-wrap">
+            {decodeURIComponent(filePreview.replace('data:text/plain;charset=utf-8,', ''))}
+          </pre>
+        </div>
+      );
+    } else if (filePreview.startsWith('blob:') || filePreview.startsWith('data:image/')) {
+      if (selectedStudent !== null && grades[selectedStudent]?.file?.type.includes('pdf')) {
+        return (
+          <div className="h-full w-full overflow-auto">
+            <iframe 
+              src={`${filePreview}#view=FitH`} 
+              className="w-full h-full min-h-[500px]" 
+              title="PDF Preview"
+            />
+          </div>
+        );
+      } else {
+        return (
+          <div className="flex items-center justify-center bg-muted rounded-md h-full overflow-auto p-4">
+            <img 
+              src={filePreview} 
+              alt="Submission Preview" 
+              className="max-w-full max-h-[500px] object-contain"
+            />
+          </div>
+        );
+      }
     }
     
-    return (
-      <div className="bg-muted p-4 rounded-md">
-        <p>Preview not available for {file.name}</p>
-      </div>
-    );
+    return <p>Preview not available</p>;
   };
 
   const pendingReviews = grades.filter(grade => !grade.edited).length;
@@ -232,7 +301,7 @@ const GradingPreview: React.FC<GradingPreviewProps> = ({
                 
                 <div className="flex-1 overflow-hidden p-4">
                   <TabsContent value="submission" className="h-full overflow-auto m-0">
-                    {renderFilePreview(grades[selectedStudent]?.file)}
+                    {renderFilePreview()}
                   </TabsContent>
                   
                   <TabsContent value="feedback" className="h-full overflow-auto m-0">
