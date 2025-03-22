@@ -1,9 +1,9 @@
-
 import React, { useState, useRef, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Check, Upload, FileText, FilePlus, FileX, X } from "lucide-react";
+import { processZipFile } from '@/utils/fileUtils';
 
 interface FileUploaderProps {
   onFilesSelected: (files: File[]) => void;
@@ -44,7 +44,6 @@ const FileUploader: React.FC<FileUploaderProps> = ({
     const errors: string[] = [];
 
     Array.from(files).forEach(file => {
-      // Check file type
       const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
       const isValidType = acceptedFileTypes.some(type => 
         type === fileExtension || type === file.type || type === '*'
@@ -55,7 +54,6 @@ const FileUploader: React.FC<FileUploaderProps> = ({
         return;
       }
 
-      // Check file size
       if (file.size > maxFileSize) {
         const sizeMB = Math.round(maxFileSize / (1024 * 1024));
         errors.push(`"${file.name}" exceeds the ${sizeMB}MB file size limit.`);
@@ -65,13 +63,11 @@ const FileUploader: React.FC<FileUploaderProps> = ({
       validFiles.push(file);
     });
 
-    // Check max files
     if (selectedFiles.length + validFiles.length > maxFiles) {
       toast.error(`You can only upload a maximum of ${maxFiles} files.`);
       return validFiles.slice(0, maxFiles - selectedFiles.length);
     }
 
-    // Show errors if any
     if (errors.length) {
       errors.forEach(error => toast.error(error));
     }
@@ -79,35 +75,69 @@ const FileUploader: React.FC<FileUploaderProps> = ({
     return validFiles;
   };
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
+  const handleDrop = useCallback(async (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
 
     const droppedFiles = Array.from(e.dataTransfer.files);
     
-    // Handle ZIP files
     const zipFiles = droppedFiles.filter(file => file.type === 'application/zip' || file.name.endsWith('.zip'));
     const otherFiles = droppedFiles.filter(file => file.type !== 'application/zip' && !file.name.endsWith('.zip'));
     
     const validOtherFiles = validateFiles(otherFiles);
+    let extractedFiles: File[] = [];
     
-    // Add all accepted files
-    const updatedFiles = [...selectedFiles, ...validOtherFiles];
+    if (zipFiles.length > 0) {
+      toast.info(`Processing ${zipFiles.length} ZIP files...`);
+      
+      for (const zipFile of zipFiles) {
+        try {
+          const files = await processZipFile(zipFile);
+          toast.success(`Extracted ${files.length} files from ${zipFile.name}`);
+          
+          const validExtractedFiles = validateFiles(files);
+          extractedFiles = [...extractedFiles, ...validExtractedFiles];
+        } catch (error) {
+          console.error(`Error extracting files from ${zipFile.name}:`, error);
+          toast.error(`Failed to extract files from ${zipFile.name}`);
+        }
+      }
+    }
+    
+    const updatedFiles = [...selectedFiles, ...validOtherFiles, ...extractedFiles];
     setSelectedFiles(updatedFiles);
     onFilesSelected(updatedFiles);
-    
-    // Handle ZIP files separately - in a real implementation this would extract the ZIP
-    if (zipFiles.length > 0) {
-      toast.info(`ZIP files will be processed: ${zipFiles.map(f => f.name).join(', ')}`);
-      // In a full implementation, we would extract the ZIP here or send it to the backend for extraction
-    }
-  }, [onFilesSelected, selectedFiles, validateFiles, maxFiles]);
+  }, [onFilesSelected, selectedFiles, validateFiles]);
 
-  const handleFileInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileInputChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      const newFiles = validateFiles(Array.from(e.target.files));
-      const updatedFiles = [...selectedFiles, ...newFiles];
+      const inputFiles = Array.from(e.target.files);
+      
+      const zipFiles = inputFiles.filter(file => file.type === 'application/zip' || file.name.endsWith('.zip'));
+      const otherFiles = inputFiles.filter(file => file.type !== 'application/zip' && !file.name.endsWith('.zip'));
+      
+      const validOtherFiles = validateFiles(otherFiles);
+      let extractedFiles: File[] = [];
+      
+      if (zipFiles.length > 0) {
+        toast.info(`Processing ${zipFiles.length} ZIP files...`);
+        
+        for (const zipFile of zipFiles) {
+          try {
+            const files = await processZipFile(zipFile);
+            toast.success(`Extracted ${files.length} files from ${zipFile.name}`);
+            
+            const validExtractedFiles = validateFiles(files);
+            extractedFiles = [...extractedFiles, ...validExtractedFiles];
+          } catch (error) {
+            console.error(`Error extracting files from ${zipFile.name}:`, error);
+            toast.error(`Failed to extract files from ${zipFile.name}`);
+          }
+        }
+      }
+      
+      const updatedFiles = [...selectedFiles, ...validOtherFiles, ...extractedFiles];
       setSelectedFiles(updatedFiles);
       onFilesSelected(updatedFiles);
     }
@@ -132,7 +162,6 @@ const FileUploader: React.FC<FileUploaderProps> = ({
     toast.success('All files cleared');
   }, [onFilesSelected]);
 
-  // Function to format file size
   const formatFileSize = (bytes: number): string => {
     if (bytes === 0) return '0 Bytes';
     const k = 1024;

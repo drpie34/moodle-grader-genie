@@ -8,7 +8,14 @@ import AssignmentForm, { AssignmentFormData } from "@/components/AssignmentForm"
 import ProcessFiles from "@/components/ProcessFiles";
 import StepIndicator from "@/components/StepIndicator";
 import GradingPreview from "@/components/GradingPreview";
-import { generateMoodleCSV, downloadCSV, parseMoodleCSV } from "@/utils/fileUtils";
+import ApiKeyForm from "@/components/ApiKeyForm";
+import { 
+  generateMoodleCSV, 
+  downloadCSV, 
+  parseMoodleCSV, 
+  extractTextFromFile,
+  gradeWithOpenAI 
+} from "@/utils/fileUtils";
 
 interface StudentGrade {
   identifier: string;
@@ -34,18 +41,93 @@ const Index = () => {
   const [assignmentData, setAssignmentData] = useState<AssignmentFormData | null>(null);
   const [grades, setGrades] = useState<StudentGrade[]>([]);
   const [sampleDataLoaded, setSampleDataLoaded] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [apiKey, setApiKey] = useState<string>("");
+  const [showApiKeyForm, setShowApiKeyForm] = useState(false);
 
-  // Load sample data when appropriate
+  // Load API key from localStorage on component mount
   useEffect(() => {
-    if (currentStep === 3 && assignmentData && files.length > 0 && !sampleDataLoaded) {
-      // In a real implementation, this would be the result of AI analysis
-      // For now, we're loading sample data
+    const savedApiKey = localStorage.getItem("openai_api_key");
+    if (savedApiKey) {
+      setApiKey(savedApiKey);
+    } else {
+      setShowApiKeyForm(true);
+    }
+  }, []);
+
+  // Process files with OpenAI when ready
+  useEffect(() => {
+    const processFilesWithAI = async () => {
+      if (currentStep === 3 && assignmentData && files.length > 0 && apiKey && !sampleDataLoaded && !isProcessing) {
+        setIsProcessing(true);
+        toast.info(`Processing ${files.length} files with AI...`);
+        
+        try {
+          // For each file, extract text and send to OpenAI for grading
+          const processedGrades: StudentGrade[] = [];
+          
+          for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            
+            // Extract a student identifier from the filename
+            const studentId = `student${i + 1}`;
+            const studentName = file.name.split('.')[0].replace(/_/g, ' ');
+            
+            // Extract text from the file
+            const fileContent = await extractTextFromFile(file);
+            
+            // Process with OpenAI
+            const gradingResult = await gradeWithOpenAI(fileContent, assignmentData, apiKey);
+            
+            // Add to processed grades
+            processedGrades.push({
+              identifier: studentId,
+              fullName: studentName,
+              email: `${studentId}@example.com`,
+              status: "Graded",
+              grade: gradingResult.grade,
+              feedback: gradingResult.feedback,
+              file: file,
+              edited: false
+            });
+            
+            // Update progress
+            toast.info(`Processed ${i + 1}/${files.length} files`);
+          }
+          
+          setGrades(processedGrades);
+          setSampleDataLoaded(true);
+          toast.success("All files processed successfully!");
+        } catch (error) {
+          console.error("Error processing files:", error);
+          toast.error("Error processing files. Please check your API key and try again.");
+          
+          // Fallback to sample data if processing fails
+          fetchSampleData();
+        } finally {
+          setIsProcessing(false);
+        }
+      } else if (currentStep === 3 && assignmentData && files.length > 0 && !apiKey && !sampleDataLoaded) {
+        // If no API key, prompt user to enter one
+        setShowApiKeyForm(true);
+        
+        // Meanwhile, load sample data
+        fetchSampleData();
+      }
+    };
+    
+    processFilesWithAI();
+  }, [currentStep, assignmentData, files, apiKey, sampleDataLoaded, isProcessing]);
+
+  // Fallback function to load sample data
+  const fetchSampleData = () => {
+    if (!sampleDataLoaded) {
       fetch('/sample_moodle_grades.csv')
         .then(response => response.text())
         .then(csvData => {
           const parsedGrades = parseMoodleCSV(csvData);
           
-          // Attach files to grades (in a real implementation, we'd match files to students properly)
+          // Attach files to grades
           const gradesWithFiles = parsedGrades.map((grade, index) => ({
             ...grade,
             file: files[index % files.length],
@@ -54,16 +136,21 @@ const Index = () => {
           
           setGrades(gradesWithFiles);
           setSampleDataLoaded(true);
+          
+          if (!apiKey) {
+            toast.info("Using sample data. Add an OpenAI API key for real grading.");
+          }
         })
         .catch(error => {
           console.error("Error loading sample data:", error);
           toast.error("Failed to load sample data");
         });
     }
-  }, [currentStep, assignmentData, files, sampleDataLoaded]);
+  };
 
   const handleFilesSelected = (selectedFiles: File[]) => {
     setFiles(selectedFiles);
+    setSampleDataLoaded(false);
   };
 
   const handleStepOneComplete = () => {
@@ -80,7 +167,7 @@ const Index = () => {
   const handleAssignmentSubmit = (data: AssignmentFormData) => {
     setAssignmentData(data);
     setCurrentStep(3);
-    setSampleDataLoaded(false); // Reset this so we load new sample data
+    setSampleDataLoaded(false);
     // Smooth scroll to top
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -151,6 +238,16 @@ const Index = () => {
     }
   };
 
+  const handleApiKeySubmit = (key: string) => {
+    setApiKey(key);
+    setShowApiKeyForm(false);
+    
+    // If we're on the review step, reset sample data to trigger processing with the new API key
+    if (currentStep === 3) {
+      setSampleDataLoaded(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
@@ -163,6 +260,12 @@ const Index = () => {
           <p className="mb-8 text-center text-muted-foreground">
             Upload assignments, process them, and download Moodle-compatible grades
           </p>
+          
+          {showApiKeyForm && (
+            <div className="mb-8 animate-scale-in">
+              <ApiKeyForm onApiKeySubmit={handleApiKeySubmit} />
+            </div>
+          )}
           
           <StepIndicator 
             currentStep={currentStep} 
@@ -194,22 +297,34 @@ const Index = () => {
           
           {currentStep === 3 && assignmentData && (
             <div className="space-y-6 animate-scale-in">
-              <GradingPreview 
-                files={files}
-                assignmentData={assignmentData}
-                grades={grades}
-                onUpdateGrade={handleUpdateGrade}
-                onApproveAll={handleApproveAll}
-              />
+              {isProcessing ? (
+                <div className="flex flex-col items-center justify-center p-12 text-center">
+                  <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-primary mb-4"></div>
+                  <h3 className="text-xl font-semibold mb-2">Processing Files</h3>
+                  <p className="text-muted-foreground">
+                    Processing your files with the OpenAI API. This may take a few moments...
+                  </p>
+                </div>
+              ) : (
+                <GradingPreview 
+                  files={files}
+                  assignmentData={assignmentData}
+                  grades={grades}
+                  onUpdateGrade={handleUpdateGrade}
+                  onApproveAll={handleApproveAll}
+                />
+              )}
               
-              <div className="flex justify-end">
-                <button
-                  onClick={handleContinueToDownload}
-                  className="rounded-md bg-primary px-6 py-2 text-sm font-medium text-primary-foreground shadow-sm transition-all hover:bg-primary/90 hover:shadow-md disabled:pointer-events-none disabled:opacity-50"
-                >
-                  Continue to Download
-                </button>
-              </div>
+              {!isProcessing && (
+                <div className="flex justify-end">
+                  <button
+                    onClick={handleContinueToDownload}
+                    className="rounded-md bg-primary px-6 py-2 text-sm font-medium text-primary-foreground shadow-sm transition-all hover:bg-primary/90 hover:shadow-md disabled:pointer-events-none disabled:opacity-50"
+                  >
+                    Continue to Download
+                  </button>
+                </div>
+              )}
             </div>
           )}
           
