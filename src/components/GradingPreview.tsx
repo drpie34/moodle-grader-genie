@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,7 +13,9 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { Edit, Eye, Check, X } from "lucide-react";
-import { AssignmentFormData } from "./AssignmentForm";
+import { AssignmentFormData } from "./assignment/AssignmentFormTypes";
+import { extractTextFromFile } from "@/utils/fileUtils";
+import { extractTextFromDOCX } from "@/utils/docxUtils";
 
 interface StudentGrade {
   identifier: string;
@@ -45,15 +48,17 @@ const GradingPreview: React.FC<GradingPreviewProps> = ({
   const [tempGrade, setTempGrade] = useState(0);
   const [tempFeedback, setTempFeedback] = useState("");
   const [filePreview, setFilePreview] = useState<string | null>(null);
+  const [docxText, setDocxText] = useState<string | null>(null);
 
-  const openStudentPreview = (index: number) => {
+  const openStudentPreview = async (index: number) => {
     setSelectedStudent(index);
     setTempGrade(grades[index].grade);
     setTempFeedback(grades[index].feedback);
     setEditMode(false);
+    setDocxText(null);
     
     if (grades[index].file) {
-      generateFilePreview(grades[index].file);
+      await generateFilePreview(grades[index].file);
     }
   };
 
@@ -61,6 +66,7 @@ const GradingPreview: React.FC<GradingPreviewProps> = ({
     setSelectedStudent(null);
     setEditMode(false);
     setFilePreview(null);
+    setDocxText(null);
   };
 
   const toggleEditMode = () => {
@@ -77,6 +83,7 @@ const GradingPreview: React.FC<GradingPreviewProps> = ({
   const generateFilePreview = async (file: File | undefined) => {
     if (!file) {
       setFilePreview(null);
+      setDocxText(null);
       return;
     }
 
@@ -88,17 +95,23 @@ const GradingPreview: React.FC<GradingPreviewProps> = ({
     } else if (fileExt === 'pdf') {
       const pdfUrl = URL.createObjectURL(file);
       setFilePreview(pdfUrl);
-    } else if (['doc', 'docx', 'txt'].includes(fileExt || '')) {
-      if (fileExt === 'txt') {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          const content = e.target?.result as string;
-          setFilePreview(`data:text/plain;charset=utf-8,${encodeURIComponent(content)}`);
-        };
-        reader.readAsText(file);
-      } else {
+    } else if (['doc', 'docx'].includes(fileExt || '')) {
+      try {
+        // For DOCX files, extract text and display as text preview
+        const extractedText = await extractTextFromDOCX(file);
+        setDocxText(extractedText);
+        setFilePreview('docx');
+      } catch (error) {
+        console.error('Error extracting DOCX text:', error);
         setFilePreview('doc');
       }
+    } else if (fileExt === 'txt') {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const content = e.target?.result as string;
+        setFilePreview(`data:text/plain;charset=utf-8,${encodeURIComponent(content)}`);
+      };
+      reader.readAsText(file);
     } else {
       setFilePreview('unsupported');
     }
@@ -107,7 +120,7 @@ const GradingPreview: React.FC<GradingPreviewProps> = ({
   useEffect(() => {
     return () => {
       if (filePreview && !filePreview.startsWith('data:') && 
-          filePreview !== 'doc' && filePreview !== 'unsupported') {
+          filePreview !== 'doc' && filePreview !== 'docx' && filePreview !== 'unsupported') {
         URL.revokeObjectURL(filePreview);
       }
     };
@@ -129,6 +142,14 @@ const GradingPreview: React.FC<GradingPreviewProps> = ({
           <p className="mt-4 text-sm text-muted-foreground">
             Word documents cannot be previewed directly in the browser.
           </p>
+        </div>
+      );
+    } else if (filePreview === 'docx' && docxText) {
+      return (
+        <div className="bg-white dark:bg-slate-900 p-4 rounded-md h-full overflow-auto border">
+          <pre className="text-sm font-mono whitespace-pre-wrap">
+            {docxText}
+          </pre>
         </div>
       );
     } else if (filePreview === 'unsupported') {

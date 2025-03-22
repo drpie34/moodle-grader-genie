@@ -11,4 +11,5 @@ export interface AssignmentFormData {
   feedbackLength: number;
   feedbackFormality: number;
   instructorTone: string;
+  additionalInstructions: string;
 }

@@ -203,6 +203,7 @@ export function useGradingWorkflow() {
     files,
     assignmentData,
     grades,
+    setGrades,
     isProcessing,
     sampleDataLoaded,
     handleFilesSelected,

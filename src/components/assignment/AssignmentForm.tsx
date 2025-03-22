@@ -10,6 +10,7 @@ import GradingModeSelector from "./GradingModeSelector";
 import AcademicLevelSelector from "./AcademicLevelSelector";
 import GradingScaleField from "./GradingScaleField";
 import InstructorToneField from "./InstructorToneField";
+import AdditionalInstructionsField from "./AdditionalInstructionsField";
 
 interface AssignmentFormProps {
   onSubmit: (formData: AssignmentFormData) => void;
@@ -27,7 +28,8 @@ const AssignmentForm: React.FC<AssignmentFormProps> = ({ onSubmit }) => {
     gradingMode: "full",
     feedbackLength: 5,
     feedbackFormality: 5,
-    instructorTone: ""
+    instructorTone: "",
+    additionalInstructions: ""
   });
 
   const handleChange = (field: keyof AssignmentFormData, value: string | number) => {
@@ -124,6 +126,11 @@ const AssignmentForm: React.FC<AssignmentFormProps> = ({ onSubmit }) => {
           <InstructorToneField 
             value={formData.instructorTone}
             onChange={(value) => handleChange("instructorTone", value)}
+          />
+          
+          <AdditionalInstructionsField
+            value={formData.additionalInstructions}
+            onChange={(value) => handleChange("additionalInstructions", value)}
           />
 
           <Button 
