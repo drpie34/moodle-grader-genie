@@ -7,11 +7,7 @@ import { createWorker } from 'tesseract.js';
 export async function extractTextFromImage(file: File): Promise<string> {
   try {
     // Create a Tesseract worker
-    const worker = await createWorker();
-    
-    // Initialize worker with English language
-    await worker.loadLanguage('eng');
-    await worker.initialize('eng');
+    const worker = await createWorker('eng');
     
     // Convert file to data URL
     const dataUrl = await fileToDataURL(file);
