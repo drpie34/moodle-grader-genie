@@ -41,6 +41,17 @@ const UploadStep: React.FC<UploadStepProps> = ({
       setGradebookSuccess(true);
       toast.success("Moodle gradebook uploaded successfully");
       console.log("Moodle gradebook data:", gradebookData); // Debug log
+      
+      // Log if first/last name columns were found
+      const hasFirstName = gradebookData.grades.some(g => g.firstName);
+      const hasLastName = gradebookData.grades.some(g => g.lastName);
+      
+      if (hasFirstName && hasLastName) {
+        console.log("First and last name columns found in gradebook");
+        toast.info("First and last name columns detected in gradebook");
+      } else {
+        console.log("First and last name columns NOT found in gradebook");
+      }
     } catch (error) {
       console.error("Error processing Moodle file:", error);
       toast.error("Error processing Moodle file. Please check the format.");
@@ -80,15 +91,16 @@ const UploadStep: React.FC<UploadStepProps> = ({
                   <p className="font-medium">Important for student matching:</p>
                   <p>The system matches student names from folders in your submission ZIP file with names in the gradebook. 
                   The folder names <strong>MUST</strong> contain student names that match the student names in the gradebook.</p>
+                  <p className="mt-1"><strong>For best results:</strong></p>
+                  <ul className="list-disc ml-5 mt-1">
+                    <li>Make sure your gradebook has both first and last name columns if possible</li>
+                    <li>The system will try to match names in multiple formats (First Last, Last First, etc.)</li>
+                  </ul>
                   <p className="mt-1"><strong>Example folder names that work well:</strong></p>
                   <ul className="list-disc ml-5 mt-1">
                     <li>Jane Smith_12345_assignsubmission_file</li>
                     <li>Smith, Jane_12345_assignsubmission_file</li>
                     <li>SMITH_JANE_12345_assignsubmission_file</li>
-                  </ul>
-                  <p className="mt-1"><strong>Example using "onlinetext" submissions:</strong></p>
-                  <ul className="list-disc ml-5 mt-1">
-                    <li>If you see folders like "Jane Smith_12345_assignsubmission_onlinetext", the system will extract "Jane Smith" correctly</li>
                   </ul>
                 </div>
               </div>

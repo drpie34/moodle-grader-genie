@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { extractTextFromFile, findBestSubmissionFile, extractStudentInfoFromFilename } from "@/utils/fileUtils";
@@ -16,6 +15,8 @@ export interface StudentGrade {
   file?: File;
   edited?: boolean;
   originalRow?: Record<string, string>; // Store the original CSV row format
+  firstName?: string; // Added for better name matching
+  lastName?: string;  // Added for better name matching
 }
 
 export interface MoodleGradebookData {
@@ -36,9 +37,51 @@ export function useGradingWorkflow() {
   
   // Preload grades from Moodle gradebook with full format data
   const preloadedGrades = (data: MoodleGradebookData) => {
+    // Extract first and last names if available in the gradebook
+    const firstNameColumn = data.headers.findIndex(h => 
+      h.toLowerCase().includes('first name') || h.toLowerCase() === 'first' || h.toLowerCase() === 'firstname'
+    );
+    
+    const lastNameColumn = data.headers.findIndex(h => 
+      h.toLowerCase().includes('last name') || h.toLowerCase() === 'last' || h.toLowerCase() === 'lastname' || h.toLowerCase() === 'surname'
+    );
+    
+    // If we found separate first/last name columns, update the grade objects
+    if (firstNameColumn !== -1 || lastNameColumn !== -1) {
+      data.grades = data.grades.map(grade => {
+        const originalRow = grade.originalRow || {};
+        
+        // Extract first name if column exists
+        if (firstNameColumn !== -1) {
+          grade.firstName = originalRow[data.headers[firstNameColumn]] || '';
+        }
+        
+        // Extract last name if column exists
+        if (lastNameColumn !== -1) {
+          grade.lastName = originalRow[data.headers[lastNameColumn]] || '';
+        }
+        
+        // If we have both first and last name, ensure fullName has both
+        if (grade.firstName && grade.lastName) {
+          grade.fullName = `${grade.firstName} ${grade.lastName}`;
+        }
+        
+        return grade;
+      });
+    }
+    
     setMoodleGradebook(data);
     console.log("Preloaded Moodle gradebook data:", data);
     console.log("Student names in gradebook:", data.grades.map(g => g.fullName));
+    
+    // Log first/last name extraction if available
+    if (firstNameColumn !== -1 || lastNameColumn !== -1) {
+      console.log("First/Last names extracted:", data.grades.map(g => ({
+        fullName: g.fullName,
+        firstName: g.firstName,
+        lastName: g.lastName
+      })));
+    }
   };
   
   // Process files with OpenAI when ready
@@ -92,7 +135,7 @@ export function useGradingWorkflow() {
           if (moodleGradebook) {
             console.log('MATCHING DEBUG - Moodle gradebook students:');
             moodleGradebook.grades.forEach((student, idx) => {
-              console.log(`[${idx}] ${student.fullName} (${typeof student.fullName})`);
+              console.log(`[${idx}] ${student.fullName} (${typeof student.fullName})${student.firstName ? ` - First: ${student.firstName}, Last: ${student.lastName}` : ''}`);
             });
           }
           
@@ -202,7 +245,43 @@ export function useGradingWorkflow() {
                     return null;
                   },
                   
-                  // 2. Match first and last name individually
+                  // 2. NEW: Match against concatenated first+last name if available
+                  () => {
+                    const withFirstLastName = moodleGradebook.grades.find(grade => 
+                      grade.firstName && grade.lastName && 
+                      `${grade.firstName} ${grade.lastName}`.toLowerCase() === studentInfo.fullName.toLowerCase()
+                    );
+                    if (withFirstLastName) {
+                      console.log(`✓ MATCH FOUND [First+Last]: "${studentInfo.fullName}" = "${withFirstLastName.firstName} ${withFirstLastName.lastName}"`);
+                      return withFirstLastName;
+                    }
+                    return null;
+                  },
+                  
+                  // 3. NEW: Match Last, First format against first+last name
+                  () => {
+                    if (studentInfo.fullName.includes(',')) {
+                      const parts = studentInfo.fullName.split(',').map(p => p.trim());
+                      if (parts.length === 2) {
+                        const lastName = parts[0];
+                        const firstName = parts[1];
+                        
+                        const lastFirstMatch = moodleGradebook.grades.find(grade => 
+                          grade.firstName && grade.lastName && 
+                          grade.firstName.toLowerCase() === firstName.toLowerCase() && 
+                          grade.lastName.toLowerCase() === lastName.toLowerCase()
+                        );
+                        
+                        if (lastFirstMatch) {
+                          console.log(`✓ MATCH FOUND [Last,First]: "${studentInfo.fullName}" = "${lastFirstMatch.lastName}, ${lastFirstMatch.firstName}"`);
+                          return lastFirstMatch;
+                        }
+                      }
+                    }
+                    return null;
+                  },
+                  
+                  // 4. Match first and last name individually
                   () => {
                     if (studentInfo.fullName.includes(' ')) {
                       // Get student name parts
@@ -238,7 +317,7 @@ export function useGradingWorkflow() {
                     return null;
                   },
                   
-                  // 3. Normalize names and try partial matching
+                  // 5. Normalize names and try partial matching
                   () => {
                     const normalizedStudentName = studentInfo.fullName.toLowerCase().replace(/[^a-z0-9]/g, '');
                     
@@ -270,7 +349,7 @@ export function useGradingWorkflow() {
                     return null;
                   },
                   
-                  // 4. Fuzzy matching - check each word in student name against each word in gradebook names
+                  // 6. Fuzzy matching - check each word in student name against each word in gradebook names
                   () => {
                     if (studentInfo.fullName) {
                       const studentWords = studentInfo.fullName.toLowerCase().split(/\s+/).filter(w => w.length > 2);
@@ -305,7 +384,7 @@ export function useGradingWorkflow() {
                     return null;
                   },
                   
-                  // 5. Try matching folder name directly against full names
+                  // 7. Try matching folder name directly against full names
                   () => {
                     if (folderName && folderName !== 'root') {
                       // Clean up folder name - replace underscores and dashes with spaces
@@ -345,6 +424,43 @@ export function useGradingWorkflow() {
                       if (bestMatch) {
                         console.log(`✓ MATCH FOUND [Folder Name]: "${cleanedFolderName}" matches "${bestMatch.fullName}" with score ${bestMatchScore}`);
                         return bestMatch;
+                      }
+                    }
+                    return null;
+                  },
+                  
+                  // 8. Advanced match first name and last name separately
+                  () => {
+                    // Extract first and last name from student info
+                    const studentNameParts = studentInfo.fullName.split(' ');
+                    if (studentNameParts.length >= 2) {
+                      const studentFirstName = studentNameParts[0].toLowerCase();
+                      const studentLastName = studentNameParts[studentNameParts.length - 1].toLowerCase();
+                      
+                      // Find students with matching first and last names
+                      const namePartsMatch = moodleGradebook.grades.find(grade => {
+                        // If we have firstName/lastName fields, use those
+                        if (grade.firstName && grade.lastName) {
+                          return grade.firstName.toLowerCase() === studentFirstName && 
+                                 grade.lastName.toLowerCase() === studentLastName;
+                        }
+                        
+                        // Otherwise, try to extract from fullName
+                        const gradeNameParts = grade.fullName.split(' ');
+                        if (gradeNameParts.length >= 2) {
+                          const gradeFirstName = gradeNameParts[0].toLowerCase();
+                          const gradeLastName = gradeNameParts[gradeNameParts.length - 1].toLowerCase();
+                          
+                          return gradeFirstName === studentFirstName && 
+                                 gradeLastName === studentLastName;
+                        }
+                        
+                        return false;
+                      });
+                      
+                      if (namePartsMatch) {
+                        console.log(`✓ MATCH FOUND [First+Last Parts]: "${studentFirstName} ${studentLastName}" matches "${namePartsMatch.fullName}"`);
+                        return namePartsMatch;
                       }
                     }
                     return null;

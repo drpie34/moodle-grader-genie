@@ -1,3 +1,4 @@
+
 /**
  * Utilities for handling CSV files, particularly for Moodle gradebook integration
  */
@@ -20,6 +21,13 @@ export function parseMoodleCSV(csvContent: string) {
   );
   const emailIndex = headers.findIndex(h => 
     h.toLowerCase().includes('email')
+  );
+  // Look for first and last name columns
+  const firstNameIndex = headers.findIndex(h => 
+    h.toLowerCase().includes('first name') || h.toLowerCase() === 'first' || h.toLowerCase() === 'firstname'
+  );
+  const lastNameIndex = headers.findIndex(h => 
+    h.toLowerCase().includes('last name') || h.toLowerCase() === 'last' || h.toLowerCase() === 'lastname' || h.toLowerCase() === 'surname'
   );
   const gradeColumnIndex = headers.findIndex(h => 
     h.toLowerCase().includes('grade') || h.toLowerCase().includes('mark') || h.toLowerCase().includes('score')
@@ -45,7 +53,8 @@ export function parseMoodleCSV(csvContent: string) {
       originalRow[header] = values[i] || '';
     });
     
-    return {
+    // Construct a student object
+    const studentGrade: any = {
       identifier: values[identifierIndex] || '',
       fullName: values[effectiveNameIndex] || '',
       email: values[effectiveEmailIndex] || '',
@@ -54,7 +63,27 @@ export function parseMoodleCSV(csvContent: string) {
       feedback: '',
       originalRow
     };
+    
+    // Extract first name if column exists
+    if (firstNameIndex !== -1) {
+      studentGrade.firstName = values[firstNameIndex] || '';
+    }
+    
+    // Extract last name if column exists
+    if (lastNameIndex !== -1) {
+      studentGrade.lastName = values[lastNameIndex] || '';
+    }
+    
+    // If we have firstName and lastName but no fullName, construct the fullName
+    if (studentGrade.firstName && studentGrade.lastName && !studentGrade.fullName) {
+      studentGrade.fullName = `${studentGrade.firstName} ${studentGrade.lastName}`;
+    }
+    
+    return studentGrade;
   });
+  
+  console.log('Parsed gradebook with headers:', headers);
+  console.log('First/Last name columns:', firstNameIndex !== -1 || lastNameIndex !== -1 ? 'Found' : 'Not found');
   
   return {
     headers,

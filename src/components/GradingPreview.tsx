@@ -2,7 +2,7 @@
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Check, AlertCircle, Info } from "lucide-react";
+import { Check, AlertCircle, Info, FileText } from "lucide-react";
 import { AssignmentFormData } from "./assignment/AssignmentFormTypes";
 import StudentGradeRow from "./grading/StudentGradeRow";
 import StudentPreviewDialog from "./grading/StudentPreviewDialog";
@@ -27,6 +27,7 @@ const GradingPreview: React.FC<GradingPreviewProps> = ({
 }) => {
   const [selectedStudent, setSelectedStudent] = useState<number | null>(null);
   const [showDiagnostics, setShowDiagnostics] = useState(false);
+  const [showNameDetails, setShowNameDetails] = useState(false);
 
   const openStudentPreview = (index: number) => {
     setSelectedStudent(index);
@@ -95,13 +96,47 @@ const GradingPreview: React.FC<GradingPreviewProps> = ({
             <AlertDescription>
               Some submissions have invalid student names (like "onlinetext" or "assignsubmission"). 
               This usually happens when the folder structure doesn't include proper student names.
-              <div className="mt-2">
+              <div className="mt-2 flex flex-wrap gap-2">
                 <Button variant="outline" size="sm" onClick={() => setShowDiagnostics(!showDiagnostics)}>
                   {showDiagnostics ? "Hide Diagnostics" : "Show Diagnostics"}
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setShowNameDetails(!showNameDetails)}>
+                  {showNameDetails ? "Hide Name Details" : "Show Student Name Details"}
                 </Button>
               </div>
             </AlertDescription>
           </Alert>
+        )}
+        
+        {showNameDetails && (
+          <div className="rounded-md bg-muted p-4 text-sm space-y-2">
+            <h4 className="font-medium flex items-center gap-1">
+              <FileText className="h-4 w-4" />
+              Student Name Details
+            </h4>
+            <div className="max-h-40 overflow-y-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left p-1">Full Name</th>
+                    <th className="text-left p-1">First Name</th>
+                    <th className="text-left p-1">Last Name</th>
+                    <th className="text-left p-1">Has Submission</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {grades.map((grade, index) => (
+                    <tr key={index} className="border-b border-gray-200">
+                      <td className="p-1">{grade.fullName}</td>
+                      <td className="p-1">{grade.firstName || 'N/A'}</td>
+                      <td className="p-1">{grade.lastName || 'N/A'}</td>
+                      <td className="p-1">{grade.file ? "Yes" : "No"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         )}
         
         {showDiagnostics && (
