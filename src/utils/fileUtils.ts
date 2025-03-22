@@ -2,7 +2,7 @@ import { extractTextFromPDF } from './pdfUtils';
 import { extractTextFromDOCX, extractHTMLFromDOCX } from './docxUtils';
 import { extractTextFromImage } from './imageUtils';
 import { processZipFile as extractFilesFromZip } from './zipUtils';
-import { extractTextFromTXT, uploadMoodleGradebook } from './csvUtils';
+import { parseSpreadsheetData, uploadMoodleGradebook, generateMoodleCSV, downloadCSV } from './csvUtils';
 import { gradeWithOpenAI } from './gradingUtils';
 
 /**
@@ -290,13 +290,23 @@ export async function findBestSubmissionFile(files: File[]): Promise<File | null
   return bestFiles.length > 0 ? bestFiles[0] : null;
 }
 
-// Re-export functions from other utility files
-export { 
-  extractTextFromTXT,
-  uploadMoodleGradebook
-} from './csvUtils';
+/**
+ * Extract text from TXT file
+ */
+export async function extractTextFromTXT(file: File): Promise<string> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = e.target?.result as string || '';
+      resolve(text);
+    };
+    reader.readAsText(file);
+  });
+}
 
+// Re-export functions from other utility files for convenience
 export {
+  uploadMoodleGradebook,
   parseMoodleCSV,
   generateMoodleCSV,
   downloadCSV

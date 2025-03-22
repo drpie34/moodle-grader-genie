@@ -2,7 +2,6 @@
 /**
  * Utilities for handling CSV files, particularly for Moodle gradebook integration
  */
-import { extractTextFromTXT } from './fileUtils';
 import * as XLSX from 'xlsx';
 
 /**
@@ -114,7 +113,7 @@ export async function parseSpreadsheetData(file: File): Promise<any[]> {
   
   if (fileExt === 'csv' || fileExt === 'txt') {
     // Handle CSV or TXT files
-    const text = await extractTextFromTXT(file);
+    const text = await readTextFile(file);
     return parseMoodleCSV(text);
   } else if (['xlsx', 'xls', 'ods'].includes(fileExt || '')) {
     // Handle Excel and OpenOffice files
@@ -129,7 +128,7 @@ export async function parseSpreadsheetData(file: File): Promise<any[]> {
     return parseMoodleCSV(csvContent);
   } else if (fileExt === 'xml') {
     // Handle XML files - parse as text and extract data
-    const text = await extractTextFromTXT(file);
+    const text = await readTextFile(file);
     
     // Very basic XML to data extraction - for complex XML, use a proper XML parser
     const rows: string[] = [];
@@ -178,8 +177,9 @@ export async function uploadMoodleGradebook(file: File): Promise<any[]> {
 
 /**
  * Extract text from TXT file
+ * This is a local utility function that replaces the imported extractTextFromTXT
  */
-export async function extractTextFromTXT(file: File): Promise<string> {
+async function readTextFile(file: File): Promise<string> {
   return new Promise((resolve) => {
     const reader = new FileReader();
     reader.onload = (e) => {
