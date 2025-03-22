@@ -1,3 +1,4 @@
+
 /**
  * Moodle-specific CSV parsing utilities
  */
@@ -31,6 +32,7 @@ export async function parseMoodleCSV(file: File): Promise<any> {
         const { headers, rows: dataRows } = parseCSVContent(csvData);
         
         console.log("Raw CSV Headers:", headers);
+        console.log(`Total data rows in CSV: ${dataRows.length}`);
         
         // Find the first and last name columns with exact matching
         const firstNameIndex = findFirstNameColumn(headers);
@@ -66,7 +68,25 @@ export async function parseMoodleCSV(file: File): Promise<any> {
         
         console.log(`Found ${dataRows.length} non-empty data rows in CSV`);
         
-        const grades = dataRows.map((values, idx) => {
+        // Filter out header rows and empty rows that might be present in the CSV
+        const actualStudentRows = dataRows.filter(row => {
+          // Skip rows that appear to be header rows
+          const maybeHeaderRow = row.some(cell => 
+            cell.toLowerCase().includes('first name') || 
+            cell.toLowerCase().includes('last name') ||
+            cell.toLowerCase().includes('email') || 
+            cell.toLowerCase().includes('id')
+          );
+          
+          // Skip completely empty rows
+          const emptyRow = row.every(cell => !cell.trim());
+          
+          return !maybeHeaderRow && !emptyRow;
+        });
+        
+        console.log(`After filtering: ${actualStudentRows.length} actual student rows`);
+        
+        const grades = actualStudentRows.map((values, idx) => {
           // Create an object to store the original row values by header
           const originalRow: Record<string, string> = {};
           headers.forEach((header, i) => {
@@ -111,7 +131,7 @@ export async function parseMoodleCSV(file: File): Promise<any> {
           const emailIndex = findEmailColumn(headers);
           
           // For debugging: log values for first few students
-          if (idx < 2) {
+          if (idx < 5) {
             console.log(`Student ${idx+1} row values:`, values);
             console.log(`Student ${idx+1} name extraction: firstName="${firstName}", lastName="${lastName}", fullName="${fullName}"`);
           }
