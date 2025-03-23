@@ -27,6 +27,7 @@ const FileUploadField: React.FC<FileUploadFieldProps> = ({
   required = false
 }) => {
   const [file, setFile] = useState<File | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -41,12 +42,19 @@ const FileUploadField: React.FC<FileUploadFieldProps> = ({
     }
 
     try {
+      setIsLoading(true);
+      console.log(`Processing uploaded ${fileExt} file: ${file.name}`);
+      
       const extractedText = await extractTextFromFile(file);
+      console.log(`Successfully extracted ${extractedText.length} characters from ${file.name}`);
+      
       setFile(file);
       onChange(extractedText);
     } catch (error) {
       console.error(`Error extracting text from file:`, error);
       alert(`Error extracting text from file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -80,10 +88,25 @@ const FileUploadField: React.FC<FileUploadFieldProps> = ({
             onChange={handleFileChange}
             accept=".pdf,.docx,.doc,.txt"
             className="hidden"
+            disabled={isLoading}
           />
-          <label htmlFor={`${id}File`} className="inline-flex items-center rounded-md border px-3 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer">
-            <Upload className="h-3 w-3 mr-1" />
-            Upload File
+          <label 
+            htmlFor={`${id}File`} 
+            className={`inline-flex items-center rounded-md border px-3 py-1 text-xs ${
+              isLoading ? 'bg-muted cursor-not-allowed' : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer'
+            }`}
+          >
+            {isLoading ? (
+              <>
+                <span className="h-3 w-3 mr-1 animate-spin rounded-full border-2 border-primary border-t-transparent"></span>
+                Loading...
+              </>
+            ) : (
+              <>
+                <Upload className="h-3 w-3 mr-1" />
+                Upload File
+              </>
+            )}
           </label>
         </div>
       </div>
@@ -100,6 +123,7 @@ const FileUploadField: React.FC<FileUploadFieldProps> = ({
             size="sm" 
             onClick={removeFile}
             className="h-6 w-6 p-0"
+            disabled={isLoading}
           >
             <X className="h-3 w-3" />
           </Button>

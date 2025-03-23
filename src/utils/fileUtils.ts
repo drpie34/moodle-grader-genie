@@ -4,6 +4,10 @@
  */
 
 import { StudentInfo } from './nameMatchingUtils';
+import { extractTextFromPDF } from './pdfUtils';
+import { extractTextFromDOCX } from './docxUtils';
+import { parseCSVContent, isLikelyExcelFile } from './csv/parseCSV';
+import * as XLSX from 'xlsx';
 
 /**
  * Extract student information from a filename
@@ -147,18 +151,159 @@ export async function extractTextFromHTML(file: File): Promise<string> {
  * Generic text extraction from various file types
  */
 export async function extractTextFromFile(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
+  console.log(`Extracting text from file: "${file.name}" (type: ${file.type})`);
+  
+  try {
+    const fileExt = file.name.split('.').pop()?.toLowerCase();
     
-    reader.onload = (event) => {
-      const text = event.target?.result as string;
-      resolve(text);
-    };
+    // Handle PDF files
+    if (fileExt === 'pdf' || file.type === 'application/pdf') {
+      console.log('Detected PDF file, using PDF extraction');
+      const text = await extractTextFromPDF(file);
+      console.log(`Extracted ${text.length} characters from PDF`);
+      return text;
+    }
     
-    reader.onerror = (error) => {
-      reject(error);
-    };
+    // Handle DOCX files
+    if (fileExt === 'docx' || file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+      console.log('Detected DOCX file, using DOCX extraction');
+      const text = await extractTextFromDOCX(file);
+      console.log(`Extracted ${text.length} characters from DOCX`);
+      return text;
+    }
     
-    reader.readAsText(file);
-  });
+    // Handle HTML files
+    if (fileExt === 'html' || fileExt === 'htm' || file.type.includes('html')) {
+      console.log('Detected HTML file, using HTML extraction');
+      return extractTextFromHTML(file);
+    }
+    
+    // Handle text files
+    if (fileExt === 'txt' || file.type === 'text/plain') {
+      console.log('Detected text file, using plain text extraction');
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target?.result as string || '');
+        reader.onerror = reject;
+        reader.readAsText(file);
+      });
+    }
+    
+    // Handle CSV files
+    if (fileExt === 'csv' || file.type === 'text/csv') {
+      console.log('Detected CSV file, using CSV extraction');
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const csvContent = e.target?.result as string;
+          resolve(csvContent);
+        };
+        reader.onerror = reject;
+        reader.readAsText(file);
+      });
+    }
+    
+    // Handle Excel files
+    if (['xls', 'xlsx'].includes(fileExt || '') || file.type.includes('excel') || file.type.includes('spreadsheetml')) {
+      console.log('Detected Excel file, using Excel extraction');
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const data = new Uint8Array(e.target?.result as ArrayBuffer);
+            const workbook = XLSX.read(data, { type: 'array' });
+            const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+            const csvContent = XLSX.utils.sheet_to_csv(firstSheet);
+            resolve(csvContent);
+          } catch (error) {
+            console.error('Error converting Excel to text:', error);
+            reject(error);
+          }
+        };
+        reader.onerror = reject;
+        reader.readAsArrayBuffer(file);
+      });
+    }
+    
+    // Default to plain text reading for unrecognized formats
+    console.warn(`Unrecognized file type for "${file.name}" (${file.type}), defaulting to text extraction`);
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => resolve(e.target?.result as string || '');
+      reader.onerror = reject;
+      reader.readAsText(file);
+    });
+  } catch (error) {
+    console.error(`Error extracting text from ${file.name}:`, error);
+    return `[Error extracting text: ${error instanceof Error ? error.message : 'Unknown error'}]`;
+  }
+}
+
+/**
+ * Parse CSV or Excel file to extract gradebook data
+ */
+export async function parseGradebookFile(file: File): Promise<{ headers: string[], rows: string[][], assignmentColumn?: string, feedbackColumn?: string }> {
+  console.log(`Parsing gradebook file: "${file.name}" (type: ${file.type})`);
+  
+  const fileExt = file.name.split('.').pop()?.toLowerCase();
+  
+  try {
+    // Handle Excel files
+    if (['xls', 'xlsx'].includes(fileExt || '') || file.type.includes('excel') || file.type.includes('spreadsheetml')) {
+      console.log('Parsing Excel format gradebook file');
+      const arrayBuffer = await file.arrayBuffer();
+      const data = new Uint8Array(arrayBuffer);
+      
+      // Check if it's a valid Excel file
+      if (isLikelyExcelFile(data)) {
+        console.log('Confirmed Excel format, processing with xlsx library');
+        const workbook = XLSX.read(data, { type: 'array' });
+        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+        
+        // Convert to JSON to get row data
+        const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+        
+        if (jsonData.length > 0) {
+          // Extract headers from first row
+          const headers = jsonData[0] as string[];
+          console.log('Excel headers found:', headers);
+          
+          // Convert data rows (skip header row)
+          const rows = jsonData.slice(1).map(row => {
+            // Handle empty cells and convert all values to strings
+            return (row as any[]).map(cell => cell !== undefined ? String(cell) : '');
+          });
+          
+          console.log(`Processed ${rows.length} rows from Excel file`);
+          return { headers, rows };
+        } else {
+          throw new Error('Excel file appears to be empty');
+        }
+      } else {
+        console.warn('File has Excel extension but does not appear to be a valid Excel file');
+      }
+    }
+    
+    // Handle CSV files
+    if (fileExt === 'csv' || file.type === 'text/csv') {
+      console.log('Parsing CSV format gradebook file');
+      const text = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target?.result as string);
+        reader.onerror = reject;
+        reader.readAsText(file);
+      });
+      
+      console.log(`Read ${text.length} characters from CSV file`);
+      const { headers, rows } = parseCSVContent(text);
+      console.log('CSV headers found:', headers);
+      console.log(`Processed ${rows.length} rows from CSV file`);
+      return { headers, rows };
+    }
+    
+    throw new Error(`Unsupported gradebook file format: ${file.type || fileExt}`);
+  } catch (error) {
+    console.error('Error parsing gradebook file:', error);
+    throw error;
+  }
 }

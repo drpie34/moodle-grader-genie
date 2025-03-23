@@ -35,7 +35,13 @@ export function findBestStudentMatch(
   }
   
   // Log all gradebook students for debugging
-  console.log("Available gradebook students:", gradebookStudents.map(s => s.fullName).join(", "));
+  console.log(`Available gradebook students (${gradebookStudents.length}):`);
+  gradebookStudents.slice(0, 10).forEach((s, i) => {
+    console.log(`  ${i}: ${s.fullName} (First: ${s.firstName || 'N/A'}, Last: ${s.lastName || 'N/A'})`);
+  });
+  if (gradebookStudents.length > 10) {
+    console.log(`  ... and ${gradebookStudents.length - 10} more students`);
+  }
   
   // Try different matching strategies in order of precision
   const matchingStrategies = [
@@ -64,6 +70,8 @@ export function findBestStudentMatch(
 
 // Exact full name match strategy
 function exactNameMatcher(studentInfo: StudentInfo, gradebookStudents: StudentInfo[]): StudentInfo | null {
+  console.log(`Trying exact name matcher for "${studentInfo.fullName}"`);
+  
   const match = gradebookStudents.find(student => 
     student.fullName.toLowerCase() === studentInfo.fullName.toLowerCase()
   );
@@ -72,12 +80,26 @@ function exactNameMatcher(studentInfo: StudentInfo, gradebookStudents: StudentIn
     console.log(`✓ MATCH FOUND [Exact]: "${studentInfo.fullName}" = "${match.fullName}"`);
     return match;
   }
+  
+  // Try with trimmed values
+  const trimmedStudentName = studentInfo.fullName.trim().toLowerCase();
+  const trimMatch = gradebookStudents.find(student => 
+    student.fullName.trim().toLowerCase() === trimmedStudentName
+  );
+  
+  if (trimMatch) {
+    console.log(`✓ MATCH FOUND [Exact-Trimmed]: "${studentInfo.fullName}" = "${trimMatch.fullName}"`);
+    return trimMatch;
+  }
+  
   return null;
 }
 
 // First + Last name matcher strategy
 function firstLastNameMatcher(studentInfo: StudentInfo, gradebookStudents: StudentInfo[]): StudentInfo | null {
   if (studentInfo.firstName && studentInfo.lastName) {
+    console.log(`Trying first+last name matcher for "${studentInfo.firstName} ${studentInfo.lastName}"`);
+    
     const match = gradebookStudents.find(student => 
       student.firstName && 
       student.lastName && 
@@ -101,6 +123,8 @@ function lastFirstNameMatcher(studentInfo: StudentInfo, gradebookStudents: Stude
       const lastName = parts[0];
       const firstName = parts[1];
       
+      console.log(`Trying last,first name matcher for "${lastName}, ${firstName}"`);
+      
       const match = gradebookStudents.find(student => 
         student.firstName && 
         student.lastName && 
@@ -119,6 +143,8 @@ function lastFirstNameMatcher(studentInfo: StudentInfo, gradebookStudents: Stude
 
 // Name parts matching strategy
 function namePartsMatcher(studentInfo: StudentInfo, gradebookStudents: StudentInfo[]): StudentInfo | null {
+  console.log(`Trying name parts matcher for "${studentInfo.fullName}"`);
+  
   const studentNameParts = studentInfo.fullName.toLowerCase().split(/\s+/);
   
   // For each gradebook student, check if their name contains all parts of the student name
@@ -153,6 +179,8 @@ function uniqueFirstNameMatcher(studentInfo: StudentInfo, gradebookStudents: Stu
   const firstNameToMatch = studentInfo.firstName || studentInfo.fullName.split(' ')[0];
   
   if (firstNameToMatch && firstNameToMatch.length > 2) {
+    console.log(`Trying unique first name matcher for "${firstNameToMatch}"`);
+    
     const matches = gradebookStudents.filter(student => {
       const studentFirstName = student.firstName || student.fullName.split(' ')[0];
       return studentFirstName.toLowerCase() === firstNameToMatch.toLowerCase();
@@ -174,6 +202,8 @@ function uniqueLastNameMatcher(studentInfo: StudentInfo, gradebookStudents: Stud
                           studentInfo.fullName.split(' ').pop() : '');
   
   if (lastNameToMatch && lastNameToMatch.length > 2) {
+    console.log(`Trying unique last name matcher for "${lastNameToMatch}"`);
+    
     const matches = gradebookStudents.filter(student => {
       const studentLastName = student.lastName || 
                              (student.fullName.includes(' ') ? 
@@ -184,6 +214,8 @@ function uniqueLastNameMatcher(studentInfo: StudentInfo, gradebookStudents: Stud
     if (matches.length === 1) {
       console.log(`✓ MATCH FOUND [Last Name Only]: "${lastNameToMatch}" = "${matches[0].fullName}"`);
       return matches[0];
+    } else if (matches.length > 1) {
+      console.log(`Found ${matches.length} matches for last name "${lastNameToMatch}" - not unique`);
     }
   }
   return null;
@@ -194,6 +226,8 @@ function hyphenatedNameMatcher(studentInfo: StudentInfo, gradebookStudents: Stud
   if (studentInfo.fullName.includes('-')) {
     // Try matching by replacing hyphens with spaces
     const nameWithoutHyphens = studentInfo.fullName.replace(/-/g, ' ');
+    
+    console.log(`Trying hyphen-space matcher: "${studentInfo.fullName}" → "${nameWithoutHyphens}"`);
     
     const match = gradebookStudents.find(student => 
       student.fullName.toLowerCase() === nameWithoutHyphens.toLowerCase()
@@ -206,6 +240,8 @@ function hyphenatedNameMatcher(studentInfo: StudentInfo, gradebookStudents: Stud
   } else if (studentInfo.fullName.includes(' ')) {
     // Try replacing spaces with hyphens
     const nameWithHyphens = studentInfo.fullName.replace(/\s+/g, '-');
+    
+    console.log(`Trying space-hyphen matcher: "${studentInfo.fullName}" → "${nameWithHyphens}"`);
     
     const match = gradebookStudents.find(student => 
       student.fullName.toLowerCase() === nameWithHyphens.toLowerCase()
@@ -226,6 +262,8 @@ function uniqueNameMatcher(studentInfo: StudentInfo, gradebookStudents: StudentI
   
   for (const uniqueName of uniqueNames) {
     if (studentInfo.fullName.toLowerCase().includes(uniqueName)) {
+      console.log(`Trying unique name matcher for "${uniqueName}" in "${studentInfo.fullName}"`);
+      
       const matches = gradebookStudents.filter(student => 
         student.fullName.toLowerCase().includes(uniqueName)
       );
@@ -233,6 +271,8 @@ function uniqueNameMatcher(studentInfo: StudentInfo, gradebookStudents: StudentI
       if (matches.length === 1) {
         console.log(`✓ MATCH FOUND [Unique Name]: "${studentInfo.fullName}" contains unique name "${uniqueName}", matched with "${matches[0].fullName}"`);
         return matches[0];
+      } else if (matches.length > 1) {
+        console.log(`Found ${matches.length} matches for unique name "${uniqueName}" - not unique enough`);
       }
     }
   }
@@ -242,6 +282,8 @@ function uniqueNameMatcher(studentInfo: StudentInfo, gradebookStudents: StudentI
 
 // Fuzzy name matcher strategy
 function fuzzyNameMatcher(studentInfo: StudentInfo, gradebookStudents: StudentInfo[]): StudentInfo | null {
+  console.log(`Trying fuzzy name matcher for "${studentInfo.fullName}"`);
+  
   // Clean up the names by removing spaces, punctuation, etc.
   const normalizedStudentName = studentInfo.fullName.toLowerCase().replace(/[^a-z0-9]/g, '');
   
@@ -270,6 +312,11 @@ function fuzzyNameMatcher(studentInfo: StudentInfo, gradebookStudents: StudentIn
     console.log(`✓ MATCH FOUND [Fuzzy]: "${studentInfo.fullName}" fuzzy matches "${bestMatch.fullName}" with score ${bestMatchScore.toFixed(2)}`);
     return bestMatch;
   }
+  
+  if (bestMatch) {
+    console.log(`Best fuzzy match for "${studentInfo.fullName}" was "${bestMatch.fullName}" with score ${bestMatchScore.toFixed(2)}, but below threshold (0.35)`);
+  }
+  
   return null;
 }
 

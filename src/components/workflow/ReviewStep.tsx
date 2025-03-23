@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import GradingPreview from "@/components/GradingPreview";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
@@ -28,6 +28,7 @@ const ReviewStep: React.FC<ReviewStepProps> = ({
   onContinue
 }) => {
   const [showTroubleshooting, setShowTroubleshooting] = useState(false);
+  const [folderStructure, setFolderStructure] = useState<string[]>([]);
   
   // Calculate some stats for the troubleshooting section
   const gradedSubmissions = grades.filter(g => g.file && g.grade > 0).length;
@@ -35,10 +36,18 @@ const ReviewStep: React.FC<ReviewStepProps> = ({
   const missingSubmissions = grades.filter(g => !g.file).length;
   
   // Get folder structure for troubleshooting
-  const folderStructure = files
-    .filter(file => file.webkitRelativePath)
-    .map(file => file.webkitRelativePath.split('/')[0])
-    .filter((folder, index, self) => self.indexOf(folder) === index);
+  useEffect(() => {
+    const folders = files
+      .filter(file => file.webkitRelativePath)
+      .map(file => file.webkitRelativePath.split('/')[0])
+      .filter((folder, index, self) => self.indexOf(folder) === index);
+    
+    console.log("Files available:", files.length);
+    console.log("Detected folders:", folders);
+    console.log("Student grades setup:", grades.map(g => `${g.fullName} (${g.file ? 'has file' : 'no file'})`).slice(0, 5));
+    
+    setFolderStructure(folders);
+  }, [files]);
   
   return (
     <div className="space-y-6 animate-scale-in">
@@ -146,6 +155,19 @@ const ReviewStep: React.FC<ReviewStepProps> = ({
                         <li>Extra text in folder names that confuses the matching algorithm</li>
                         <li>Missing student names in folder structure (check if folders use "onlinetext" without student names)</li>
                       </ul>
+                      
+                      <div className="mt-3 p-2 bg-white rounded border border-amber-200">
+                        <p className="font-medium">Detailed Debug Information:</p>
+                        <pre className="whitespace-pre-wrap text-xs mt-1 max-h-32 overflow-y-auto">
+                          {`Total files: ${files.length}
+Number of students: ${grades.length}
+Files with valid paths: ${files.filter(f => f.webkitRelativePath).length}
+Files without paths: ${files.filter(f => !f.webkitRelativePath).length}
+Students with submissions: ${grades.filter(g => g.file).length}
+Students missing submissions: ${grades.filter(g => !g.file).length}
+`}
+                        </pre>
+                      </div>
                     </div>
                   </div>
                 </div>

@@ -15,45 +15,84 @@ export async function gradeWithOpenAI(submissionText: string, assignmentData: an
     }
     
     // Log submission details for debugging
-    console.log(`Grading submission content preview: "${submissionText.substring(0, 100)}..."`);
-    console.log(`Submission length: ${submissionText.length} chars`);
+    console.log(`Grading submission content length: ${submissionText.length} chars`);
+    console.log(`Submission preview: "${submissionText.substring(0, 100)}..."`);
+    
+    // Safety check for very large submissions
+    if (submissionText.length > 15000) {
+      console.warn(`Large submission detected (${submissionText.length} chars), truncating to avoid token limits`);
+      submissionText = submissionText.substring(0, 15000) + "\n\n[Content truncated due to length]";
+    }
     
     const prompt = constructPrompt(submissionText, assignmentData);
     
     // Always use GPT-4 for grading
-    const modelToUse = "gpt-4";
+    const modelToUse = "gpt-4o-mini";
     console.log(`Using OpenAI model: ${modelToUse} for grading`);
     
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: modelToUse,
-        messages: [{ role: "user", content: prompt }],
-        temperature: 0.7,
-      }),
-    });
+    // Implement retry logic with exponential backoff
+    const maxRetries = 3;
+    let retryCount = 0;
+    let lastError: Error | null = null;
     
-    if (!response.ok) {
-      throw new Error(`OpenAI API error: ${response.status} ${response.statusText}`);
+    while (retryCount < maxRetries) {
+      try {
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({
+            model: modelToUse,
+            messages: [{ role: "user", content: prompt }],
+            temperature: 0.7,
+          }),
+        });
+        
+        if (response.status === 429) {  // Rate limit error
+          const retryAfter = response.headers.get('Retry-After') || retryCount + 1;
+          console.warn(`Rate limit hit. Retry after ${retryAfter} seconds. Attempt ${retryCount + 1}/${maxRetries}`);
+          await new Promise(resolve => setTimeout(resolve, parseInt(retryAfter as string) * 1000 || (retryCount + 1) * 1000));
+          retryCount++;
+          continue;
+        }
+        
+        if (!response.ok) {
+          throw new Error(`OpenAI API error: ${response.status} ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        const content = data.choices[0].message.content;
+        
+        // Extract grade and feedback from the response
+        const { grade, feedback } = extractGradeAndFeedback(content, gradingScale);
+        
+        // Validate the grade to ensure it's within proper range
+        const validatedGrade = Math.min(Math.max(0, grade), gradingScale);
+        
+        return { grade: validatedGrade, feedback };
+      } catch (error) {
+        console.error(`Attempt ${retryCount + 1}/${maxRetries} failed:`, error);
+        lastError = error instanceof Error ? error : new Error(String(error));
+        retryCount++;
+        
+        // Add exponential backoff
+        if (retryCount < maxRetries) {
+          const backoffTime = Math.pow(2, retryCount) * 1000;
+          console.log(`Retrying in ${backoffTime/1000} seconds...`);
+          await new Promise(resolve => setTimeout(resolve, backoffTime));
+        }
+      }
     }
     
-    const data = await response.json();
-    const content = data.choices[0].message.content;
-    
-    // Extract grade and feedback from the response
-    const { grade, feedback } = extractGradeAndFeedback(content, gradingScale);
-    
-    // Validate the grade to ensure it's within proper range
-    const validatedGrade = Math.min(Math.max(0, grade), gradingScale);
-    
-    return { grade: validatedGrade, feedback };
+    throw lastError || new Error("Failed after max retries");
   } catch (error) {
     console.error("Error in gradeWithOpenAI:", error);
-    return { grade: 0, feedback: "Failed to grade submission. Error: " + (error instanceof Error ? error.message : "Unknown error") };
+    return { 
+      grade: 0, 
+      feedback: "Failed to grade submission. Error: " + (error instanceof Error ? error.message : "Unknown error") 
+    };
   }
 }
 
