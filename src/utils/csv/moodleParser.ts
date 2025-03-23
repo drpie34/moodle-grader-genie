@@ -4,7 +4,7 @@
  */
 
 import { StudentGrade } from '@/hooks/use-grading-workflow';
-import { parseCSVContent, parseCSVRow } from './parseCSV';
+import { parseCSVContent, parseCSVRow, dumpStringBinary } from './parseCSV';
 import { 
   findAssignmentColumn, 
   findFeedbackColumn, 
@@ -12,7 +12,8 @@ import {
   findLastNameColumn, 
   findFullNameColumn,
   findIdColumn,
-  findEmailColumn 
+  findEmailColumn,
+  findColumnIndexOriginal
 } from './columnDetection';
 
 /**
@@ -31,6 +32,9 @@ export async function parseMoodleCSV(file: File): Promise<any> {
         
         const csvData = e.target?.result as string;
         
+        // Dump binary data for debugging
+        dumpStringBinary(csvData.substring(0, 200), "CSV RAW DATA");
+        
         // Log the first 500 characters of CSV for debugging
         console.log("\nCSV raw data preview (first 500 chars):", csvData.substring(0, 500).replace(/\n/g, "\\n"));
         
@@ -44,15 +48,102 @@ export async function parseMoodleCSV(file: File): Promise<any> {
         console.log("\nDetailed header index mapping:");
         headers.forEach((header, index) => {
           console.log(`Header [${index}]: "${header}" (${header.length} chars)`);
+          // Also log the header in different formats for debugging
+          console.log(`  - lowercase: "${header.toLowerCase()}"`);
+          console.log(`  - lowercase+trimmed: "${header.toLowerCase().trim()}"`);
+          console.log(`  - original: "${header}"`);
         });
         
-        // Find the first and last name columns - with extensive logging
-        console.log("\nDetecting name columns...");
-        const firstNameIndex = findFirstNameColumn(headers);
-        const lastNameIndex = findLastNameColumn(headers);
+        // DIRECT STRING MATCHING for first and last name columns
+        // This is a more aggressive approach to find columns
+        console.log("\nDIRECT STRING MATCHING for name columns:");
         
-        console.log(`\nFirst name column index: ${firstNameIndex}, header: "${firstNameIndex !== -1 ? headers[firstNameIndex] : 'not found'}"`);
-        console.log(`Last name column index: ${lastNameIndex}, header: "${lastNameIndex !== -1 ? headers[lastNameIndex] : 'not found'}"`);
+        let firstNameIndex = -1;
+        let lastNameIndex = -1;
+        
+        // First attempt: Direct case-insensitive comparison with common variations
+        const firstNameVariations = ["first name", "firstname", "first", "given name", "givenname"];
+        const lastNameVariations = ["last name", "lastname", "last", "surname", "family name", "familyname"];
+        
+        for (let i = 0; i < headers.length; i++) {
+          const headerLower = headers[i].toLowerCase().trim();
+          
+          // Check for first name
+          for (const variation of firstNameVariations) {
+            if (headerLower === variation) {
+              console.log(`DIRECT MATCH - First name column found at index ${i}: "${headers[i]}" matches "${variation}"`);
+              firstNameIndex = i;
+              break;
+            }
+          }
+          
+          // Check for last name
+          for (const variation of lastNameVariations) {
+            if (headerLower === variation) {
+              console.log(`DIRECT MATCH - Last name column found at index ${i}: "${headers[i]}" matches "${variation}"`);
+              lastNameIndex = i;
+              break;
+            }
+          }
+        }
+        
+        // If direct matching failed, try using the utility functions with extra logging
+        if (firstNameIndex === -1) {
+          console.log("\nDirect string matching failed for first name, trying utility function...");
+          firstNameIndex = findFirstNameColumn(headers);
+        }
+        
+        if (lastNameIndex === -1) {
+          console.log("\nDirect string matching failed for last name, trying utility function...");
+          lastNameIndex = findLastNameColumn(headers);
+        }
+        
+        // If still not found, try the original working method from before refactoring
+        if (firstNameIndex === -1) {
+          console.log("\nFallback to original working method for first name...");
+          firstNameIndex = findColumnIndexOriginal(headers, ["first name", "firstname", "first"]);
+        }
+        
+        if (lastNameIndex === -1) {
+          console.log("\nFallback to original working method for last name...");
+          lastNameIndex = findColumnIndexOriginal(headers, ["last name", "lastname", "last", "surname"]);
+        }
+        
+        // Last resort - look at individual characters in case of encoding issues
+        if (firstNameIndex === -1 || lastNameIndex === -1) {
+          console.log("\nLAST RESORT - Checking for partial matches with individual characters:");
+          
+          for (let i = 0; i < headers.length; i++) {
+            const header = headers[i];
+            const headerChars = Array.from(header.toLowerCase());
+            
+            // Check for "first" or "name" but not containing "last"
+            if (firstNameIndex === -1) {
+              const containsFirst = headerChars.join('').includes('first') || headerChars.join('').includes('name');
+              const containsLast = headerChars.join('').includes('last');
+              
+              if (containsFirst && !containsLast) {
+                console.log(`LAST RESORT MATCH - Potential first name column found at index ${i}: "${header}"`);
+                firstNameIndex = i;
+              }
+            }
+            
+            // Check for "last" or "surname"
+            if (lastNameIndex === -1) {
+              const containsLast = headerChars.join('').includes('last') || 
+                                  headerChars.join('').includes('surname') || 
+                                  headerChars.join('').includes('family');
+              
+              if (containsLast) {
+                console.log(`LAST RESORT MATCH - Potential last name column found at index ${i}: "${header}"`);
+                lastNameIndex = i;
+              }
+            }
+          }
+        }
+        
+        console.log(`\nFinal first name column index: ${firstNameIndex}, header: "${firstNameIndex !== -1 ? headers[firstNameIndex] : 'not found'}"`);
+        console.log(`Final last name column index: ${lastNameIndex}, header: "${lastNameIndex !== -1 ? headers[lastNameIndex] : 'not found'}"`);
         
         // Be more verbose about column detection to help troubleshoot
         if (firstNameIndex === -1) {

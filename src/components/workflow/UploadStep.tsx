@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import FileUploader from "@/components/FileUploader";
 import { Button } from "@/components/ui/button";
@@ -5,9 +6,25 @@ import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
 import { uploadMoodleGradebook } from "@/utils/csv";
 import { Separator } from "@/components/ui/separator";
-import { FileSpreadsheet, CheckCircle, AlertCircle, Info, Folder } from "lucide-react";
+import { FileSpreadsheet, CheckCircle, AlertCircle, Info, Folder, Settings } from "lucide-react";
 import SubmissionPreview from "./SubmissionPreview";
 import { GradebookInfo } from "./types";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 interface UploadStepProps {
   files: File[];
@@ -15,6 +32,83 @@ interface UploadStepProps {
   onMoodleGradebookUploaded: (data: any) => void;
   onContinue: () => void;
 }
+
+interface ManualColumnSelectionProps {
+  headers: string[];
+  onConfirm: (firstNameIndex: number, lastNameIndex: number) => void;
+  onCancel: () => void;
+}
+
+const ManualColumnSelection: React.FC<ManualColumnSelectionProps> = ({ 
+  headers, 
+  onConfirm,
+  onCancel
+}) => {
+  const [firstNameColumn, setFirstNameColumn] = useState<string>("");
+  const [lastNameColumn, setLastNameColumn] = useState<string>("");
+
+  const handleConfirm = () => {
+    const firstNameIndex = headers.findIndex(h => h === firstNameColumn);
+    const lastNameIndex = headers.findIndex(h => h === lastNameColumn);
+    
+    if (firstNameIndex === -1 || lastNameIndex === -1) {
+      toast.error("Please select both first name and last name columns");
+      return;
+    }
+    
+    onConfirm(firstNameIndex, lastNameIndex);
+  };
+
+  return (
+    <div className="space-y-4">
+      <DialogHeader>
+        <DialogTitle>Manual Column Selection</DialogTitle>
+        <DialogDescription>
+          Select which columns contain the first name and last name information
+        </DialogDescription>
+      </DialogHeader>
+      
+      <div className="space-y-4 py-4">
+        <div className="space-y-2">
+          <label className="text-sm font-medium">First Name Column</label>
+          <Select value={firstNameColumn} onValueChange={setFirstNameColumn}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select first name column" />
+            </SelectTrigger>
+            <SelectContent>
+              {headers.map((header, index) => (
+                <SelectItem key={`first-${index}`} value={header}>
+                  {header}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Last Name Column</label>
+          <Select value={lastNameColumn} onValueChange={setLastNameColumn}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select last name column" />
+            </SelectTrigger>
+            <SelectContent>
+              {headers.map((header, index) => (
+                <SelectItem key={`last-${index}`} value={header}>
+                  {header}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      
+      <DialogFooter>
+        <Button variant="outline" onClick={onCancel}>Cancel</Button>
+        <Button onClick={handleConfirm}>Confirm Selection</Button>
+      </DialogFooter>
+    </div>
+  );
+};
 
 const FileUploaderSection = ({ 
   files, 
@@ -121,14 +215,18 @@ const GradebookUploaderSection = ({
   gradebookSuccess,
   isProcessingGradebook,
   gradebookStudents,
-  hasFirstLastColumns
+  hasFirstLastColumns,
+  csvHeaders,
+  onManualColumnSelect
 }: {
   moodleFile: File | null,
   handleMoodleFileUpload: (e: React.ChangeEvent<HTMLInputElement>) => void,
   gradebookSuccess: boolean,
   isProcessingGradebook: boolean,
   gradebookStudents: string[],
-  hasFirstLastColumns: boolean
+  hasFirstLastColumns: boolean,
+  csvHeaders: string[],
+  onManualColumnSelect: () => void
 }) => {
   return (
     <Card className="p-4 mb-6">
@@ -206,8 +304,28 @@ const GradebookUploaderSection = ({
                 <p className="font-medium">Warning: First and last name columns not detected</p>
                 <p>Your gradebook doesn't appear to have separate columns for first and last names. 
                 The system will use the full name for matching, which may be less accurate.</p>
-                <p className="mt-1">If your gradebook does contain first and last name columns, please ensure they're labeled as such 
-                (e.g. "First Name", "Last Name", "Given Name", "Surname", etc.)</p>
+                
+                {csvHeaders.length > 0 && (
+                  <div className="mt-2">
+                    <p className="font-medium">Detected columns:</p>
+                    <div className="bg-white/50 p-2 rounded mt-1 max-h-24 overflow-y-auto">
+                      {csvHeaders.map((header, idx) => (
+                        <div key={idx} className="text-xs">
+                          {idx}: "{header}"
+                        </div>
+                      ))}
+                    </div>
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      className="mt-2 h-8 text-xs"
+                      onClick={onManualColumnSelect}
+                    >
+                      <Settings className="h-3 w-3 mr-1" />
+                      Manually Select Columns
+                    </Button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -238,6 +356,9 @@ const UploadStep: React.FC<UploadStepProps> = ({
   const [showPreview, setShowPreview] = useState(false);
   const [detectedStudents, setDetectedStudents] = useState<string[]>([]);
   const [hasFirstLastColumns, setHasFirstLastColumns] = useState<boolean>(false);
+  const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
+  const [showManualColumnSelect, setShowManualColumnSelect] = useState(false);
+  const [parsedGradebookData, setParsedGradebookData] = useState<any>(null);
 
   const handleMoodleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -252,9 +373,15 @@ const UploadStep: React.FC<UploadStepProps> = ({
       console.log("Starting to process file:", file.name);
       const gradebookData = await uploadMoodleGradebook(file);
       
+      // Store raw parsed data for manual column selection
+      setParsedGradebookData(gradebookData);
+      
       console.log("Gradebook parsed with data:", gradebookData);
       console.log("Headers detected:", gradebookData.headers);
       console.log("Total students:", gradebookData.grades.length);
+      
+      // Store all CSV headers
+      setCsvHeaders(gradebookData.headers);
       
       if (gradebookData.grades.length === 0) {
         throw new Error("No student data found in the gradebook file");
@@ -334,6 +461,51 @@ const UploadStep: React.FC<UploadStepProps> = ({
     onFilesSelected(selectedFiles);
   };
 
+  const handleManualColumnConfirm = (firstNameIndex: number, lastNameIndex: number) => {
+    if (!parsedGradebookData) {
+      toast.error("No gradebook data available for column selection");
+      return;
+    }
+    
+    // Apply the manual column selection to update first and last names in the gradebook data
+    const updatedGrades = parsedGradebookData.grades.map(grade => {
+      const originalRow = grade.originalRow || {};
+      const rowData = Object.values(originalRow);
+      
+      // Extract values at the specified indices
+      const firstName = firstNameIndex >= 0 && firstNameIndex < csvHeaders.length 
+        ? (rowData[firstNameIndex] || "") 
+        : "";
+      
+      const lastName = lastNameIndex >= 0 && lastNameIndex < csvHeaders.length 
+        ? (rowData[lastNameIndex] || "") 
+        : "";
+      
+      return {
+        ...grade,
+        firstName: firstName,
+        lastName: lastName,
+        fullName: `${firstName} ${lastName}`.trim()
+      };
+    });
+    
+    const updatedData = {
+      ...parsedGradebookData,
+      grades: updatedGrades,
+      hasFirstLastColumns: true
+    };
+    
+    // Update the state with the new data
+    setParsedGradebookData(updatedData);
+    setHasFirstLastColumns(true);
+    
+    // Pass the updated data back to the parent
+    onMoodleGradebookUploaded(updatedData);
+    
+    toast.success("Column selection applied successfully");
+    setShowManualColumnSelect(false);
+  };
+
   const filesWithFolderPaths = files.filter(file => 
     file.webkitRelativePath && file.webkitRelativePath.includes('/')
   ).length;
@@ -353,6 +525,16 @@ const UploadStep: React.FC<UploadStepProps> = ({
 
   return (
     <div className="space-y-8 animate-scale-in">
+      <Dialog open={showManualColumnSelect} onOpenChange={setShowManualColumnSelect}>
+        <DialogContent>
+          <ManualColumnSelection 
+            headers={csvHeaders}
+            onConfirm={handleManualColumnConfirm}
+            onCancel={() => setShowManualColumnSelect(false)}
+          />
+        </DialogContent>
+      </Dialog>
+      
       {!showPreview ? (
         <div className="space-y-6">
           <GradebookUploaderSection
@@ -362,6 +544,8 @@ const UploadStep: React.FC<UploadStepProps> = ({
             isProcessingGradebook={isProcessingGradebook}
             gradebookStudents={gradebookStudents}
             hasFirstLastColumns={hasFirstLastColumns}
+            csvHeaders={csvHeaders}
+            onManualColumnSelect={() => setShowManualColumnSelect(true)}
           />
           
           <FileUploaderSection

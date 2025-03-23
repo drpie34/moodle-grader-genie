@@ -135,3 +135,32 @@ export function parseCSVContent(csvData: string): {headers: string[], rows: stri
   // Return both original and normalized headers
   return { headers: normalizedHeaders, rows: dataRows };
 }
+
+/**
+ * Dump a raw binary representation of a string for debugging
+ */
+export function dumpStringBinary(str: string, label: string): void {
+  console.log(`\n===== BINARY DUMP OF ${label} (${str.length} chars) =====`);
+  let output = '';
+  
+  for (let i = 0; i < Math.min(str.length, 100); i++) {
+    const char = str[i];
+    const code = char.charCodeAt(0);
+    const hex = code.toString(16).padStart(2, '0');
+    const display = code >= 32 && code <= 126 ? char : '.';
+    
+    output += `${hex} `;
+    if ((i + 1) % 16 === 0) {
+      output += ' | ';
+      for (let j = i - 15; j <= i; j++) {
+        const c = str[j];
+        const cd = c.charCodeAt(0);
+        output += cd >= 32 && cd <= 126 ? c : '.';
+      }
+      output += '\n';
+    }
+  }
+  
+  console.log(output);
+  console.log(`===== END BINARY DUMP =====\n`);
+}

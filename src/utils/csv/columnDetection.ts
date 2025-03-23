@@ -13,108 +13,43 @@ export function findColumnIndex(headers: string[], variations: string[]): number
   console.log("Searching in headers:", headers.map(h => `"${h}"`).join(", "));
   console.log("Looking for variations:", variations.map(v => `"${v}"`).join(", "));
   
-  // Exact matches with special handling
-  for (const variation of variations) {
-    for (let i = 0; i < headers.length; i++) {
-      const header = headers[i];
-      
-      // Try multiple comparison approaches for maximum compatibility
-      // 1. Direct comparison (both lowercase, trimmed)
-      const headerLower = header.toLowerCase().trim();
-      const variationLower = variation.toLowerCase().trim();
+  // First try exact matches (case-insensitive)
+  for (let i = 0; i < headers.length; i++) {
+    const headerLower = headers[i].toLowerCase();
+    
+    for (const variation of variations) {
+      const variationLower = variation.toLowerCase();
       
       if (headerLower === variationLower) {
-        console.log(`EXACT MATCH: "${header}" at index ${i} matches "${variation}" (case-insensitive comparison)`);
-        return i;
-      }
-      
-      // 2. Space normalization (replace multiple spaces with single space)
-      const headerNormalized = headerLower.replace(/\s+/g, ' ');
-      const variationNormalized = variationLower.replace(/\s+/g, ' ');
-      
-      if (headerNormalized === variationNormalized) {
-        console.log(`NORMALIZED MATCH: "${header}" at index ${i} matches "${variation}" (after space normalization)`);
+        console.log(`EXACT MATCH: "${headers[i]}" at index ${i} matches "${variation}" (case-insensitive)`);
         return i;
       }
     }
   }
   
-  // Special case for Moodle exports
-  for (let i = 0; i < headers.length; i++) {
-    const header = headers[i].toLowerCase().trim();
-    
-    // Moodle exact format matches with variation handling for spaces
-    const isMoodleFirstName = 
-      header === 'first name' || 
-      header === 'firstname' ||
-      header === 'first' || 
-      header === 'given name' ||
-      header === 'givenname';
-    
-    const isMoodleLastName = 
-      header === 'last name' || 
-      header === 'lastname' || 
-      header === 'last' ||
-      header === 'surname' || 
-      header === 'family name' ||
-      header === 'familyname';
-    
-    // Direct Moodle format check
-    if ((variations.includes('first name') || variations.includes('firstname')) && isMoodleFirstName) {
-      console.log(`MOODLE FORMAT MATCH: "${headers[i]}" at index ${i} is a recognized Moodle first name column`);
-      return i;
-    }
-    
-    if ((variations.includes('last name') || variations.includes('lastname')) && isMoodleLastName) {
-      console.log(`MOODLE FORMAT MATCH: "${headers[i]}" at index ${i} is a recognized Moodle last name column`);
-      return i;
-    }
-  }
-  
-  // Then try includes matches (case-insensitive)
-  for (const variation of variations) {
-    const variationLower = variation.toLowerCase().trim();
-    
-    for (let i = 0; i < headers.length; i++) {
-      const headerLower = headers[i].toLowerCase().trim();
-      
-      if (headerLower.includes(variationLower)) {
-        console.log(`PARTIAL MATCH: "${headers[i]}" at index ${i} includes "${variation}"`);
-        return i;
-      }
-    }
-  }
-  
-  // Finally, check if any header includes any of the variations
+  // Try trimmed exact matches
   for (let i = 0; i < headers.length; i++) {
     const headerLower = headers[i].toLowerCase().trim();
     
     for (const variation of variations) {
       const variationLower = variation.toLowerCase().trim();
       
+      if (headerLower === variationLower) {
+        console.log(`TRIMMED MATCH: "${headers[i]}" at index ${i} matches "${variation}" (trimmed, case-insensitive)`);
+        return i;
+      }
+    }
+  }
+  
+  // Then try includes matches (case-insensitive)
+  for (let i = 0; i < headers.length; i++) {
+    const headerLower = headers[i].toLowerCase();
+    
+    for (const variation of variations) {
+      const variationLower = variation.toLowerCase();
+      
       if (headerLower.includes(variationLower)) {
-        console.log(`REVERSE MATCH: "${headers[i]}" at index ${i} includes "${variation}"`);
-        return i;
-      }
-    }
-  }
-  
-  // Fallback: Make one last attempt with very relaxed matching for common patterns
-  if (variations.includes('first name') || variations.includes('firstname')) {
-    for (let i = 0; i < headers.length; i++) {
-      const headerLower = headers[i].toLowerCase().trim();
-      if (headerLower.includes('first') || headerLower.includes('given')) {
-        console.log(`FALLBACK MATCH: "${headers[i]}" at index ${i} contains "first" or "given"`);
-        return i;
-      }
-    }
-  }
-  
-  if (variations.includes('last name') || variations.includes('lastname')) {
-    for (let i = 0; i < headers.length; i++) {
-      const headerLower = headers[i].toLowerCase().trim();
-      if (headerLower.includes('last') || headerLower.includes('surname') || headerLower.includes('family')) {
-        console.log(`FALLBACK MATCH: "${headers[i]}" at index ${i} contains "last", "surname" or "family"`);
+        console.log(`PARTIAL MATCH: "${headers[i]}" at index ${i} includes "${variation}"`);
         return i;
       }
     }
@@ -126,46 +61,93 @@ export function findColumnIndex(headers: string[], variations: string[]): number
 }
 
 /**
- * Find the first name column index from headers
+ * Fallback to original column detection logic that worked before
+ * DIRECT port of the original working code, with no changes
  */
-export function findFirstNameColumn(headers: string[]): number {
-  console.log("\n========== FIRST NAME COLUMN DETECTION ==========");
-  console.log("Attempting to find first name column in:", headers);
+export function findColumnIndexOriginal(headers: string[], variations: string[]): number {
+  console.log("\n===== TRYING ORIGINAL COLUMN DETECTION LOGIC =====");
+  console.log("Headers:", headers);
+  console.log("Variations:", variations);
   
-  // First check for direct matches - most common variations with exact matching
-  for (const exactMatch of ['first name', 'firstname', 'first', 'given name', 'givenname']) {
-    for (let i = 0; i < headers.length; i++) {
-      if (headers[i].toLowerCase().trim() === exactMatch) {
-        console.log(`DIRECT MATCH: Found exact first name match "${headers[i]}" at index ${i}`);
-        console.log("========== END FIRST NAME DETECTION ==========\n");
+  // First try exact matches (case-insensitive)
+  for (let i = 0; i < headers.length; i++) {
+    const header = headers[i];
+    for (const variation of variations) {
+      if (header.toLowerCase() === variation.toLowerCase()) {
+        console.log(`ORIGINAL LOGIC - EXACT MATCH: "${header}" at index ${i} matches "${variation}"`);
         return i;
       }
     }
   }
   
-  // Try with non-case-sensitive but exact matches, including extra spaces
+  // Then try includes matches (case-insensitive)
   for (let i = 0; i < headers.length; i++) {
-    const headerNorm = headers[i].toLowerCase().trim().replace(/\s+/g, ' ');
+    const header = headers[i];
+    for (const variation of variations) {
+      if (header.toLowerCase().includes(variation.toLowerCase())) {
+        console.log(`ORIGINAL LOGIC - PARTIAL MATCH: "${header}" at index ${i} includes "${variation}"`);
+        return i;
+      }
+    }
+  }
+  
+  console.log(`ORIGINAL LOGIC - NO MATCH FOUND for variations: ${variations.join(", ")}`);
+  console.log("===== END ORIGINAL COLUMN DETECTION LOGIC =====\n");
+  return -1;
+}
+
+/**
+ * Find the first name column index from headers
+ */
+export function findFirstNameColumn(headers: string[]): number {
+  console.log("\n========== FIRST NAME COLUMN DETECTION ==========");
+  console.log("Headers for first name detection:", headers);
+  
+  // Try directly with exact matches first for most common variations
+  for (let i = 0; i < headers.length; i++) {
+    const header = headers[i];
+    const headerLower = header.toLowerCase().trim();
     
-    if (headerNorm === 'first name' || headerNorm === 'firstname' || headerNorm === 'given name') {
-      console.log(`NORMALIZED MATCH: Found first name match "${headers[i]}" at index ${i} after normalization`);
-      console.log("========== END FIRST NAME DETECTION ==========\n");
+    // Direct matching for common Moodle formats with exact strings
+    if (headerLower === "first name" || headerLower === "firstname" || 
+        headerLower === "first" || headerLower === "given name" || 
+        headerLower === "givenname") {
+      console.log(`DIRECT MATCH for first name: "${header}" at index ${i}`);
       return i;
     }
   }
   
-  // Finally, use the helper function with all variations
+  // Try with the original logic that worked before
+  const firstNameVariationsOriginal = ['first name', 'firstname', 'first', 'given name'];
+  const originalIndex = findColumnIndexOriginal(headers, firstNameVariationsOriginal);
+  if (originalIndex !== -1) {
+    return originalIndex;
+  }
+  
+  // Extended variations as fallback
   const firstNameVariations = [
     'first name', 'firstname', 'given name', 'givenname', 'first', 'forename',
     'prénom', 'nombre', 'vorname', 'imię', '名', 'fname', 'f name', 'f_name'
   ];
   
-  const firstNameIndex = findColumnIndex(headers, firstNameVariations);
+  const index = findColumnIndex(headers, firstNameVariations);
   
-  console.log(`First name column detection result: ${firstNameIndex !== -1 ? `Found at ${firstNameIndex}` : 'Not found'}`);
+  if (index === -1) {
+    // Last resort - if we have found last name but not first name, look for a column that might be first name
+    for (let i = 0; i < headers.length; i++) {
+      const header = headers[i].toLowerCase();
+      // Check if it contains "first" or "name" but not "last"
+      if ((header.includes('first') || header.includes('name')) && !header.includes('last')) {
+        console.log(`LAST RESORT MATCH for first name: "${headers[i]}" at index ${i}`);
+        return i;
+      }
+    }
+  }
+  
+  console.log(`First name column detection result: ${index !== -1 ? `Found at ${index}` : 'Not found'}`);
   console.log("========== END FIRST NAME DETECTION ==========\n");
   
-  return firstNameIndex;
+  return index;
 }
 
 /**
@@ -173,42 +155,53 @@ export function findFirstNameColumn(headers: string[]): number {
  */
 export function findLastNameColumn(headers: string[]): number {
   console.log("\n========== LAST NAME COLUMN DETECTION ==========");
-  console.log("Attempting to find last name column in:", headers);
+  console.log("Headers for last name detection:", headers);
   
-  // First check for direct matches - most common variations with exact matching
-  for (const exactMatch of ['last name', 'lastname', 'last', 'surname', 'family name', 'familyname']) {
-    for (let i = 0; i < headers.length; i++) {
-      if (headers[i].toLowerCase().trim() === exactMatch) {
-        console.log(`DIRECT MATCH: Found exact last name match "${headers[i]}" at index ${i}`);
-        console.log("========== END LAST NAME DETECTION ==========\n");
-        return i;
-      }
-    }
-  }
-  
-  // Try with non-case-sensitive but exact matches, including extra spaces
+  // Try directly with exact matches first for most common variations
   for (let i = 0; i < headers.length; i++) {
-    const headerNorm = headers[i].toLowerCase().trim().replace(/\s+/g, ' ');
+    const header = headers[i];
+    const headerLower = header.toLowerCase().trim();
     
-    if (headerNorm === 'last name' || headerNorm === 'lastname' || headerNorm === 'surname') {
-      console.log(`NORMALIZED MATCH: Found last name match "${headers[i]}" at index ${i} after normalization`);
-      console.log("========== END LAST NAME DETECTION ==========\n");
+    // Direct matching for common Moodle formats with exact strings
+    if (headerLower === "last name" || headerLower === "lastname" || 
+        headerLower === "last" || headerLower === "surname" || 
+        headerLower === "family name" || headerLower === "familyname") {
+      console.log(`DIRECT MATCH for last name: "${header}" at index ${i}`);
       return i;
     }
   }
   
-  // Finally, use the helper function with all variations
+  // Try with the original logic that worked before
+  const lastNameVariationsOriginal = ['last name', 'lastname', 'last', 'surname', 'family name'];
+  const originalIndex = findColumnIndexOriginal(headers, lastNameVariationsOriginal);
+  if (originalIndex !== -1) {
+    return originalIndex;
+  }
+  
+  // Extended variations as fallback
   const lastNameVariations = [
     'last name', 'lastname', 'surname', 'family name', 'familyname', 'last', 
     'nom', 'apellido', 'nachname', 'nazwisko', '姓', 'lname', 'l name', 'l_name'
   ];
   
-  const lastNameIndex = findColumnIndex(headers, lastNameVariations);
+  const index = findColumnIndex(headers, lastNameVariations);
   
-  console.log(`Last name column detection result: ${lastNameIndex !== -1 ? `Found at ${lastNameIndex}` : 'Not found'}`);
+  if (index === -1) {
+    // Last resort - if we have found first name but not last name, look for a column that might be last name
+    for (let i = 0; i < headers.length; i++) {
+      const header = headers[i].toLowerCase();
+      // Check if it contains "last" or "name" but not "first"
+      if ((header.includes('last') || header.includes('name')) && !header.includes('first')) {
+        console.log(`LAST RESORT MATCH for last name: "${headers[i]}" at index ${i}`);
+        return i;
+      }
+    }
+  }
+  
+  console.log(`Last name column detection result: ${index !== -1 ? `Found at ${index}` : 'Not found'}`);
   console.log("========== END LAST NAME DETECTION ==========\n");
   
-  return lastNameIndex;
+  return index;
 }
 
 /**
