@@ -33,8 +33,11 @@ export function generateMoodleCSV(grades: StudentGrade[], format: MoodleGradeboo
     
     // Add feedback to the appropriate column
     if (feedbackColumn && grade.feedback) {
+      // Clean up the feedback: remove any "/X" from the beginning
+      let cleanedFeedback = grade.feedback.replace(/^\/\d+\s*/, '');
+      
       // Wrap feedback in quotes and escape any quotes inside
-      rowData[feedbackColumn] = `"${grade.feedback.replace(/"/g, '""')}"`;
+      rowData[feedbackColumn] = `"${cleanedFeedback.replace(/"/g, '""')}"`;
     }
     
     // Construct the row based on headers

@@ -37,11 +37,18 @@ const StudentPreviewDialog: React.FC<StudentPreviewDialogProps> = ({
   useEffect(() => {
     if (student) {
       setGrade(student.grade);
-      setFeedback(student.feedback);
+      
+      // Remove any "/30" prefix from feedback (issue #3)
+      setFeedback(student.feedback.replace(/^\/\d+\s*/, ''));
       
       if (student.contentPreview) {
-        // If we already have a preview, use it
-        setSubmissionContent(student.contentPreview);
+        // If we already have a preview, use the full content instead of the preview
+        if (student.file) {
+          // Load the full content
+          loadFileContent(student.file);
+        } else {
+          setSubmissionContent(student.contentPreview);
+        }
       } else if (student.file) {
         // Load file content
         loadFileContent(student.file);
@@ -76,6 +83,7 @@ const StudentPreviewDialog: React.FC<StudentPreviewDialogProps> = ({
 
   const handleSubmit = () => {
     if (studentIndex !== null) {
+      // Make sure we preserve any "/30" prefix removal (issue #3)
       onUpdateGrade(studentIndex, grade, feedback);
       onClose();
     }

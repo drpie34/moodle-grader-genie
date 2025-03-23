@@ -45,8 +45,12 @@ const FileUploadField: React.FC<FileUploadFieldProps> = ({
       setIsLoading(true);
       console.log(`Processing uploaded ${fileExt} file: ${file.name}`);
       
+      // Use the appropriate extraction method based on file type
       const extractedText = await extractTextFromFile(file);
+      
+      // Log successful extraction for debugging
       console.log(`Successfully extracted ${extractedText.length} characters from ${file.name}`);
+      console.log(`Text preview: "${extractedText.substring(0, 100)}..."`);
       
       setFile(file);
       onChange(extractedText);

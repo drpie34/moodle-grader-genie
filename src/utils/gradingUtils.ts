@@ -71,7 +71,10 @@ export async function gradeWithOpenAI(submissionText: string, assignmentData: an
         // Validate the grade to ensure it's within proper range
         const validatedGrade = Math.min(Math.max(0, grade), gradingScale);
         
-        return { grade: validatedGrade, feedback };
+        // Ensure the feedback doesn't start with a "/points" format (issue #3)
+        const cleanedFeedback = feedback.replace(/^\/\d+\s*/, '');
+        
+        return { grade: validatedGrade, feedback: cleanedFeedback };
       } catch (error) {
         console.error(`Attempt ${retryCount + 1}/${maxRetries} failed:`, error);
         lastError = error instanceof Error ? error : new Error(String(error));
@@ -109,7 +112,8 @@ function constructPrompt(submissionText: string, assignmentData: any): string {
   
   prompt += `Be ${gradingStrictness <= 3 ? "lenient" : gradingStrictness <= 7 ? "moderately strict" : "very strict"} in your grading. \
   Provide feedback that is ${feedbackLength <= 3 ? "concise" : feedbackLength <= 7 ? "moderately detailed" : "very detailed"}. \
-  The tone of your feedback should be ${feedbackFormality <= 3 ? "casual" : feedbackFormality <= 7 ? "moderately formal" : "very formal"}. `;
+  The tone of your feedback should be ${feedbackFormality <= 3 ? "casual" : feedbackFormality <= 7 ? "moderately formal" : "very formal"}. \
+  DO NOT begin your feedback with a grade or score like "/30" - just provide the actual feedback directly. `;
   
   if (instructorTone) {
     prompt += `Adopt this tone as if you were the instructor: ${instructorTone}. `;
@@ -119,7 +123,7 @@ function constructPrompt(submissionText: string, assignmentData: any): string {
     prompt += `Adhere to these additional instructions: ${additionalInstructions}. `;
   }
   
-  prompt += `Now, grade the following submission:\n\n${submissionText}\n\nProvide your response in this format:\nGrade: [numeric grade out of ${gradingScale}]\nFeedback: [your detailed feedback]\n\n`;
+  prompt += `Now, grade the following submission:\n\n${submissionText}\n\nProvide your response in this format:\nGrade: [numeric grade out of ${gradingScale}]\nFeedback: [your detailed feedback without any score or "/${gradingScale}" prefix]\n\n`;
   
   return prompt;
 }
@@ -163,6 +167,9 @@ function extractGradeAndFeedback(content: string, gradingScale: number): { grade
     // Extract feedback by removing the grade from the content
     feedback = content.replace(/(\d+(\.\d+)?\s*\/\s*\d+)|(\d+(\.\d+)?)/, '').trim();
   }
+  
+  // Remove any "/points" format from the beginning of the feedback (issue #3)
+  feedback = feedback.replace(/^\/\d+\s*/, '');
   
   // Ensure grade is within proper range
   grade = Math.min(Math.max(0, grade), gradingScale);
