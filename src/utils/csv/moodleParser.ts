@@ -34,27 +34,26 @@ export async function parseMoodleCSV(file: File): Promise<any> {
         console.log("Raw CSV Headers:", headers);
         console.log(`Total data rows in CSV: ${dataRows.length}`);
         
-        // Find the first and last name columns with exact matching
+        // Print each header with index for better debugging
+        headers.forEach((header, index) => {
+          console.log(`Header [${index}]: "${header}"`);
+        });
+        
+        // Find the first and last name columns
         const firstNameIndex = findFirstNameColumn(headers);
         const lastNameIndex = findLastNameColumn(headers);
         
         console.log(`First name column index: ${firstNameIndex}, header: "${firstNameIndex !== -1 ? headers[firstNameIndex] : 'not found'}"`);
         console.log(`Last name column index: ${lastNameIndex}, header: "${lastNameIndex !== -1 ? headers[lastNameIndex] : 'not found'}"`);
         
-        // Print out all headers for diagnosis
-        console.log("All CSV headers for diagnosis:");
-        headers.forEach((header, index) => {
-          console.log(`  [${index}]: "${header}" (lowercase: "${header.toLowerCase()}")`);
-        });
-        
         // Be more verbose about column detection to help troubleshoot
         if (firstNameIndex === -1) {
-          console.log("No first name column found. Available headers are:", headers);
+          console.log("WARNING: No first name column found. Available headers are:", headers);
           console.log("First name column variations we looked for: first name, firstname, given name, etc.");
         }
         
         if (lastNameIndex === -1) {
-          console.log("No last name column found. Available headers are:", headers);
+          console.log("WARNING: No last name column found. Available headers are:", headers);
           console.log("Last name column variations we looked for: last name, lastname, surname, etc.");
         }
         
@@ -62,6 +61,8 @@ export async function parseMoodleCSV(file: File): Promise<any> {
         const assignmentColumnIndex = findAssignmentColumn(headers);
         const feedbackColumnIndex = findFeedbackColumn(headers);
         const nameIndex = findFullNameColumn(headers);
+        const idIndex = findIdColumn(headers);
+        const emailIndex = findEmailColumn(headers);
         
         const assignmentColumn = assignmentColumnIndex !== -1 ? headers[assignmentColumnIndex] : undefined;
         const feedbackColumn = feedbackColumnIndex !== -1 ? headers[feedbackColumnIndex] : undefined;
@@ -86,6 +87,11 @@ export async function parseMoodleCSV(file: File): Promise<any> {
         
         console.log(`After filtering: ${actualStudentRows.length} actual student rows`);
         
+        // Log sample rows for debugging
+        if (actualStudentRows.length > 0) {
+          console.log("Sample row data:", actualStudentRows[0]);
+        }
+        
         const grades = actualStudentRows.map((values, idx) => {
           // Create an object to store the original row values by header
           const originalRow: Record<string, string> = {};
@@ -93,17 +99,13 @@ export async function parseMoodleCSV(file: File): Promise<any> {
             originalRow[header] = i < values.length ? values[i] || '' : '';
           });
           
-          // Get student identifiers
-          const idIndex = findIdColumn(headers);
-          
           // Extract first and last names, with better handling of missing values
           const firstName = firstNameIndex !== -1 && firstNameIndex < values.length 
             ? values[firstNameIndex].trim() : '';
           const lastName = lastNameIndex !== -1 && lastNameIndex < values.length 
             ? values[lastNameIndex].trim() : '';
           
-          // If we have first and last name columns and this is one of the first few rows,
-          // log the extracted names to help with debugging
+          // If we have first and last name columns, log the extracted names
           if ((firstName || lastName) && idx < 5) {
             console.log(`Student ${idx+1} name extraction from gradebook: firstName="${firstName}", lastName="${lastName}"`);
           }
@@ -127,22 +129,31 @@ export async function parseMoodleCSV(file: File): Promise<any> {
             fullName = `Student ${idx + 1}`;
           }
           
-          // Get email
-          const emailIndex = findEmailColumn(headers);
+          // Get identifier
+          const identifier = idIndex !== -1 && idIndex < values.length ? values[idIndex] : `id_${idx}`;
           
-          // For debugging: log values for first few students
+          // Get email
+          const email = emailIndex !== -1 && emailIndex < values.length ? values[emailIndex] : 
+                       `${fullName.replace(/\s+/g, '.').toLowerCase()}@example.com`;
+          
+          // For debugging: log full data for first few students
           if (idx < 5) {
-            console.log(`Student ${idx+1} row values:`, values);
-            console.log(`Student ${idx+1} name extraction: firstName="${firstName}", lastName="${lastName}", fullName="${fullName}"`);
+            console.log(`Student ${idx+1} full data:`, {
+              identifier,
+              fullName,
+              firstName,
+              lastName,
+              email,
+              originalRow
+            });
           }
           
           return {
-            identifier: idIndex !== -1 && idIndex < values.length && values[idIndex] ? values[idIndex] : `id_${idx}`,
-            fullName: fullName,
-            firstName: firstName,
-            lastName: lastName,
-            email: emailIndex !== -1 && emailIndex < values.length && values[emailIndex] ? values[emailIndex] : 
-                   `${fullName.replace(/\s+/g, '.').toLowerCase()}@example.com`,
+            identifier,
+            fullName,
+            firstName: firstName || '',
+            lastName: lastName || '',
+            email,
             status: 'Needs Grading',
             grade: 0,
             feedback: '',
@@ -159,14 +170,8 @@ export async function parseMoodleCSV(file: File): Promise<any> {
         console.log(`Students with first name: ${studentsWithFirstName}/${grades.length}`);
         console.log(`Students with last name: ${studentsWithLastName}/${grades.length}`);
         
-        if (firstNameIndex !== -1 && lastNameIndex !== -1) {
-          console.log(`✓ First and last name columns found in gradebook: "${headers[firstNameIndex]}" and "${headers[lastNameIndex]}"`);
-        } else {
-          console.warn("✗ First and last name columns NOT found in gradebook. This may affect matching.");
-        }
-        
-        // Display first few student names for validation
-        console.log("First few student names:", grades.slice(0, 5).map(g => g.fullName));
+        // Display all student names for validation
+        console.log("All student names:", grades.map(g => g.fullName));
         
         resolve({
           headers,

@@ -14,16 +14,36 @@ export function findColumnIndex(headers: string[], variations: string[]): number
   
   // First try exact matches (case-insensitive)
   for (const variation of variations) {
-    const index = headers.findIndex(h => h.toLowerCase() === variation.toLowerCase());
+    const index = headers.findIndex(h => 
+      h.toLowerCase().trim() === variation.toLowerCase().trim()
+    );
     if (index !== -1) {
       console.log(`Found exact match: "${headers[index]}" (index: ${index}) matches "${variation}"`);
       return index;
     }
   }
   
+  // Check for column header "First name" and "Last name" with space exactly as is
+  // This is a special case for Moodle exports which commonly use these formats
+  for (const header of headers) {
+    const headerLower = header.toLowerCase().trim();
+    if (variations.includes('first name') && headerLower === 'first name') {
+      const index = headers.indexOf(header);
+      console.log(`Found special case match: "${header}" (index: ${index}) exactly matches "first name"`);
+      return index;
+    }
+    if (variations.includes('last name') && headerLower === 'last name') {
+      const index = headers.indexOf(header);
+      console.log(`Found special case match: "${header}" (index: ${index}) exactly matches "last name"`);
+      return index;
+    }
+  }
+  
   // Then try includes matches (case-insensitive)
   for (const variation of variations) {
-    const index = headers.findIndex(h => h.toLowerCase().includes(variation.toLowerCase()));
+    const index = headers.findIndex(h => 
+      h.toLowerCase().trim().includes(variation.toLowerCase().trim())
+    );
     if (index !== -1) {
       console.log(`Found partial match: "${headers[index]}" (index: ${index}) includes "${variation}"`);
       return index;
@@ -32,9 +52,9 @@ export function findColumnIndex(headers: string[], variations: string[]): number
   
   // Finally, check if any header includes any of the variations
   for (const header of headers) {
-    const headerLower = header.toLowerCase();
+    const headerLower = header.toLowerCase().trim();
     for (const variation of variations) {
-      if (headerLower.includes(variation.toLowerCase())) {
+      if (headerLower.includes(variation.toLowerCase().trim())) {
         const index = headers.indexOf(header);
         console.log(`Found reverse match: "${header}" (index: ${index}) includes "${variation}"`);
         return index;
@@ -52,19 +72,20 @@ export function findColumnIndex(headers: string[], variations: string[]): number
 export function findFirstNameColumn(headers: string[]): number {
   console.log("Attempting to find first name column in:", headers);
   
-  // Explicit check for "First name" with space
-  const firstNameExactIndex = headers.findIndex(h => 
-    h.toLowerCase() === 'first name' || 
-    h.toLowerCase() === 'firstname'
-  );
+  // First check for exact match
+  let firstNameIndex = -1;
   
-  if (firstNameExactIndex !== -1) {
-    console.log(`Found first name column: "${headers[firstNameExactIndex]}" at index ${firstNameExactIndex}`);
-    return firstNameExactIndex;
+  // Direct check for the most common variations
+  for (const header of headers) {
+    const headerLower = header.toLowerCase().trim();
+    if (headerLower === 'first name' || headerLower === 'firstname') {
+      console.log(`Found exact first name match: "${header}"`);
+      return headers.indexOf(header);
+    }
   }
   
-  // If exact matching fails, try more flexible matching
-  const firstNameIndex = findColumnIndex(headers, [
+  // If not found with direct match, try with the helper function
+  firstNameIndex = findColumnIndex(headers, [
     'first name', 'firstname', 'given name', 'givenname', 'first', 'forename',
     'prénom', 'nombre', 'vorname', 'imię', '名', 'fname'
   ]);
@@ -79,19 +100,20 @@ export function findFirstNameColumn(headers: string[]): number {
 export function findLastNameColumn(headers: string[]): number {
   console.log("Attempting to find last name column in:", headers);
   
-  // Explicit check for "Last name" with space
-  const lastNameExactIndex = headers.findIndex(h => 
-    h.toLowerCase() === 'last name' || 
-    h.toLowerCase() === 'lastname'
-  );
+  // First check for exact match
+  let lastNameIndex = -1;
   
-  if (lastNameExactIndex !== -1) {
-    console.log(`Found last name column: "${headers[lastNameExactIndex]}" at index ${lastNameExactIndex}`);
-    return lastNameExactIndex;
+  // Direct check for the most common variations
+  for (const header of headers) {
+    const headerLower = header.toLowerCase().trim();
+    if (headerLower === 'last name' || headerLower === 'lastname') {
+      console.log(`Found exact last name match: "${header}"`);
+      return headers.indexOf(header);
+    }
   }
   
-  // If exact matching fails, try more flexible matching
-  const lastNameIndex = findColumnIndex(headers, [
+  // If not found with direct match, try with the helper function
+  lastNameIndex = findColumnIndex(headers, [
     'last name', 'lastname', 'surname', 'family name', 'familyname', 'last', 
     'nom', 'apellido', 'nachname', 'nazwisko', '姓', 'lname'
   ]);

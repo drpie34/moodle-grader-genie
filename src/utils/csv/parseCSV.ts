@@ -1,3 +1,4 @@
+
 /**
  * CSV parsing utilities
  */
@@ -45,9 +46,20 @@ export function parseCSVContent(csvData: string): {headers: string[], rows: stri
   // Split into rows, handling both \r\n and \n line endings
   const rows = csvData.split(/\r?\n/).filter(row => row.trim());
   
+  if (rows.length === 0) {
+    return { headers: [], rows: [] };
+  }
+  
+  // Debug the first few rows
+  console.log("First 3 rows of CSV data:");
+  rows.slice(0, 3).forEach((row, i) => console.log(`Row ${i}: ${row}`));
+  
   // Parse headers, properly handling quoted values
   const headerRow = rows[0];
   const headers = parseCSVRow(headerRow);
+  
+  // Debug parsed headers
+  console.log("Parsed headers:", headers);
   
   // Process data rows, skipping empty rows
   const dataRows = rows.slice(1).filter(row => row.trim()).map(row => {

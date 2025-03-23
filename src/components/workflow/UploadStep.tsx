@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import FileUploader from "@/components/FileUploader";
 import { Button } from "@/components/ui/button";
@@ -17,7 +16,6 @@ interface UploadStepProps {
   onContinue: () => void;
 }
 
-// Component for displaying the file uploader section
 const FileUploaderSection = ({ 
   files, 
   onFilesSelected, 
@@ -117,7 +115,6 @@ const FileUploaderSection = ({
   );
 };
 
-// Component for displaying the gradebook uploader section
 const GradebookUploaderSection = ({
   moodleFile,
   handleMoodleFileUpload,
@@ -252,14 +249,20 @@ const UploadStep: React.FC<UploadStepProps> = ({
     setGradebookSuccess(false);
     
     try {
+      console.log("Starting to process file:", file.name);
       const gradebookData = await uploadMoodleGradebook(file);
       
-      console.log("Raw gradebook data received:", JSON.stringify(gradebookData, null, 2));
+      console.log("Gradebook parsed with data:", gradebookData);
+      console.log("Headers detected:", gradebookData.headers);
+      console.log("Total students:", gradebookData.grades.length);
+      
+      if (gradebookData.grades.length === 0) {
+        throw new Error("No student data found in the gradebook file");
+      }
       
       onMoodleGradebookUploaded(gradebookData);
       setGradebookSuccess(true);
-      toast.success("Moodle gradebook uploaded successfully");
-      console.log("Moodle gradebook data:", gradebookData);
+      toast.success(`Moodle gradebook uploaded successfully with ${gradebookData.grades.length} students`);
       
       const studentNames = gradebookData.grades.map(g => g.fullName);
       setGradebookStudents(studentNames);
@@ -267,11 +270,11 @@ const UploadStep: React.FC<UploadStepProps> = ({
       const hasFirstName = gradebookData.grades.some(g => g.firstName);
       const hasLastName = gradebookData.grades.some(g => g.lastName);
       
-      console.log("First name column detection:", hasFirstName ? "FOUND" : "NOT FOUND");
-      console.log("Last name column detection:", hasLastName ? "FOUND" : "NOT FOUND");
+      console.log(`First name column found: ${hasFirstName ? "YES" : "NO"}`);
+      console.log(`Last name column found: ${hasLastName ? "YES" : "NO"}`);
       
       gradebookData.grades.slice(0, 5).forEach((student, idx) => {
-        console.log(`Student ${idx + 1} name data:`, {
+        console.log(`Student ${idx + 1} data:`, {
           fullName: student.fullName,
           firstName: student.firstName || "MISSING",
           lastName: student.lastName || "MISSING"
@@ -287,8 +290,6 @@ const UploadStep: React.FC<UploadStepProps> = ({
         console.log("First and last name columns NOT found in gradebook");
         toast.warning("First and last name columns NOT found in gradebook. This may impact student matching.");
       }
-      
-      console.log("First 5 student names from gradebook:", studentNames.slice(0, 5));
       
     } catch (error) {
       console.error("Error processing Moodle file:", error);
