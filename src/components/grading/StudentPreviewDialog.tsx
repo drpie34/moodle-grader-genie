@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -7,7 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { FileText } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { extractTextFromFile, extractTextFromHTML, extractHTMLFromDOCX } from "@/utils/fileUtils";
+import { extractTextFromFile, extractTextFromHTML } from "@/utils/fileUtils";
+import { extractHTMLFromDOCX } from "@/utils/docxUtils";
 import type { StudentGrade } from "@/hooks/use-grading-workflow";
 
 interface StudentPreviewDialogProps {

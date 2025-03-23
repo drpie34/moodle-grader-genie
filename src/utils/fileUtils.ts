@@ -1,4 +1,3 @@
-
 /**
  * Utilities for handling files and extracting student information
  */
