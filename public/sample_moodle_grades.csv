@@ -1,6 +1,6 @@
 
-Identifier,Full name,Email address,Status,Grade,Feedback comments
-student1,"John Smith",student1@example.com,Graded,85,"Good work overall. The introduction effectively establishes the topic. Well-structured with clear arguments. Consider adding more examples to support your claims."
-student2,"Maria Garcia",student2@example.com,Graded,92,"Excellent submission. Your analysis is thorough and well-supported with evidence. The conclusion effectively ties everything together."
-student3,"David Johnson",student3@example.com,Graded,78,"The assignment demonstrates understanding of the subject matter. Work on developing your arguments more fully and providing stronger evidence to support your claims."
-student4,"Sarah Williams",student4@example.com,Graded,88,"Strong analysis with good supporting examples. Your writing is clear and concise. Consider adding more depth to your discussion of key concepts."
+Identifier,First name,Last name,Email address,Status,Grade,Feedback comments
+student1,John,Smith,student1@example.com,Graded,85,"Good work overall. The introduction effectively establishes the topic. Well-structured with clear arguments. Consider adding more examples to support your claims."
+student2,Maria,Garcia,student2@example.com,Graded,92,"Excellent submission. Your analysis is thorough and well-supported with evidence. The conclusion effectively ties everything together."
+student3,David,Johnson,student3@example.com,Graded,78,"The assignment demonstrates understanding of the subject matter. Work on developing your arguments more fully and providing stronger evidence to support your claims."
+student4,Sarah,Williams,student4@example.com,Graded,88,"Strong analysis with good supporting examples. Your writing is clear and concise. Consider adding more depth to your discussion of key concepts."

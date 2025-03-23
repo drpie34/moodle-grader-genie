@@ -267,11 +267,20 @@ const UploadStep: React.FC<UploadStepProps> = ({
       const studentNames = gradebookData.grades.map(g => g.fullName);
       setGradebookStudents(studentNames);
       
-      const hasFirstName = gradebookData.grades.some(g => g.firstName);
-      const hasLastName = gradebookData.grades.some(g => g.lastName);
+      const hasFirstLastNames = gradebookData.hasFirstLastColumns || false;
       
-      console.log(`First name column found: ${hasFirstName ? "YES" : "NO"}`);
-      console.log(`Last name column found: ${hasLastName ? "YES" : "NO"}`);
+      if (!hasFirstLastNames) {
+        const hasFirstName = gradebookData.grades.some(g => g.firstName);
+        const hasLastName = gradebookData.grades.some(g => g.lastName);
+        
+        console.log(`First name column found: ${hasFirstName ? "YES" : "NO"}`);
+        console.log(`Last name column found: ${hasLastName ? "YES" : "NO"}`);
+        
+        setHasFirstLastColumns(hasFirstName && hasLastName);
+      } else {
+        setHasFirstLastColumns(hasFirstLastNames);
+        console.log("First and last name columns found directly from parser");
+      }
       
       gradebookData.grades.slice(0, 5).forEach((student, idx) => {
         console.log(`Student ${idx + 1} data:`, {
@@ -281,9 +290,7 @@ const UploadStep: React.FC<UploadStepProps> = ({
         });
       });
       
-      setHasFirstLastColumns(hasFirstName && hasLastName);
-      
-      if (hasFirstName && hasLastName) {
+      if (hasFirstLastNames || (gradebookData.grades.some(g => g.firstName) && gradebookData.grades.some(g => g.lastName))) {
         console.log("First and last name columns found in gradebook");
         toast.success("First and last name columns detected in gradebook");
       } else {
