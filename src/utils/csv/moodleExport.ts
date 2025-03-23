@@ -18,12 +18,16 @@ export function generateMoodleCSV(grades: StudentGrade[], format: MoodleGradeboo
   // If we have the original gradebook format, use it
   const { headers, assignmentColumn, feedbackColumn } = format;
   
-  // Create header row
+  // Log headers to ensure they are being preserved exactly
+  console.log('CSV Export: Using exact headers from original gradebook:', headers);
+  console.log(`CSV Export: Assignment column: "${assignmentColumn}", Feedback column: "${feedbackColumn}"`);
+  
+  // Create header row - using the exact headers from the original gradebook
   const headerRow = headers.join(',');
   
   // Create data rows
   const dataRows = grades.map(grade => {
-    // Start with the original row if available
+    // Start with the original row if available - this preserves all original content
     const rowData: Record<string, string> = grade.originalRow ? { ...grade.originalRow } : {};
     
     // Ensure the grade is properly formatted - convert to a number and then to string
@@ -40,9 +44,17 @@ export function generateMoodleCSV(grades: StudentGrade[], format: MoodleGradeboo
       rowData[feedbackColumn] = `"${cleanedFeedback.replace(/"/g, '""')}"`;
     }
     
-    // Construct the row based on headers
-    return headers.map(header => rowData[header] || '').join(',');
+    // Construct the row based on EXACT original headers - this ensures column order is preserved
+    return headers.map(header => {
+      const value = rowData[header] !== undefined ? rowData[header] : '';
+      return value;
+    }).join(',');
   });
+  
+  // Log a sample row to verify export format
+  if (dataRows.length > 0) {
+    console.log('CSV Export: Sample row:', dataRows[0]);
+  }
   
   // Combine header and data rows
   return [headerRow, ...dataRows].join('\n');

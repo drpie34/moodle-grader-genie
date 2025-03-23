@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -8,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { FileText } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { extractTextFromFile, extractTextFromHTML } from "@/utils/fileUtils";
+import { extractTextFromFile, extractTextFromHTML, extractHTMLFromDOCX } from "@/utils/fileUtils";
 import type { StudentGrade } from "@/hooks/use-grading-workflow";
 
 interface StudentPreviewDialogProps {
@@ -33,6 +32,7 @@ const StudentPreviewDialog: React.FC<StudentPreviewDialogProps> = ({
   const [submissionContent, setSubmissionContent] = useState<string>("");
   const [isLoadingContent, setIsLoadingContent] = useState(false);
   const [activeTab, setActiveTab] = useState("feedback");
+  const [isHtmlContent, setIsHtmlContent] = useState(false);
 
   useEffect(() => {
     if (student) {
@@ -48,12 +48,14 @@ const StudentPreviewDialog: React.FC<StudentPreviewDialogProps> = ({
           loadFileContent(student.file);
         } else {
           setSubmissionContent(student.contentPreview);
+          setIsHtmlContent(false);
         }
       } else if (student.file) {
         // Load file content
         loadFileContent(student.file);
       } else {
         setSubmissionContent("No submission file found for this student.");
+        setIsHtmlContent(false);
       }
     }
   }, [student]);
@@ -65,17 +67,43 @@ const StudentPreviewDialog: React.FC<StudentPreviewDialogProps> = ({
     
     try {
       let content = "";
+      let isHtml = false;
+      
+      const fileExt = file.name.split('.').pop()?.toLowerCase();
       
       if (file.name.includes("onlinetext") || file.name.endsWith(".html") || file.name.endsWith(".htm") || file.type.includes("html")) {
+        // For HTML files, keep the HTML to preserve formatting
         content = await extractTextFromHTML(file);
+        isHtml = true;
+      } else if (fileExt === 'docx') {
+        // For DOCX files, try to convert to HTML to preserve formatting
+        try {
+          const htmlContent = await extractHTMLFromDOCX(file);
+          content = htmlContent;
+          isHtml = true;
+        } catch (error) {
+          console.error("Error extracting HTML from DOCX, falling back to text:", error);
+          content = await extractTextFromFile(file);
+          isHtml = false;
+        }
       } else {
+        // For other files, extract as text but preserve whitespace
         content = await extractTextFromFile(file);
+        // Convert newlines to <br> tags and preserve spacing
+        if (content) {
+          content = content
+            .replace(/\n/g, '<br>')
+            .replace(/\s{2,}/g, match => '&nbsp;'.repeat(match.length));
+          isHtml = true;
+        }
       }
       
       setSubmissionContent(content || "Failed to extract content from this file type.");
+      setIsHtmlContent(isHtml);
     } catch (error) {
       console.error("Error loading file content:", error);
       setSubmissionContent("Error loading content: " + (error as Error).message);
+      setIsHtmlContent(false);
     } finally {
       setIsLoadingContent(false);
     }
@@ -158,9 +186,18 @@ const StudentPreviewDialog: React.FC<StudentPreviewDialogProps> = ({
                     <p className="text-sm text-muted-foreground">Loading submission content...</p>
                   </div>
                 ) : (
-                  <div className="max-h-[400px] overflow-y-auto mt-2">
-                    <div className="bg-muted p-4 rounded whitespace-pre-wrap">
-                      {submissionContent || "No content available"}
+                  <div className="max-h-[600px] overflow-y-auto mt-2">
+                    <div className="bg-muted p-4 rounded">
+                      {isHtmlContent ? (
+                        <div 
+                          className="prose dark:prose-invert max-w-none"
+                          dangerouslySetInnerHTML={{ __html: submissionContent }}
+                        />
+                      ) : (
+                        <div className="whitespace-pre-wrap">
+                          {submissionContent || "No content available"}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
