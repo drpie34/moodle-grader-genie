@@ -1,4 +1,3 @@
-
 /**
  * CSV parsing utilities
  */
@@ -56,6 +55,13 @@ export function parseCSVRow(row: string): string[] {
 export function parseCSVContent(csvData: string): {headers: string[], rows: string[][]} {
   console.log("\n========== STARTING CSV PARSING ==========");
   console.log(`Raw CSV data length: ${csvData.length} characters`);
+  
+  // Check for Excel binary signature (XLSX files often start with "PK")
+  if (csvData.startsWith('PK') || csvData.includes('[Content_Types].xml')) {
+    console.warn("WARNING: This appears to be an Excel binary file being parsed as CSV");
+    console.log("First 50 bytes:", csvData.substring(0, 50));
+    throw new Error("This appears to be an Excel file (XLSX). Please use the Excel file format parser.");
+  }
   
   // Check for BOM (Byte Order Mark) which might affect string comparisons
   const hasBOM = csvData.charCodeAt(0) === 0xFEFF;
@@ -163,4 +169,31 @@ export function dumpStringBinary(str: string, label: string): void {
   
   console.log(output);
   console.log(`===== END BINARY DUMP =====\n`);
+}
+
+/**
+ * Check if a file is likely a binary Excel file based on content
+ */
+export function isLikelyExcelFile(data: string | ArrayBuffer): boolean {
+  if (data instanceof ArrayBuffer) {
+    // Convert first few bytes to string for checking
+    const bytes = new Uint8Array(data.slice(0, 50));
+    let header = '';
+    for (let i = 0; i < Math.min(bytes.length, 10); i++) {
+      header += String.fromCharCode(bytes[i]);
+    }
+    
+    return header.startsWith('PK') || // XLSX signature
+           header.startsWith('\xD0\xCF\x11\xE0'); // XLS signature
+  }
+  
+  // For string data, check for Excel markers
+  if (typeof data === 'string') {
+    return data.startsWith('PK') || // XLSX signature
+           data.includes('[Content_Types].xml') || // XLSX content
+           data.startsWith('\xD0\xCF\x11\xE0') || // XLS signature
+           /^<\?xml.*?spreadsheet/i.test(data); // XML spreadsheet
+  }
+  
+  return false;
 }

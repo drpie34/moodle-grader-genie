@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import FileUploader from "@/components/FileUploader";
 import { Button } from "@/components/ui/button";
@@ -256,6 +255,21 @@ const GradebookUploaderSection = ({
           <div className="flex items-start">
             <Info className="h-4 w-4 text-blue-500 mt-0.5 mr-2" />
             <div className="text-xs text-blue-800">
+              <p className="font-medium">Supported file formats:</p>
+              <ul className="list-disc ml-5 mt-1">
+                <li><strong>Excel files (.xlsx, .xls)</strong> - Recommended format from Moodle gradebook exports</li>
+                <li><strong>CSV files (.csv)</strong> - Comma-separated text format</li>
+                <li><strong>Text files (.txt)</strong> - Tab-delimited or comma-separated</li>
+              </ul>
+              <p className="mt-1"><strong>Important:</strong> The file should contain columns for student names (First name, Last name).</p>
+            </div>
+          </div>
+        </div>
+        
+        <div className="rounded-md bg-blue-50 p-3 mb-2">
+          <div className="flex items-start">
+            <Info className="h-4 w-4 text-blue-500 mt-0.5 mr-2" />
+            <div className="text-xs text-blue-800">
               <p className="font-medium">Important for student matching:</p>
               <p>The system matches student names from folders in your submission ZIP file with names in the gradebook. 
               The folder names <strong>MUST</strong> contain student names that match the student names in the gradebook.</p>
@@ -285,7 +299,7 @@ const GradebookUploaderSection = ({
           />
           {moodleFile && (
             <div className="text-xs text-muted-foreground">
-              Using format from: {moodleFile.name}
+              Using: {moodleFile.name} ({moodleFile.type || 'unknown type'})
             </div>
           )}
           {isProcessingGradebook && (
@@ -371,6 +385,24 @@ const UploadStep: React.FC<UploadStepProps> = ({
     
     try {
       console.log("Starting to process file:", file.name);
+      console.log("File type:", file.type);
+      console.log("File size:", file.size, "bytes");
+      
+      const fileExt = file.name.split('.').pop()?.toLowerCase();
+      console.log("File extension:", fileExt);
+      
+      // Log explicit file format information
+      if (fileExt === 'xlsx' || fileExt === 'xls') {
+        console.log("Processing Excel format gradebook");
+        toast.info("Processing Excel format gradebook...");
+      } else if (fileExt === 'csv' || fileExt === 'txt') {
+        console.log("Processing CSV format gradebook");
+        toast.info("Processing CSV format gradebook...");
+      } else {
+        console.log("Processing unknown format gradebook, will attempt auto-detection");
+        toast.info("Attempting to detect gradebook format...");
+      }
+      
       const gradebookData = await uploadMoodleGradebook(file);
       
       // Store raw parsed data for manual column selection
@@ -422,12 +454,19 @@ const UploadStep: React.FC<UploadStepProps> = ({
         toast.success("First and last name columns detected in gradebook");
       } else {
         console.log("First and last name columns NOT found in gradebook");
-        toast.warning("First and last name columns NOT found in gradebook. This may impact student matching.");
+        toast.warning("First and last name columns NOT found in gradebook. Consider using manual column selection.");
       }
       
     } catch (error) {
       console.error("Error processing Moodle file:", error);
-      toast.error("Error processing Moodle file. Please check the format.");
+      const errMsg = error instanceof Error ? error.message : "Unknown error";
+      
+      if (errMsg.includes("Excel file") || errMsg.includes("XLSX")) {
+        toast.error("Error processing file. This appears to be an Excel file with format issues. Try using a different export format from Moodle.");
+      } else {
+        toast.error(`Error processing Moodle file: ${errMsg}`);
+      }
+      
       setGradebookSuccess(false);
     } finally {
       setIsProcessingGradebook(false);
