@@ -15,16 +15,21 @@ export async function extractTextFromFile(file: File): Promise<string> {
   const fileType = file.type.toLowerCase();
   const fileName = file.name.toLowerCase();
   
+  console.log(`Extracting text from file: ${fileName}, type: ${fileType}`);
+  
   // For PDF files
   if (fileType.includes('pdf') || fileName.endsWith('.pdf')) {
+    console.log("Processing as PDF file");
     return extractTextFromPDF(file);
   }
   
   // For DOCX files
   if (fileType.includes('docx') || fileName.endsWith('.docx')) {
+    console.log("Processing as DOCX file");
     try {
       // First try to get HTML content to preserve formatting
       const htmlContent = await extractHTMLFromDOCX(file);
+      console.log("Successfully extracted HTML from DOCX with length:", htmlContent.length);
       // Strip HTML tags to get plain text
       const tempDiv = document.createElement('div');
       tempDiv.innerHTML = htmlContent;
@@ -38,10 +43,12 @@ export async function extractTextFromFile(file: File): Promise<string> {
   
   // For HTML files
   if (fileType.includes('html') || fileName.endsWith('.html') || fileName.endsWith('.htm')) {
+    console.log("Processing as HTML file");
     return extractTextFromHTML(file);
   }
   
   // Default text extraction
+  console.log("Processing as generic text file");
   return extractTextFromRawFile(file);
 }
 
@@ -54,6 +61,8 @@ async function extractTextFromPDF(file: File): Promise<string> {
     const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
     let fullText = '';
     
+    console.log(`PDF has ${pdf.numPages} pages, extracting text...`);
+    
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
       const textContent = await page.getTextContent();
@@ -64,6 +73,7 @@ async function extractTextFromPDF(file: File): Promise<string> {
       fullText += pageText + '\n\n';
     }
     
+    console.log(`Extracted ${fullText.length} characters from PDF`);
     return fullText;
   } catch (error) {
     console.error('Error extracting text from PDF:', error);
@@ -83,9 +93,11 @@ export async function extractTextFromHTML(file: File): Promise<string> {
         const html = e.target?.result as string;
         
         if (html) {
+          console.log(`Extracted HTML content with length: ${html.length}`);
           // Return the raw HTML to preserve formatting
           resolve(html);
         } else {
+          console.warn("HTML extraction resulted in empty content");
           resolve('');
         }
       } catch (error) {
@@ -113,6 +125,7 @@ async function extractTextFromRawFile(file: File): Promise<string> {
     reader.onload = (e) => {
       try {
         const text = e.target?.result as string;
+        console.log(`Extracted raw text with length: ${text ? text.length : 0}`);
         resolve(text || '');
       } catch (error) {
         console.error('Error extracting text from file:', error);

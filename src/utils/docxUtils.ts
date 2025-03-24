@@ -23,10 +23,15 @@ export async function extractHTMLFromDOCX(file: File): Promise<string> {
         // Configure mammoth to preserve as much formatting as possible
         const options = {
           convertImage: mammoth.images.imgElement(async (image) => {
-            const imageBuffer = await image.read();
-            const base64Data = Buffer.from(imageBuffer).toString('base64');
-            const src = `data:${image.contentType};base64,${base64Data}`;
-            return { src }; // Return a plain object with a string src property
+            try {
+              const imageBuffer = await image.read();
+              const base64Data = Buffer.from(imageBuffer).toString('base64');
+              const src = `data:${image.contentType};base64,${base64Data}`;
+              return { src }; // Return a plain object with a string src property
+            } catch (error) {
+              console.error("Error converting image:", error);
+              return { src: "" };
+            }
           }),
           styleMap: [
             "p[style-name='Heading 1'] => h1:fresh",
@@ -52,15 +57,21 @@ export async function extractHTMLFromDOCX(file: File): Promise<string> {
         const result = await mammoth.convertToHtml({ arrayBuffer }, options);
         let html = result.value;
         
+        // Log messages from mammoth for debugging
+        console.log("Mammoth conversion messages:", result.messages);
+        
         // Enhance whitespace preservation
         html = html.replace(/\n/g, '<br>');
         
         // Add CSS for better formatting
         html = `
-          <div style="font-family: Arial, sans-serif; line-height: 1.5;">
+          <div style="font-family: Arial, sans-serif; line-height: 1.5; white-space: pre-wrap;">
             ${html}
           </div>
         `;
+        
+        // Log sample of converted HTML for debugging
+        console.log("Converted DOCX HTML sample:", html.substring(0, 500) + "...");
         
         resolve(html);
       } catch (error) {

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -66,21 +65,26 @@ const StudentPreviewDialog: React.FC<StudentPreviewDialogProps> = ({
     if (!file) return;
     
     setIsLoadingContent(true);
+    console.log("Loading file content for:", file.name, "Type:", file.type);
     
     try {
       let content = "";
       let isHtml = false;
       
       const fileExt = file.name.split('.').pop()?.toLowerCase();
+      console.log("File extension detected:", fileExt);
       
       if (file.name.includes("onlinetext") || file.name.endsWith(".html") || file.name.endsWith(".htm") || file.type.includes("html")) {
         // For HTML files, keep the HTML to preserve formatting
+        console.log("Processing as HTML file");
         content = await extractTextFromHTML(file);
         isHtml = true;
       } else if (fileExt === 'docx') {
         // For DOCX files, try to convert to HTML to preserve formatting
+        console.log("Processing as DOCX file");
         try {
           const htmlContent = await extractHTMLFromDOCX(file);
+          console.log("Successfully extracted HTML from DOCX with length:", htmlContent.length);
           content = htmlContent;
           isHtml = true;
         } catch (error) {
@@ -90,7 +94,10 @@ const StudentPreviewDialog: React.FC<StudentPreviewDialogProps> = ({
         }
       } else {
         // For other files, extract as text but preserve whitespace
+        console.log("Processing as generic text file");
         content = await extractTextFromFile(file);
+        console.log("Extracted text content length:", content.length);
+        
         // Convert newlines to <br> tags and preserve spacing
         if (content) {
           content = content
@@ -100,6 +107,7 @@ const StudentPreviewDialog: React.FC<StudentPreviewDialogProps> = ({
         }
       }
       
+      console.log("Final content is HTML:", isHtml);
       setSubmissionContent(content || "Failed to extract content from this file type.");
       setIsHtmlContent(isHtml);
     } catch (error) {
@@ -161,7 +169,7 @@ const StudentPreviewDialog: React.FC<StudentPreviewDialogProps> = ({
                   value={feedback}
                   onChange={e => setFeedback(e.target.value)}
                   rows={12}
-                  className="mt-1"
+                  className="mt-1 font-mono whitespace-pre-wrap"
                 />
               </div>
             </div>
@@ -193,10 +201,11 @@ const StudentPreviewDialog: React.FC<StudentPreviewDialogProps> = ({
                       {isHtmlContent ? (
                         <div 
                           className="prose dark:prose-invert max-w-none"
+                          style={{ whiteSpace: 'pre-wrap' }}
                           dangerouslySetInnerHTML={{ __html: submissionContent }}
                         />
                       ) : (
-                        <div className="whitespace-pre-wrap">
+                        <div className="font-mono whitespace-pre-wrap">
                           {submissionContent || "No content available"}
                         </div>
                       )}
