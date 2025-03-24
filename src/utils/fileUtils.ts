@@ -1,13 +1,12 @@
-
 /**
  * Utilities for handling files and extracting student information
  */
-import pdfjs from 'pdfjs-dist';
+import * as pdfjs from 'pdfjs-dist';
 import { extractHTMLFromDOCX } from './docxUtils';
 
 // Set the worker URL for PDF.js
-const PDFJS_WORKER_URL = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
-pdfjs.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_URL;
+const PDFJS_WORKER_SRC = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
+pdfjs.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_SRC;
 
 /**
  * Extract text content from a file based on type
