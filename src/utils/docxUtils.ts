@@ -22,10 +22,12 @@ export async function extractHTMLFromDOCX(file: File): Promise<string> {
         
         // Configure mammoth to preserve as much formatting as possible
         const options = {
-          convertImage: mammoth.images.imgElement(function(image) {
-            return {
-              src: image.src
-            };
+          convertImage: mammoth.images.imgElement((image) => {
+            return Promise.resolve({
+              src: image.read().then((imageBuffer) => {
+                return `data:${image.contentType};base64,${Buffer.from(imageBuffer).toString('base64')}`;
+              })
+            });
           }),
           styleMap: [
             "p[style-name='Heading 1'] => h1:fresh",
