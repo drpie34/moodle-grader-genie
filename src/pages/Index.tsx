@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import Header from "@/components/Header";
 import StepIndicator from "@/components/StepIndicator";
@@ -63,7 +64,27 @@ const Index = () => {
       downloadCSV(csvContent, filename);
       toast.success("CSV file downloaded with original gradebook format preserved");
     } else {
+      console.error("Missing moodleGradebook data:", moodleGradebook);
       toast.error("Missing original gradebook format information. Please upload a CSV file first.");
+    }
+  };
+
+  // Function to download grading prompts for debugging
+  const handleDownloadPrompts = () => {
+    const gradingPrompts = localStorage.getItem('grading_prompts');
+    if (gradingPrompts) {
+      const jsonBlob = new Blob([gradingPrompts], { type: 'application/json' });
+      const url = URL.createObjectURL(jsonBlob);
+      const link = document.createElement('a');
+      
+      link.href = url;
+      link.setAttribute('download', 'grading_prompts.json');
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success("Grading prompts downloaded successfully");
+    } else {
+      toast.error("No grading prompts found. Process some submissions first.");
     }
   };
 
@@ -131,6 +152,7 @@ const Index = () => {
                 assignmentColumn={moodleGradebook?.assignmentColumn}
                 feedbackColumn={moodleGradebook?.feedbackColumn} 
                 onDownload={handleDownload}
+                onDownloadPrompts={handleDownloadPrompts}
                 onReset={handleReset}
               />
             </div>

@@ -19,6 +19,17 @@ export function generateMoodleCSV(grades: StudentGrade[], format: MoodleGradeboo
   // Extract format information
   const { headers, assignmentColumn, feedbackColumn } = format;
   
+  // Validate format information
+  if (!headers || !headers.length) {
+    console.error('CSV Export: Missing headers in format:', format);
+    throw new Error('Missing headers in gradebook format');
+  }
+  
+  if (!assignmentColumn) {
+    console.error('CSV Export: Missing assignment column in format:', format);
+    throw new Error('Missing assignment column in gradebook format');
+  }
+  
   // Log headers to ensure they are being preserved exactly
   console.log('CSV Export: Using exact headers from original gradebook:', headers);
   console.log(`CSV Export: Assignment column: "${assignmentColumn}", Feedback column: "${feedbackColumn}"`);
@@ -52,6 +63,10 @@ export function generateMoodleCSV(grades: StudentGrade[], format: MoodleGradeboo
     // Construct the row based on EXACT original headers - this ensures column order is preserved
     return headers.map(header => {
       const value = rowData[header] !== undefined ? rowData[header] : '';
+      // If the value contains commas or quotes, wrap it in quotes and escape internal quotes
+      if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
+        return `"${value.replace(/"/g, '""')}"`;
+      }
       return value;
     }).join(',');
   });

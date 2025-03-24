@@ -26,6 +26,9 @@ export async function gradeWithOpenAI(submissionText: string, assignmentData: an
     
     const prompt = constructPrompt(submissionText, assignmentData);
     
+    // Save the prompt to localStorage for later inspection
+    saveGradingPrompt(prompt, submissionText.substring(0, 200));
+    
     // Always use GPT-4 for grading
     const modelToUse = "gpt-4o-mini";
     console.log(`Using OpenAI model: ${modelToUse} for grading`);
@@ -126,6 +129,36 @@ function constructPrompt(submissionText: string, assignmentData: any): string {
   prompt += `Now, grade the following submission:\n\n${submissionText}\n\nProvide your response in this format:\nGrade: [numeric grade out of ${gradingScale}]\nFeedback: [your detailed feedback without any score or "/${gradingScale}" prefix]\n\n`;
   
   return prompt;
+}
+
+function saveGradingPrompt(prompt: string, submissionPreview: string) {
+  // Get existing prompts from localStorage
+  const existingPrompts = localStorage.getItem('grading_prompts');
+  let prompts = [];
+  
+  if (existingPrompts) {
+    try {
+      prompts = JSON.parse(existingPrompts);
+    } catch (e) {
+      console.error("Error parsing existing prompts:", e);
+      prompts = [];
+    }
+  }
+  
+  // Add new prompt with timestamp
+  prompts.push({
+    timestamp: new Date().toISOString(),
+    prompt: prompt,
+    submissionPreview: submissionPreview
+  });
+  
+  // Store back in localStorage (limit to last 50 prompts to avoid storage limits)
+  if (prompts.length > 50) {
+    prompts = prompts.slice(-50);
+  }
+  
+  localStorage.setItem('grading_prompts', JSON.stringify(prompts, null, 2));
+  console.log(`Saved grading prompt to localStorage (${prompts.length} prompts total)`);
 }
 
 function extractGradeAndFeedback(content: string, gradingScale: number): { grade: number; feedback: string } {

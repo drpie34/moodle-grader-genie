@@ -1,199 +1,189 @@
-/**
- * CSV parsing utilities
- */
 
-/**
- * Parse a single CSV row properly handling quoted values
- */
-export function parseCSVRow(row: string): string[] {
-  const result: string[] = [];
-  let current = '';
-  let inQuotes = false;
-  
-  // Debug the raw row
-  console.log(`Parsing raw CSV row: "${row}"`);
-  
-  for (let i = 0; i < row.length; i++) {
-    const char = row[i];
-    
-    if (char === '"') {
-      // If we see a quote, toggle the inQuotes state
-      // But if we're in quotes and the next char is also a quote, it's an escaped quote
-      if (inQuotes && row[i + 1] === '"') {
-        current += '"';
-        i++; // Skip the next quote
-      } else {
-        inQuotes = !inQuotes;
-      }
-    } else if (char === ',' && !inQuotes) {
-      // If we see a comma and we're not in quotes, end the current field
-      result.push(current);
-      current = '';
-    } else {
-      // Otherwise add the character to the current field
-      current += char;
-    }
-  }
-  
-  // Add the last field
-  result.push(current);
-  
-  // Debug the parsed fields with their lengths
-  console.log(`Parsed ${result.length} fields:`);
-  result.forEach((field, index) => {
-    // Create a representation of the field that shows whitespace
-    const debugField = field.replace(/\s/g, '·');
-    console.log(`  [${index}] Length ${field.length}: "${debugField}" (${field.charCodeAt(0)},${field.charCodeAt(field.length-1)})`);
-  });
-  
-  return result;
+import Papa from 'papaparse';
+import { StudentGrade } from '@/hooks/use-grading-workflow';
+
+// Interface for parsed CSV
+export interface ParsedCSVResult {
+  headers: string[];
+  data: Record<string, string>[];
 }
 
 /**
- * Parse a CSV file content into rows and columns
+ * Parse a CSV string into headers and data
  */
-export function parseCSVContent(csvData: string): {headers: string[], rows: string[][]} {
-  console.log("\n========== STARTING CSV PARSING ==========");
-  console.log(`Raw CSV data length: ${csvData.length} characters`);
-  
-  // Check for Excel binary signature (XLSX files often start with "PK")
-  if (csvData.startsWith('PK') || csvData.includes('[Content_Types].xml')) {
-    console.warn("WARNING: This appears to be an Excel binary file being parsed as CSV");
-    console.log("First 50 bytes:", csvData.substring(0, 50));
-    throw new Error("This appears to be an Excel file (XLSX). Please use the Excel file format parser.");
-  }
-  
-  // Check for BOM (Byte Order Mark) which might affect string comparisons
-  const hasBOM = csvData.charCodeAt(0) === 0xFEFF;
-  if (hasBOM) {
-    console.log("WARNING: CSV data has BOM (Byte Order Mark)");
-    // Remove BOM
-    csvData = csvData.slice(1);
-  }
-  
-  // Log the first 500 characters of the CSV data
-  console.log("CSV data preview (first 500 chars):");
-  console.log(csvData.substring(0, 500).replace(/\n/g, "\\n").replace(/\r/g, "\\r"));
-  
-  // Split into rows, handling both \r\n and \n line endings
-  const rows = csvData.split(/\r?\n/).filter(row => row.trim());
-  
-  console.log(`Found ${rows.length} non-empty rows in CSV`);
-  
-  if (rows.length === 0) {
-    return { headers: [], rows: [] };
-  }
-  
-  // Debug the first few rows
-  console.log("\nFirst 3 rows of CSV data:");
-  rows.slice(0, 3).forEach((row, i) => {
-    console.log(`Row ${i}: "${row}"`);
-    // Show hex representation of first few characters to detect invisible chars
-    const hexChars = Array.from(row.substring(0, 20)).map(c => c.charCodeAt(0).toString(16).padStart(2, '0')).join(' ');
-    console.log(`Row ${i} hex: ${hexChars}...`);
-  });
-  
-  // Parse headers, properly handling quoted values
-  const headerRow = rows[0];
-  console.log("\nParsing header row:", headerRow);
-  
-  const headers = parseCSVRow(headerRow);
-  
-  // Normalize headers by trimming whitespace
-  const normalizedHeaders = headers.map(h => h.trim());
-  
-  // Debug header comparison between original and normalized
-  console.log("\nHeader comparison (original vs. normalized):");
-  headers.forEach((header, i) => {
-    if (header !== normalizedHeaders[i]) {
-      console.log(`Header [${i}] Original: "${header}" (${header.length} chars)`);
-      console.log(`Header [${i}] Normalized: "${normalizedHeaders[i]}" (${normalizedHeaders[i].length} chars)`);
-    } else {
-      console.log(`Header [${i}]: "${header}" (unchanged by normalization)`);
+export function parseCSV(csvContent: string): ParsedCSVResult {
+  try {
+    console.log("Parsing CSV content, first 100 chars:", csvContent.substring(0, 100));
+    
+    const result = Papa.parse(csvContent, {
+      header: true,
+      skipEmptyLines: true
+    });
+    
+    if (result.errors && result.errors.length > 0) {
+      console.warn("CSV parse warnings:", result.errors);
     }
-  });
+    
+    const headers = result.meta.fields || [];
+    console.log("CSV headers detected:", headers);
+    
+    return {
+      headers,
+      data: result.data as Record<string, string>[]
+    };
+  } catch (error) {
+    console.error("Error parsing CSV:", error);
+    throw new Error(`Failed to parse CSV: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Extract student grades from parsed CSV
+ */
+export function extractStudentGrades(
+  csvData: ParsedCSVResult, 
+  assignmentColumn?: string,
+  feedbackColumn?: string
+): { 
+  grades: StudentGrade[], 
+  assignmentColumn: string | undefined,
+  feedbackColumn: string | undefined 
+} {
+  const { headers, data } = csvData;
+  console.log(`Extracting student grades from CSV with ${data.length} rows`);
   
-  // Detailed log of all headers for debugging
-  console.log("\nDetailed header analysis:");
-  normalizedHeaders.forEach((header, i) => {
-    const charCodes = Array.from(header).map(c => c.charCodeAt(0));
-    console.log(`Header ${i}: "${header}" - Char codes: ${charCodes.join(', ')}`);
-  });
+  // Try to find name columns
+  const firstNameCol = headers.find(h => 
+    /first\s*name/i.test(h) || /forename/i.test(h) || h.toLowerCase() === 'first' || h.toLowerCase() === 'firstname'
+  );
   
-  // Process data rows, skipping empty rows
-  const dataRows = rows.slice(1).filter(row => row.trim()).map(row => {
-    // Split the row, respecting quoted values
-    return parseCSVRow(row);
-  });
+  const lastNameCol = headers.find(h => 
+    /last\s*name/i.test(h) || /surname/i.test(h) || h.toLowerCase() === 'last' || h.toLowerCase() === 'lastname'
+  );
   
-  // Log sample data rows
-  if (dataRows.length > 0) {
-    console.log("\nSample data from first row:");
-    const firstDataRow = dataRows[0];
-    normalizedHeaders.forEach((header, i) => {
-      const value = i < firstDataRow.length ? firstDataRow[i] : '';
-      console.log(`  ${header}: "${value}"`);
+  const idColumn = headers.find(h => 
+    /id/i.test(h) || /student\s*number/i.test(h) || /code/i.test(h)
+  );
+  
+  const emailColumn = headers.find(h => 
+    /email/i.test(h) || /e-mail/i.test(h)
+  );
+  
+  // If no specific assignment column is provided, try to find it
+  if (!assignmentColumn) {
+    // Look for a column that might be the assignment grade
+    assignmentColumn = headers.find(h => {
+      const lower = h.toLowerCase();
+      return (
+        /grade/i.test(h) || 
+        /mark/i.test(h) || 
+        /score/i.test(h) || 
+        /points/i.test(h) ||
+        /assignment/i.test(h)
+      ) && !lower.includes('feedback') && !lower.includes('comment');
     });
   }
   
-  console.log("========== FINISHED CSV PARSING ==========\n");
-  
-  // Return both original and normalized headers
-  return { headers: normalizedHeaders, rows: dataRows };
-}
-
-/**
- * Dump a raw binary representation of a string for debugging
- */
-export function dumpStringBinary(str: string, label: string): void {
-  console.log(`\n===== BINARY DUMP OF ${label} (${str.length} chars) =====`);
-  let output = '';
-  
-  for (let i = 0; i < Math.min(str.length, 100); i++) {
-    const char = str[i];
-    const code = char.charCodeAt(0);
-    const hex = code.toString(16).padStart(2, '0');
-    const display = code >= 32 && code <= 126 ? char : '.';
+  // If no specific feedback column is provided, try to find it or create one based on assignment column
+  if (!feedbackColumn) {
+    feedbackColumn = headers.find(h => {
+      const lower = h.toLowerCase();
+      return (
+        /feedback/i.test(h) || 
+        /comment/i.test(h)
+      ) || (assignmentColumn && lower.includes(assignmentColumn.toLowerCase()) && (lower.includes('feedback') || lower.includes('comment')));
+    });
     
-    output += `${hex} `;
-    if ((i + 1) % 16 === 0) {
-      output += ' | ';
-      for (let j = i - 15; j <= i; j++) {
-        const c = str[j];
-        const cd = c.charCodeAt(0);
-        output += cd >= 32 && cd <= 126 ? c : '.';
+    // If we still don't have a feedback column but we have an assignment column, 
+    // we'll assume the feedback goes in "[Assignment Column] (feedback)"
+    if (!feedbackColumn && assignmentColumn) {
+      feedbackColumn = `${assignmentColumn} (feedback)`;
+      console.log(`No explicit feedback column found, using "${feedbackColumn}"`);
+    }
+  }
+  
+  console.log(`Name columns: First=${firstNameCol}, Last=${lastNameCol}`);
+  console.log(`ID column: ${idColumn}, Email column: ${emailColumn}`);
+  console.log(`Assignment column: ${assignmentColumn}, Feedback column: ${feedbackColumn}`);
+  
+  // Extract grades from the parsed data
+  const grades: StudentGrade[] = data.map((row, index) => {
+    // Extract name information
+    let firstName = firstNameCol ? row[firstNameCol] || '' : '';
+    let lastName = lastNameCol ? row[lastNameCol] || '' : '';
+    
+    // Fallback to using a Name or Full Name column if we couldn't find first/last separately
+    const nameColumn = headers.find(h => 
+      /^\s*name\s*$/i.test(h) || /full\s*name/i.test(h)
+    );
+    
+    let fullName = '';
+    if (firstName && lastName) {
+      fullName = `${firstName} ${lastName}`;
+    } else if (nameColumn && row[nameColumn]) {
+      fullName = row[nameColumn];
+      
+      // Try to extract first/last names from full name
+      const nameParts = fullName.trim().split(/\s+/);
+      if (nameParts.length >= 2) {
+        if (!firstName) {
+          firstName = nameParts[0];
+        }
+        if (!lastName) {
+          lastName = nameParts[nameParts.length - 1];
+        }
       }
-      output += '\n';
-    }
-  }
-  
-  console.log(output);
-  console.log(`===== END BINARY DUMP =====\n`);
-}
-
-/**
- * Check if a file is likely a binary Excel file based on content
- */
-export function isLikelyExcelFile(data: string | ArrayBuffer): boolean {
-  if (data instanceof ArrayBuffer) {
-    // Convert first few bytes to string for checking
-    const bytes = new Uint8Array(data.slice(0, 50));
-    let header = '';
-    for (let i = 0; i < Math.min(bytes.length, 10); i++) {
-      header += String.fromCharCode(bytes[i]);
+    } else {
+      // Just use whatever we have
+      fullName = [firstName, lastName].filter(Boolean).join(' ') || `Student ${index + 1}`;
     }
     
-    return header.startsWith('PK') || // XLSX signature
-           header.startsWith('\xD0\xCF\x11\xE0'); // XLS signature
+    // Extract identifier
+    const identifier = (idColumn && row[idColumn]) ? row[idColumn] : `id_${index}`;
+    
+    // Extract email
+    const email = (emailColumn && row[emailColumn]) ? row[emailColumn] : '';
+    
+    // Extract existing grade if available
+    let existingGrade = 0;
+    if (assignmentColumn && row[assignmentColumn]) {
+      const gradeText = row[assignmentColumn].toString().trim();
+      if (gradeText && !isNaN(Number(gradeText))) {
+        existingGrade = Number(gradeText);
+      }
+    }
+    
+    // Extract existing feedback if available
+    let existingFeedback = '';
+    if (feedbackColumn && row[feedbackColumn]) {
+      existingFeedback = row[feedbackColumn].toString().trim();
+      // Remove surrounding quotes if present
+      existingFeedback = existingFeedback.replace(/^"(.*)"$/, '$1');
+    }
+    
+    return {
+      identifier,
+      fullName,
+      firstName,
+      lastName,
+      email,
+      status: existingGrade > 0 ? 'Already Graded' : 'Needs Grading',
+      grade: existingGrade,
+      feedback: existingFeedback,
+      edited: existingGrade > 0, // Mark as edited if already has a grade
+      originalRow: row,  // Store the entire original row for later CSV export
+    };
+  });
+  
+  // Debug logging
+  console.log(`Extracted ${grades.length} student grades from CSV`);
+  if (grades.length > 0) {
+    console.log("Sample student data:", grades[0]);
   }
   
-  // For string data, check for Excel markers
-  if (typeof data === 'string') {
-    return data.startsWith('PK') || // XLSX signature
-           data.includes('[Content_Types].xml') || // XLSX content
-           data.startsWith('\xD0\xCF\x11\xE0') || // XLS signature
-           /^<\?xml.*?spreadsheet/i.test(data); // XML spreadsheet
-  }
-  
-  return false;
+  return { 
+    grades, 
+    assignmentColumn, 
+    feedbackColumn
+  };
 }

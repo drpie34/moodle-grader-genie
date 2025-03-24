@@ -3,7 +3,7 @@ import React from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { Check, Download, File, FileText, FilesIcon } from "lucide-react";
+import { Check, Download, File, FileText, FilesIcon, Code } from "lucide-react";
 import { AssignmentFormData } from "./assignment/AssignmentFormTypes";
 
 interface ProcessFilesProps {
@@ -13,6 +13,7 @@ interface ProcessFilesProps {
   assignmentColumn?: string;
   feedbackColumn?: string;
   onDownload: () => void;
+  onDownloadPrompts?: () => void;
   onReset: () => void;
 }
 
@@ -23,6 +24,7 @@ const ProcessFiles: React.FC<ProcessFilesProps> = ({
   assignmentColumn,
   feedbackColumn,
   onDownload,
+  onDownloadPrompts,
   onReset
 }) => {
   const getFileIcon = (file: File) => {
@@ -150,6 +152,18 @@ const ProcessFiles: React.FC<ProcessFilesProps> = ({
             <Download className="h-4 w-4" />
             <span>Download Moodle-Compatible CSV</span>
           </Button>
+          
+          {onDownloadPrompts && (
+            <Button 
+              variant="outline" 
+              onClick={onDownloadPrompts}
+              className="flex-1 space-x-2 transition-all"
+            >
+              <Code className="h-4 w-4" />
+              <span>Download AI Prompts</span>
+            </Button>
+          )}
+          
           <Button 
             variant="outline" 
             onClick={onReset}
