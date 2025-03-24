@@ -1,5 +1,6 @@
 /**
  * Moodle-specific CSV parsing utilities
+ * Simplified version that focuses on CSV files only
  */
 
 import { StudentGrade } from '@/hooks/use-grading-workflow';

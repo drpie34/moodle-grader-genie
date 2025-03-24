@@ -13,9 +13,10 @@ export interface MoodleGradebookFormat {
 
 /**
  * Generate a CSV file for Moodle based on graded submissions
+ * Preserves the exact format of the original CSV file, only updating grades and feedback
  */
 export function generateMoodleCSV(grades: StudentGrade[], format: MoodleGradebookFormat): string {
-  // If we have the original gradebook format, use it
+  // Extract format information
   const { headers, assignmentColumn, feedbackColumn } = format;
   
   // Log headers to ensure they are being preserved exactly
@@ -25,23 +26,27 @@ export function generateMoodleCSV(grades: StudentGrade[], format: MoodleGradeboo
   // Create header row - using the exact headers from the original gradebook
   const headerRow = headers.join(',');
   
-  // Create data rows
+  // Create data rows - preserving all original data
   const dataRows = grades.map(grade => {
     // Start with the original row if available - this preserves all original content
-    const rowData: Record<string, string> = grade.originalRow ? { ...grade.originalRow } : {};
+    if (!grade.originalRow) {
+      console.error('CSV Export: Missing originalRow data for student:', grade.fullName);
+      return headers.map(() => '').join(','); // Return empty row as fallback
+    }
     
-    // Ensure the grade is properly formatted - convert to a number and then to string
+    const rowData: Record<string, string> = { ...grade.originalRow };
+    
+    // Update only the assignment grade column if it exists and grade is provided
     if (assignmentColumn && grade.grade !== undefined) {
+      console.log(`CSV Export: Setting grade "${grade.grade}" for student "${grade.fullName}" in column "${assignmentColumn}"`);
       rowData[assignmentColumn] = grade.grade.toString();
     }
     
-    // Add feedback to the appropriate column
+    // Update only the feedback column if it exists and feedback is provided
     if (feedbackColumn && grade.feedback) {
-      // Clean up the feedback: remove any "/X" from the beginning
-      let cleanedFeedback = grade.feedback.replace(/^\/\d+\s*/, '');
-      
+      console.log(`CSV Export: Setting feedback for student "${grade.fullName}" in column "${feedbackColumn}"`);
       // Wrap feedback in quotes and escape any quotes inside
-      rowData[feedbackColumn] = `"${cleanedFeedback.replace(/"/g, '""')}"`;
+      rowData[feedbackColumn] = `"${grade.feedback.replace(/"/g, '""')}"`;
     }
     
     // Construct the row based on EXACT original headers - this ensures column order is preserved

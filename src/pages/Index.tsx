@@ -40,38 +40,30 @@ const Index = () => {
   } = useApiKey();
 
   const handleMoodleGradebookUploaded = (gradebookData: any) => {
-    // Store the moodle grades in the workflow state
     preloadedGrades(gradebookData);
   };
 
   const handleDownload = () => {
-    // Check if we have gradebook format information
     if (moodleGradebook && moodleGradebook.headers && moodleGradebook.assignmentColumn) {
-      // Create CSV content using the original format from the gradebook
+      console.log("Generating CSV with exact format matching:", {
+        headers: moodleGradebook.headers,
+        assignmentColumn: moodleGradebook.assignmentColumn,
+        feedbackColumn: moodleGradebook.feedbackColumn
+      });
+      
       const csvContent = generateMoodleCSV(grades, {
         headers: moodleGradebook.headers,
         assignmentColumn: moodleGradebook.assignmentColumn,
-        feedbackColumn: moodleGradebook.feedbackColumn || 'Feedback comments'
+        feedbackColumn: moodleGradebook.feedbackColumn || `${moodleGradebook.assignmentColumn} (feedback)`
       });
       
       const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
       const filename = `moodle_grades_${timestamp}.csv`;
       
       downloadCSV(csvContent, filename);
-      toast.success("CSV file downloaded in original Moodle format");
+      toast.success("CSV file downloaded with original gradebook format preserved");
     } else {
-      // Fallback to a standard format if no gradebook was uploaded
-      const csvContent = generateMoodleCSV(grades, {
-        headers: ['Identifier', 'Full name', 'Email address', 'Status', 'Grade', 'Feedback comments'],
-        assignmentColumn: 'Grade',
-        feedbackColumn: 'Feedback comments'
-      });
-      
-      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-      const filename = `moodle_grades_${timestamp}.csv`;
-      
-      downloadCSV(csvContent, filename);
-      toast.success("CSV file downloaded successfully");
+      toast.error("Missing original gradebook format information. Please upload a CSV file first.");
     }
   };
 

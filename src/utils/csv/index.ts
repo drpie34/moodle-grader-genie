@@ -1,17 +1,13 @@
 
 /**
- * CSV utility functions for importing and exporting grade data
+ * CSV file utilities for importing and exporting grade data
  */
 
-// Re-export all the CSV utilities from a single entry point
+// Export the CSV parsing utilities
 export * from './parseCSV';
-export * from './columnDetection';
-export * from './moodleParser';
-export * from './moodleExport';
 
-// Export the MoodleGradebookFormat type for consumers
-export interface MoodleGradebookFormat {
-  headers: string[];
-  assignmentColumn: string;
-  feedbackColumn: string;
-}
+// Export the Moodle-specific CSV export utilities
+export { generateMoodleCSV, downloadCSV } from './moodleExport';
+
+// Export the Moodle-specific CSV parser
+export { uploadMoodleGradebook } from './moodleParser';

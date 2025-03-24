@@ -247,7 +247,7 @@ const GradebookUploaderSection = ({
         </div>
         
         <p className="text-sm text-muted-foreground">
-          Begin by uploading your Moodle gradebook export. This ensures student information is correctly matched 
+          Begin by uploading your Moodle gradebook CSV export. This ensures student information is correctly matched 
           with their submissions and the downloaded file will exactly match your Moodle format.
         </p>
         
@@ -255,13 +255,11 @@ const GradebookUploaderSection = ({
           <div className="flex items-start">
             <Info className="h-4 w-4 text-blue-500 mt-0.5 mr-2" />
             <div className="text-xs text-blue-800">
-              <p className="font-medium">Supported file formats:</p>
+              <p className="font-medium">Supported file format:</p>
               <ul className="list-disc ml-5 mt-1">
-                <li><strong>Excel files (.xlsx, .xls)</strong> - Recommended format from Moodle gradebook exports</li>
-                <li><strong>CSV files (.csv)</strong> - Comma-separated text format</li>
-                <li><strong>Text files (.txt)</strong> - Tab-delimited or comma-separated</li>
+                <li><strong>CSV files (.csv)</strong> - CSV format from Moodle gradebook exports</li>
               </ul>
-              <p className="mt-1"><strong>Important:</strong> The file should contain columns for student names (First name, Last name).</p>
+              <p className="mt-1"><strong>Important:</strong> The file should contain columns for student names and the assignment column where you want grades to appear.</p>
             </div>
           </div>
         </div>
@@ -293,7 +291,7 @@ const GradebookUploaderSection = ({
             type="file"
             id="moodleFile"
             onChange={handleMoodleFileUpload}
-            accept=".csv,.txt,.xlsx,.xls,.xml,.ods"
+            accept=".csv"
             className="text-sm"
             disabled={isProcessingGradebook}
           />
