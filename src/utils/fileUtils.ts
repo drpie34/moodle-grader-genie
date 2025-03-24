@@ -1,144 +1,102 @@
+
 /**
  * Utilities for handling files and extracting student information
  */
+import pdfjs from 'pdfjs-dist';
+import { extractHTMLFromDOCX } from './docxUtils';
 
-import { StudentInfo } from './nameMatchingUtils';
-import { extractTextFromPDF } from './pdfUtils';
-import { extractTextFromDOCX } from './docxUtils';
-import { parseCSVContent, isLikelyExcelFile } from './csv/parseCSV';
-import * as XLSX from 'xlsx';
+// Set the worker URL for PDF.js
+const PDFJS_WORKER_URL = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
+pdfjs.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_URL;
 
 /**
- * Extract student information from a filename
+ * Extract text content from a file based on type
  */
-export function extractStudentInfoFromFilename(fileName: string, folderPath?: string): StudentInfo {
+export async function extractTextFromFile(file: File): Promise<string> {
+  const fileType = file.type.toLowerCase();
+  const fileName = file.name.toLowerCase();
+  
+  // For PDF files
+  if (fileType.includes('pdf') || fileName.endsWith('.pdf')) {
+    return extractTextFromPDF(file);
+  }
+  
+  // For DOCX files
+  if (fileType.includes('docx') || fileName.endsWith('.docx')) {
+    try {
+      // First try to get HTML content to preserve formatting
+      const htmlContent = await extractHTMLFromDOCX(file);
+      // Strip HTML tags to get plain text
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = htmlContent;
+      return tempDiv.textContent || '';
+    } catch (error) {
+      console.error("Error extracting text from DOCX using mammoth:", error);
+      // Fall back to text extraction
+      return extractTextFromRawFile(file);
+    }
+  }
+  
+  // For HTML files
+  if (fileType.includes('html') || fileName.endsWith('.html') || fileName.endsWith('.htm')) {
+    return extractTextFromHTML(file);
+  }
+  
+  // Default text extraction
+  return extractTextFromRawFile(file);
+}
+
+/**
+ * Extract text from a PDF file
+ */
+async function extractTextFromPDF(file: File): Promise<string> {
   try {
-    // Prioritize folder path for student name extraction since it typically contains the student name
-    const sourcePath = folderPath || fileName;
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
+    let fullText = '';
     
-    if (!sourcePath) {
-      return { identifier: '', fullName: '' };
-    }
-    
-    // Log the path we're processing
-    console.log(`Extracting student info from: "${sourcePath}"`);
-    
-    // Remove common Moodle suffixes and prefixes
-    let cleanName = sourcePath
-      .replace(/^.*[\/\\]/, '') // Remove any directory path before the filename
-      .replace(/_assignsubmission_.*$/, '')
-      .replace(/_onlinetext_.*$/, '')
-      .replace(/_file_.*$/, '')
-      .replace(/^\d+SP\s+/, ''); // Remove semester prefix like "25SP "
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const textContent = await page.getTextContent();
+      const pageText = textContent.items
+        .map((item: any) => item.str)
+        .join(' ');
       
-    // Look for Moodle ID pattern (typically after the student name)
-    const idMatch = cleanName.match(/_(\d+)$/);
-    const studentId = idMatch ? idMatch[1] : '';
-    
-    // Remove the ID part for the name
-    if (studentId) {
-      cleanName = cleanName.replace(/_\d+$/, '');
+      fullText += pageText + '\n\n';
     }
     
-    // Replace separators with spaces
-    cleanName = cleanName.replace(/[_\-]/g, ' ').trim();
-    
-    // Try to extract course info
-    if (cleanName.match(/^[A-Z]{3}-\d{3}/)) {
-      // This looks like a course code (e.g., "SOC-395-A"), remove it
-      cleanName = cleanName.replace(/^[A-Z]{3}-\d{3}-[A-Z]\s*/, '');
-      // Also remove anything after a dash followed by numbers (assignment info)
-      cleanName = cleanName.replace(/-\d+.*$/, '').trim();
-    }
-    
-    // Handle "Last, First" format if present
-    let firstName = '';
-    let lastName = '';
-    
-    if (cleanName.includes(',')) {
-      const parts = cleanName.split(',').map(p => p.trim());
-      if (parts.length === 2) {
-        firstName = parts[1];
-        lastName = parts[0];
-        cleanName = `${firstName} ${lastName}`;
-      }
-    } else if (cleanName.includes(' ')) {
-      // Simple first/last name extraction for "First Last" format
-      const parts = cleanName.split(' ');
-      firstName = parts[0];
-      lastName = parts[parts.length - 1];
-    }
-    
-    // Generate email based on first and last name if both are present
-    let email = '';
-    if (firstName && lastName) {
-      email = `${firstName.toLowerCase()}.${lastName.toLowerCase()}@example.com`;
-    } else {
-      email = `${cleanName.replace(/\s+/g, '.').toLowerCase()}@example.com`;
-    }
-    
-    console.log(`Extracted student info: name="${cleanName}", ID=${studentId || 'none'}, First="${firstName || 'unknown'}", Last="${lastName || 'unknown'}"`);
-    
-    return {
-      identifier: studentId || cleanName.replace(/\s+/g, '').toLowerCase(),
-      fullName: cleanName,
-      firstName: firstName,
-      lastName: lastName,
-      email: email
-    };
+    return fullText;
   } catch (error) {
-    console.error("Error extracting student info from filename:", error);
-    return { identifier: '', fullName: '' };
+    console.error('Error extracting text from PDF:', error);
+    return '';
   }
 }
 
 /**
- * Find the best submission file to grade from a list of files
- */
-export function findBestSubmissionFile(files: File[]): File | null {
-  if (!files || files.length === 0) {
-    return null;
-  }
-  
-  // Prioritize files that are not "onlinetext" or HTML files
-  const nonHtmlFiles = files.filter(file => !file.name.includes('onlinetext') && !file.type.includes('html'));
-  if (nonHtmlFiles.length > 0) {
-    // If there are multiple non-HTML files, you might want to add more sophisticated logic
-    // such as prioritizing certain file extensions (e.g., .pdf, .docx)
-    return nonHtmlFiles[0];
-  }
-  
-  // If no non-HTML files are found, fall back to "onlinetext" or HTML files
-  const htmlFiles = files.filter(file => file.name.includes('onlinetext') || file.type.includes('html'));
-  if (htmlFiles.length > 0) {
-    return htmlFiles[0];
-  }
-  
-  // If no "onlinetext" or HTML files are found, return the first file in the array
-  return files[0];
-}
-
-/**
- * Extract text from an HTML file
+ * Extract and process HTML content from a file
  */
 export async function extractTextFromHTML(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     
-    reader.onload = (event) => {
-      const htmlContent = event.target?.result as string;
-      
-      // Create a temporary DOM element to parse the HTML content
-      const tempElement = document.createElement('div');
-      tempElement.innerHTML = htmlContent;
-      
-      // Extract the text content from the parsed HTML
-      const textContent = tempElement.textContent || tempElement.innerText || "";
-      
-      resolve(textContent);
+    reader.onload = (e) => {
+      try {
+        const html = e.target?.result as string;
+        
+        if (html) {
+          // Return the raw HTML to preserve formatting
+          resolve(html);
+        } else {
+          resolve('');
+        }
+      } catch (error) {
+        console.error('Error processing HTML:', error);
+        reject(error);
+      }
     };
     
     reader.onerror = (error) => {
+      console.error('Error reading HTML file:', error);
       reject(error);
     };
     
@@ -147,162 +105,124 @@ export async function extractTextFromHTML(file: File): Promise<string> {
 }
 
 /**
- * Generic text extraction from various file types
+ * Extract text from a generic file as raw text
  */
-export async function extractTextFromFile(file: File): Promise<string> {
-  console.log(`Extracting text from file: "${file.name}" (type: ${file.type})`);
-  
-  try {
-    const fileExt = file.name.split('.').pop()?.toLowerCase();
+async function extractTextFromRawFile(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
     
-    // Handle PDF files
-    if (fileExt === 'pdf' || file.type === 'application/pdf') {
-      console.log('Detected PDF file, using PDF extraction');
-      const text = await extractTextFromPDF(file);
-      console.log(`Extracted ${text.length} characters from PDF`);
-      return text;
-    }
+    reader.onload = (e) => {
+      try {
+        const text = e.target?.result as string;
+        resolve(text || '');
+      } catch (error) {
+        console.error('Error extracting text from file:', error);
+        reject(error);
+      }
+    };
     
-    // Handle DOCX files
-    if (fileExt === 'docx' || file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
-      console.log('Detected DOCX file, using DOCX extraction');
-      const text = await extractTextFromDOCX(file);
-      console.log(`Extracted ${text.length} characters from DOCX`);
-      return text;
-    }
+    reader.onerror = (error) => {
+      console.error('Error reading file:', error);
+      reject(error);
+    };
     
-    // Handle HTML files
-    if (fileExt === 'html' || fileExt === 'htm' || file.type.includes('html')) {
-      console.log('Detected HTML file, using HTML extraction');
-      return extractTextFromHTML(file);
-    }
-    
-    // Handle text files
-    if (fileExt === 'txt' || file.type === 'text/plain') {
-      console.log('Detected text file, using plain text extraction');
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = (e) => resolve(e.target?.result as string || '');
-        reader.onerror = reject;
-        reader.readAsText(file);
-      });
-    }
-    
-    // Handle CSV files
-    if (fileExt === 'csv' || file.type === 'text/csv') {
-      console.log('Detected CSV file, using CSV extraction');
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          const csvContent = e.target?.result as string;
-          resolve(csvContent);
-        };
-        reader.onerror = reject;
-        reader.readAsText(file);
-      });
-    }
-    
-    // Handle Excel files
-    if (['xls', 'xlsx'].includes(fileExt || '') || file.type.includes('excel') || file.type.includes('spreadsheetml')) {
-      console.log('Detected Excel file, using Excel extraction');
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          try {
-            const data = new Uint8Array(e.target?.result as ArrayBuffer);
-            const workbook = XLSX.read(data, { type: 'array' });
-            const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-            const csvContent = XLSX.utils.sheet_to_csv(firstSheet);
-            resolve(csvContent);
-          } catch (error) {
-            console.error('Error converting Excel to text:', error);
-            reject(error);
-          }
-        };
-        reader.onerror = reject;
-        reader.readAsArrayBuffer(file);
-      });
-    }
-    
-    // Default to plain text reading for unrecognized formats
-    console.warn(`Unrecognized file type for "${file.name}" (${file.type}), defaulting to text extraction`);
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (e) => resolve(e.target?.result as string || '');
-      reader.onerror = reject;
-      reader.readAsText(file);
-    });
-  } catch (error) {
-    console.error(`Error extracting text from ${file.name}:`, error);
-    return `[Error extracting text: ${error instanceof Error ? error.message : 'Unknown error'}]`;
-  }
+    reader.readAsText(file);
+  });
 }
 
 /**
- * Parse CSV or Excel file to extract gradebook data
+ * Extract student information from a filename or folder name
  */
-export async function parseGradebookFile(file: File): Promise<{ headers: string[], rows: string[][], assignmentColumn?: string, feedbackColumn?: string }> {
-  console.log(`Parsing gradebook file: "${file.name}" (type: ${file.type})`);
-  
-  const fileExt = file.name.split('.').pop()?.toLowerCase();
-  
-  try {
-    // Handle Excel files
-    if (['xls', 'xlsx'].includes(fileExt || '') || file.type.includes('excel') || file.type.includes('spreadsheetml')) {
-      console.log('Parsing Excel format gradebook file');
-      const arrayBuffer = await file.arrayBuffer();
-      const data = new Uint8Array(arrayBuffer);
-      
-      // Check if it's a valid Excel file
-      if (isLikelyExcelFile(data)) {
-        console.log('Confirmed Excel format, processing with xlsx library');
-        const workbook = XLSX.read(data, { type: 'array' });
-        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-        
-        // Convert to JSON to get row data
-        const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
-        
-        if (jsonData.length > 0) {
-          // Extract headers from first row
-          const headers = jsonData[0] as string[];
-          console.log('Excel headers found:', headers);
-          
-          // Convert data rows (skip header row)
-          const rows = jsonData.slice(1).map(row => {
-            // Handle empty cells and convert all values to strings
-            return (row as any[]).map(cell => cell !== undefined ? String(cell) : '');
-          });
-          
-          console.log(`Processed ${rows.length} rows from Excel file`);
-          return { headers, rows };
-        } else {
-          throw new Error('Excel file appears to be empty');
-        }
-      } else {
-        console.warn('File has Excel extension but does not appear to be a valid Excel file');
-      }
-    }
+export function extractStudentInfoFromFilename(filename: string, folderName: string = ''): any {
+  // First, try to extract from folder name if available
+  if (folderName && folderName !== 'root') {
+    const folderNameClean = folderName
+      .replace(/_assignsubmission_.*$/, '')
+      .replace(/_onlinetext_.*$/, '')
+      .replace(/_file_.*$/, '')
+      .replace(/^\d+SP\s+/, '')
+      .replace(/_\d+$/, '')
+      .trim();
     
-    // Handle CSV files
-    if (fileExt === 'csv' || file.type === 'text/csv') {
-      console.log('Parsing CSV format gradebook file');
-      const text = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = (e) => resolve(e.target?.result as string);
-        reader.onerror = reject;
-        reader.readAsText(file);
-      });
-      
-      console.log(`Read ${text.length} characters from CSV file`);
-      const { headers, rows } = parseCSVContent(text);
-      console.log('CSV headers found:', headers);
-      console.log(`Processed ${rows.length} rows from CSV file`);
-      return { headers, rows };
+    // Skip extraction if folder name is too generic (like "onlinetext")
+    if (folderNameClean && !['onlinetext', 'file'].includes(folderNameClean.toLowerCase())) {
+      return extractStudentInfo(folderNameClean);
     }
-    
-    throw new Error(`Unsupported gradebook file format: ${file.type || fileExt}`);
-  } catch (error) {
-    console.error('Error parsing gradebook file:', error);
-    throw error;
   }
+  
+  // If no valid folder name, try to extract from filename
+  const filenameClean = filename
+    .replace(/_assignsubmission_.*$/, '')
+    .replace(/_onlinetext_.*$/, '')
+    .replace(/_file_.*$/, '')
+    .replace(/^\d+SP\s+/, '')
+    .replace(/_\d+$/, '')
+    .trim();
+  
+  return extractStudentInfo(filenameClean);
+}
+
+/**
+ * Helper function to extract student information from a cleaned name string
+ */
+function extractStudentInfo(nameStr: string): any {
+  // Handle common formats like "Last, First" or "First Last"
+  let firstName = '';
+  let lastName = '';
+  let fullName = nameStr;
+  
+  // Handle "Last, First" format
+  if (nameStr.includes(',')) {
+    const parts = nameStr.split(',').map(p => p.trim());
+    lastName = parts[0];
+    firstName = parts[1] || '';
+    fullName = `${firstName} ${lastName}`;
+  } 
+  // Handle "First Last" format (simplified)
+  else if (nameStr.includes(' ')) {
+    const parts = nameStr.split(' ').map(p => p.trim());
+    firstName = parts[0];
+    lastName = parts.slice(1).join(' ');
+  }
+  
+  return {
+    fullName: fullName.replace(/\s+/g, ' ').trim(),
+    firstName: firstName.trim(),
+    lastName: lastName.trim(),
+    email: `${fullName.toLowerCase().replace(/\s+/g, '.')}@example.com`,
+    identifier: fullName.replace(/\s+/g, '_').toLowerCase()
+  };
+}
+
+/**
+ * Find the best submission file from a set of files
+ */
+export function findBestSubmissionFile(files: File[]): File | null {
+  if (!files || files.length === 0) return null;
+  
+  // Prioritize files that are likely to be actual student submissions
+  const prioritizedFiles = [...files].sort((a, b) => {
+    // Function to get priority score based on file type
+    const getPriority = (file: File) => {
+      const name = file.name.toLowerCase();
+      const type = file.type.toLowerCase();
+      
+      // First priority: Known document types
+      if (name.endsWith('.docx') || name.endsWith('.doc') || type.includes('word')) return 10;
+      if (name.endsWith('.pdf') || type.includes('pdf')) return 9;
+      if (name.includes('onlinetext') || name.endsWith('.html') || name.endsWith('.htm') || type.includes('html')) return 8;
+      if (name.endsWith('.txt') || type.includes('text/plain')) return 7;
+      
+      // Lower priority for other common files
+      if (name.endsWith('.ppt') || name.endsWith('.pptx') || type.includes('presentation')) return 6;
+      if (name.endsWith('.xls') || name.endsWith('.xlsx') || type.includes('excel') || type.includes('spreadsheet')) return 5;
+      
+      // Lowest priority for other files
+      return 0;
+    };
+    
+    return getPriority(b) - getPriority(a);
+  });
+  
+  return prioritizedFiles[0];
 }
