@@ -4,20 +4,18 @@
 import * as pdfjs from 'pdfjs-dist';
 import { extractHTMLFromDOCX } from './docxUtils';
 
-// No longer needed - using built-in fake worker mode for simplicity
+// Set the worker URL for PDF.js - use multiple CDN options in case one fails
+const CDN_URLS = [
+  `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`,
+  `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`,
+  `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`
+];
 
-// CRITICAL: Setup PDF.js to work without an external worker
-// This is the most reliable solution for PDF text extraction
-console.log("Setting up PDF.js with fake worker (most reliable option)");
+// Use the first CDN in the list, but have fallbacks ready if needed
+pdfjs.GlobalWorkerOptions.workerSrc = CDN_URLS[0];
 
-// Force PDF.js to use a fake worker, which doesn't require external files
-pdfjs.GlobalWorkerOptions.workerSrc = '';
-// This tells PDF.js to use a fake worker implementation within the main thread
-(pdfjs as any).disableWorker = true;
-
-// Log the configuration for debugging
-console.log("PDF.js configured to use fake worker directly in main thread");
-console.log("PDF.js version:", pdfjs.version);
+// Just for local debugging
+console.log(`PDF.js worker URL: ${pdfjs.GlobalWorkerOptions.workerSrc}`);
 
 /**
  * Extract text content from a file based on type
@@ -60,28 +58,19 @@ export async function extractTextFromFile(file: File): Promise<string> {
  * Extract text from a PDF file
  */
 async function extractTextFromPDF(file: File): Promise<string> {
-  console.log(`Attempting to extract text from PDF: ${file.name} (${file.size} bytes)`);
+  let currentCdnIndex = 0;
   
-  try {
-    // Read the PDF file into an array buffer
-    const arrayBuffer = await file.arrayBuffer();
-    
-    console.log("Loading PDF document with PDF.js");
-    
-    // Use a timeout to prevent hanging on problematic PDFs
-    const pdf = await Promise.race([
-      pdfjs.getDocument({ data: arrayBuffer }).promise,
-      new Promise((_, reject) => 
-        setTimeout(() => reject(new Error("PDF loading timeout")), 10000)
-      )
-    ]);
-    
-    console.log(`PDF loaded successfully with ${pdf.numPages} pages`);
-    
-    // Extract text from each page
-    let fullText = '';
-    for (let i = 1; i <= pdf.numPages; i++) {
-      try {
+  // Try extraction with all available CDNs if needed
+  async function tryExtraction() {
+    try {
+      console.log(`Attempting to extract text from PDF: ${file.name} (${file.size} bytes)`);
+      console.log(`Using PDF.js worker from: ${pdfjs.GlobalWorkerOptions.workerSrc}`);
+      
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
+      let fullText = '';
+      
+      for (let i = 1; i <= pdf.numPages; i++) {
         const page = await pdf.getPage(i);
         const textContent = await page.getTextContent();
         const pageText = textContent.items
@@ -89,24 +78,41 @@ async function extractTextFromPDF(file: File): Promise<string> {
           .join(' ');
         
         fullText += pageText + '\n\n';
-      } catch (pageError) {
-        console.warn(`Error extracting text from page ${i}:`, pageError);
       }
-    }
-    
-    // If we extracted meaningful text, return it
-    if (fullText.trim().length > 50) {
+      
       console.log(`Successfully extracted ${fullText.length} characters from PDF`);
       return fullText;
+    } catch (error) {
+      console.error('Error extracting text from PDF:', error);
+      
+      // Try the next CDN if available
+      currentCdnIndex++;
+      if (currentCdnIndex < CDN_URLS.length) {
+        console.log(`Trying next CDN: ${CDN_URLS[currentCdnIndex]}`);
+        pdfjs.GlobalWorkerOptions.workerSrc = CDN_URLS[currentCdnIndex];
+        return tryExtraction(); // Recursive call with next CDN
+      }
+      
+      // If all CDNs fail, try the last resort of direct text extraction
+      try {
+        console.log("All CDNs failed, trying raw text extraction as fallback");
+        const text = await extractTextFromRawFile(file);
+        
+        // If we get reasonable text, use it
+        if (text && text.length > 100 && !text.startsWith('%PDF')) {
+          console.log(`Extracted ${text.length} characters using fallback`);
+          return text;
+        }
+      } catch (fallbackError) {
+        console.error("Fallback extraction also failed:", fallbackError);
+      }
+      
+      return '';
     }
-    
-    throw new Error("PDF.js extraction yielded insufficient text");
-  } catch (error) {
-    console.error("PDF.js extraction failed:", error);
-    
-    // If PDF.js failed, offer a user-friendly message
-    return `[Note: Unable to extract text from "${file.name}". For best results, please convert the PDF to a Word document or text file and upload again.]`;
   }
+  
+  // Start the extraction process
+  return tryExtraction();
 }
 
 /**
@@ -171,44 +177,30 @@ async function extractTextFromRawFile(file: File): Promise<string> {
  * Extract student information from a filename or folder name
  */
 export function extractStudentInfoFromFilename(filename: string, folderName: string = ''): any {
-  console.log(`Extracting student info from: folderName="${folderName}", filename="${filename}"`);
-  
-  // Function to extract student name from Moodle format
-  const extractFromMoodleFormat = (str: string) => {
-    // Check for standard Moodle format: "Name_12345_assignsubmission_xxx"
-    const moodlePattern = /^(.+?)_(\d+)_assignsubmission_/;
-    const moodleMatch = str.match(moodlePattern);
-    
-    if (moodleMatch) {
-      // Use the first capture group which contains the student name
-      console.log(`  → Moodle pattern matched in "${str}", extracted: "${moodleMatch[1]}"`);
-      return moodleMatch[1].replace(/[_\-]/g, ' ').trim();
-    }
-    
-    // Fallback to original cleaning pattern
-    return str
+  // First, try to extract from folder name if available
+  if (folderName && folderName !== 'root') {
+    const folderNameClean = folderName
       .replace(/_assignsubmission_.*$/, '')
       .replace(/_onlinetext_.*$/, '')
       .replace(/_file_.*$/, '')
       .replace(/^\d+SP\s+/, '')
       .replace(/_\d+$/, '')
       .trim();
-  };
-  
-  // First, try to extract from folder name if available
-  if (folderName && folderName !== 'root') {
-    const folderNameClean = extractFromMoodleFormat(folderName);
     
     // Skip extraction if folder name is too generic (like "onlinetext")
     if (folderNameClean && !['onlinetext', 'file'].includes(folderNameClean.toLowerCase())) {
-      console.log(`  → Using folder name: "${folderNameClean}"`);
       return extractStudentInfo(folderNameClean);
     }
   }
   
   // If no valid folder name, try to extract from filename
-  const filenameClean = extractFromMoodleFormat(filename);
-  console.log(`  → Using filename: "${filenameClean}"`);
+  const filenameClean = filename
+    .replace(/_assignsubmission_.*$/, '')
+    .replace(/_onlinetext_.*$/, '')
+    .replace(/_file_.*$/, '')
+    .replace(/^\d+SP\s+/, '')
+    .replace(/_\d+$/, '')
+    .trim();
   
   return extractStudentInfo(filenameClean);
 }
