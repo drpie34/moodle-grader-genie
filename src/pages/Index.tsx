@@ -98,9 +98,19 @@ const Index = () => {
           <h1 className="mb-2 text-center text-3xl font-bold tracking-tight">
             Moodle Grader Genie
           </h1>
-          <p className="mb-8 text-center text-muted-foreground">
+          <p className="mb-4 text-center text-muted-foreground">
             Upload assignments, process them, and download Moodle-compatible grades
           </p>
+          
+          <div className="flex justify-center mb-6">
+            <button 
+              onClick={() => setShowApiKeyForm(!showApiKeyForm)}
+              className="text-sm px-3 py-1 rounded bg-secondary hover:bg-secondary/80 text-secondary-foreground flex items-center gap-1"
+            >
+              <span>{useServerKey ? "Using server API key" : "Configure API key"}</span>
+              <span className="text-xs">⚙️</span>
+            </button>
+          </div>
           
           {showApiKeyForm && (
             <div className="mb-8 animate-scale-in">
