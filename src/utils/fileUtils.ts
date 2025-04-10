@@ -133,30 +133,44 @@ async function extractTextFromRawFile(file: File): Promise<string> {
  * Extract student information from a filename or folder name
  */
 export function extractStudentInfoFromFilename(filename: string, folderName: string = ''): any {
-  // First, try to extract from folder name if available
-  if (folderName && folderName !== 'root') {
-    const folderNameClean = folderName
+  console.log(`Extracting student info from: folderName="${folderName}", filename="${filename}"`);
+  
+  // Function to extract student name from Moodle format
+  const extractFromMoodleFormat = (str: string) => {
+    // Check for standard Moodle format: "Name_12345_assignsubmission_xxx"
+    const moodlePattern = /^(.+?)_(\d+)_assignsubmission_/;
+    const moodleMatch = str.match(moodlePattern);
+    
+    if (moodleMatch) {
+      // Use the first capture group which contains the student name
+      console.log(`  → Moodle pattern matched in "${str}", extracted: "${moodleMatch[1]}"`);
+      return moodleMatch[1].replace(/[_\-]/g, ' ').trim();
+    }
+    
+    // Fallback to original cleaning pattern
+    return str
       .replace(/_assignsubmission_.*$/, '')
       .replace(/_onlinetext_.*$/, '')
       .replace(/_file_.*$/, '')
       .replace(/^\d+SP\s+/, '')
       .replace(/_\d+$/, '')
       .trim();
+  };
+  
+  // First, try to extract from folder name if available
+  if (folderName && folderName !== 'root') {
+    const folderNameClean = extractFromMoodleFormat(folderName);
     
     // Skip extraction if folder name is too generic (like "onlinetext")
     if (folderNameClean && !['onlinetext', 'file'].includes(folderNameClean.toLowerCase())) {
+      console.log(`  → Using folder name: "${folderNameClean}"`);
       return extractStudentInfo(folderNameClean);
     }
   }
   
   // If no valid folder name, try to extract from filename
-  const filenameClean = filename
-    .replace(/_assignsubmission_.*$/, '')
-    .replace(/_onlinetext_.*$/, '')
-    .replace(/_file_.*$/, '')
-    .replace(/^\d+SP\s+/, '')
-    .replace(/_\d+$/, '')
-    .trim();
+  const filenameClean = extractFromMoodleFormat(filename);
+  console.log(`  → Using filename: "${filenameClean}"`);
   
   return extractStudentInfo(filenameClean);
 }

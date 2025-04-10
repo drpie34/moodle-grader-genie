@@ -324,6 +324,24 @@ function fuzzyNameMatcher(studentInfo: StudentInfo, gradebookStudents: StudentIn
  * Clean up Moodle folder name to extract actual student name
  */
 function cleanUpMoodleName(name: string): string {
+  // Debugging original name for comparison
+  console.log(`Cleaning up Moodle name: "${name}"`);
+  
+  // Extract name from Moodle standard format: "Name_12345_assignsubmission_xxx"
+  const moodlePattern = /^(.+?)_(\d+)_assignsubmission_/;
+  const moodleMatch = name.match(moodlePattern);
+  
+  if (moodleMatch) {
+    // Use the first capture group which contains the student name
+    let cleanName = moodleMatch[1];
+    console.log(`  → Moodle pattern matched, extracted: "${cleanName}"`);
+    
+    // Replace underscores and hyphens with spaces
+    cleanName = cleanName.replace(/[_\-]/g, ' ').trim();
+    return cleanName;
+  }
+  
+  // If it doesn't match the standard Moodle pattern, use original approach
   // Remove common Moodle suffixes
   let cleanName = name
     .replace(/_assignsubmission_.*$/, '')
@@ -359,6 +377,7 @@ function cleanUpMoodleName(name: string): string {
     }
   }
   
+  console.log(`  → General cleaning resulted in: "${cleanName}"`);
   return cleanName;
 }
 
