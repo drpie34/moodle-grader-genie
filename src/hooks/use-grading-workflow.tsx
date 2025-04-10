@@ -499,6 +499,11 @@ export function useGradingWorkflow() {
   }, [currentStep, assignmentData, files, sampleDataLoaded, isProcessing, moodleGradebook, folderStructure]);
 
   const getApiKey = (): string | null => {
+    // Check if user opted to use server API key
+    const useServerKey = localStorage.getItem("use_server_api_key");
+    if (useServerKey === "true") {
+      return "server"; // Return a non-empty value to indicate a valid API key is available
+    }
     return localStorage.getItem("openai_api_key");
   };
 
