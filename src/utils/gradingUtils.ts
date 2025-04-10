@@ -40,9 +40,8 @@ export async function gradeWithOpenAI(submissionText: string, assignmentData: an
     let lastError: Error | null = null;
     
     // Get the Supabase URL from client
-    const authUrl = supabase.auth.url();
-    console.log("Supabase auth URL:", authUrl);
-    const supabaseUrl = authUrl?.split('/auth')[0] || "https://owaqnztggyxahjhbcylj.supabase.co";
+    // The URL is directly available in the client configuration
+    const supabaseUrl = "https://owaqnztggyxahjhbcylj.supabase.co";
     console.log("Using Supabase URL for edge function:", supabaseUrl);
     
     while (retryCount < maxRetries) {
