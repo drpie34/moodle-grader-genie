@@ -40,24 +40,55 @@ export async function gradeWithOpenAI(submissionText: string, assignmentData: an
     let lastError: Error | null = null;
     
     // Get the Supabase URL from client
-    const supabaseUrl = supabase.auth.url()?.split('/auth')[0] || "";
+    const authUrl = supabase.auth.url();
+    console.log("Supabase auth URL:", authUrl);
+    const supabaseUrl = authUrl?.split('/auth')[0] || "https://owaqnztggyxahjhbcylj.supabase.co";
+    console.log("Using Supabase URL for edge function:", supabaseUrl);
     
     while (retryCount < maxRetries) {
       try {
         // Use Supabase Edge Function instead of direct OpenAI call
-        const response = await fetch(`${supabaseUrl}/functions/v1/openai-proxy`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            // Include original API key for backwards compatibility
-            ...(apiKey && { 'x-openai-key': apiKey }),
-          },
-          body: JSON.stringify({
-            model: modelToUse,
-            messages: [{ role: "user", content: prompt }],
-            temperature: 0.7,
-          }),
-        });
+        console.log("Calling Supabase edge function for OpenAI proxy");
+        let response;
+        
+        try {
+          // First try with Supabase Edge Function
+          response = await fetch(`${supabaseUrl}/functions/v1/openai-proxy`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              // Include original API key for backwards compatibility
+              ...(apiKey && { 'x-openai-key': apiKey }),
+            },
+            body: JSON.stringify({
+              model: modelToUse,
+              messages: [{ role: "user", content: prompt }],
+              temperature: 0.7,
+            }),
+          });
+          console.log("Edge function response status:", response.status);
+        } catch (edgeFunctionError) {
+          console.error("Edge function error:", edgeFunctionError);
+          
+          // Fallback to direct OpenAI API if edge function fails and we have an API key
+          if (apiKey) {
+            console.log("Falling back to direct OpenAI API call");
+            response = await fetch('https://api.openai.com/v1/chat/completions', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`,
+              },
+              body: JSON.stringify({
+                model: modelToUse,
+                messages: [{ role: "user", content: prompt }],
+                temperature: 0.7,
+              }),
+            });
+          } else {
+            throw edgeFunctionError;
+          }
+        }
         
         if (response.status === 429) {  // Rate limit error
           const retryAfter = response.headers.get('Retry-After') || retryCount + 1;
