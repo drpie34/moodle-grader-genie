@@ -4,18 +4,20 @@
 import * as pdfjs from 'pdfjs-dist';
 import { extractHTMLFromDOCX } from './docxUtils';
 
-// Set the worker URL for PDF.js - use multiple CDN options in case one fails
-const CDN_URLS = [
-  `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`,
-  `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`,
-  `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`
-];
+// CRITICAL: Force PDF.js to use the built-in fake worker option to avoid CORS issues in local development
+// This is essential for localhost testing where external worker files can't be loaded due to CORS restrictions
+console.log("Setting up PDF.js with fake worker to avoid CORS issues");
 
-// Use the first CDN in the list, but have fallbacks ready if needed
-pdfjs.GlobalWorkerOptions.workerSrc = CDN_URLS[0];
+// When running locally, we'll always use the fake worker approach
+// This bypasses the need to load external worker files completely
+pdfjs.GlobalWorkerOptions.workerSrc = '';
+(window as any).pdfjsWorkerSrc = '';
 
-// Just for local debugging
-console.log(`PDF.js worker URL: ${pdfjs.GlobalWorkerOptions.workerSrc}`);
+// Explicitly disable workers to prevent any attempts to load external files
+(pdfjs as any).disableWorker = true;
+(pdfjs as any).GlobalWorkerOptions.disableWorker = true;
+
+console.log("PDF.js configured to use fake worker - no external files needed");
 
 /**
  * Extract text content from a file based on type
@@ -58,61 +60,75 @@ export async function extractTextFromFile(file: File): Promise<string> {
  * Extract text from a PDF file
  */
 async function extractTextFromPDF(file: File): Promise<string> {
-  let currentCdnIndex = 0;
-  
-  // Try extraction with all available CDNs if needed
-  async function tryExtraction() {
+  try {
+    console.log(`Processing PDF file: ${file.name} (${file.size} bytes)`);
+    
+    // Try extraction with PDF.js fake worker mode
     try {
-      console.log(`Attempting to extract text from PDF: ${file.name} (${file.size} bytes)`);
-      console.log(`Using PDF.js worker from: ${pdfjs.GlobalWorkerOptions.workerSrc}`);
-      
+      // Read file as array buffer
       const arrayBuffer = await file.arrayBuffer();
-      const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
+      
+      // Load the PDF with a timeout to prevent hanging
+      console.log("Loading PDF document with fake worker mode...");
+      const pdf = await Promise.race([
+        pdfjs.getDocument({ data: arrayBuffer }).promise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error("PDF loading timeout")), 10000))
+      ]);
+      
+      console.log(`PDF loaded successfully with ${pdf.numPages} pages`);
+      
+      // Extract text from each page
       let fullText = '';
-      
       for (let i = 1; i <= pdf.numPages; i++) {
-        const page = await pdf.getPage(i);
-        const textContent = await page.getTextContent();
-        const pageText = textContent.items
-          .map((item: any) => item.str)
-          .join(' ');
-        
-        fullText += pageText + '\n\n';
-      }
-      
-      console.log(`Successfully extracted ${fullText.length} characters from PDF`);
-      return fullText;
-    } catch (error) {
-      console.error('Error extracting text from PDF:', error);
-      
-      // Try the next CDN if available
-      currentCdnIndex++;
-      if (currentCdnIndex < CDN_URLS.length) {
-        console.log(`Trying next CDN: ${CDN_URLS[currentCdnIndex]}`);
-        pdfjs.GlobalWorkerOptions.workerSrc = CDN_URLS[currentCdnIndex];
-        return tryExtraction(); // Recursive call with next CDN
-      }
-      
-      // If all CDNs fail, try the last resort of direct text extraction
-      try {
-        console.log("All CDNs failed, trying raw text extraction as fallback");
-        const text = await extractTextFromRawFile(file);
-        
-        // If we get reasonable text, use it
-        if (text && text.length > 100 && !text.startsWith('%PDF')) {
-          console.log(`Extracted ${text.length} characters using fallback`);
-          return text;
+        try {
+          const page = await pdf.getPage(i);
+          const textContent = await page.getTextContent();
+          const pageText = textContent.items
+            .map((item: any) => item.str)
+            .join(' ');
+          
+          fullText += pageText + '\n\n';
+        } catch (pageError) {
+          console.warn(`Error extracting text from page ${i}:`, pageError);
         }
-      } catch (fallbackError) {
-        console.error("Fallback extraction also failed:", fallbackError);
       }
       
-      return '';
+      if (fullText.trim().length > 0) {
+        console.log(`Successfully extracted ${fullText.length} characters from PDF`);
+        return fullText.trim();
+      } else {
+        console.log("PDF.js extraction produced empty result, trying fallback");
+      }
+    } catch (pdfJsError) {
+      console.error("PDF.js extraction failed:", pdfJsError);
     }
+    
+    // Fallback to direct text extraction if PDF.js fails
+    console.log("Using direct text extraction fallback for PDF");
+    try {
+      const text = await extractTextFromRawFile(file);
+      // Try to extract only meaningful text from the PDF
+      let cleanedText = text
+        .replace(/%PDF.*?%%EOF/gs, '') // Remove PDF header and EOF marker
+        .replace(/<<.*?>>/gs, '') // Remove PDF dictionary objects
+        .replace(/\s+/g, ' ') // Normalize whitespace
+        .trim();
+      
+      // If we got some reasonable text, use it
+      if (cleanedText.length > 100) {
+        console.log(`Extracted ${cleanedText.length} characters using direct extraction`);
+        return cleanedText;
+      }
+    } catch (fallbackError) {
+      console.error("Fallback extraction failed:", fallbackError);
+    }
+    
+    // If all methods fail, return a message
+    return `[Unable to extract text from PDF file: ${file.name}. The PDF might be scanned or protected.]`;
+  } catch (error) {
+    console.error("PDF extraction failed completely:", error);
+    return `[Error processing PDF: ${error instanceof Error ? error.message : String(error)}]`;
   }
-  
-  // Start the extraction process
-  return tryExtraction();
 }
 
 /**
