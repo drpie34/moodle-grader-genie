@@ -263,10 +263,37 @@ export function useGradingWorkflow() {
     return { submissionText, submissionFile };
   };
   
+  // Load saved data from localStorage on component mount
+  useEffect(() => {
+    try {
+      // Try to load assignment data
+      const savedAssignmentData = localStorage.getItem('moodle_grader_assignment_data');
+      if (savedAssignmentData && !assignmentData) {
+        setAssignmentData(JSON.parse(savedAssignmentData));
+        console.log("Restored assignment data from localStorage");
+      }
+      
+      // Try to load grades
+      const savedGrades = localStorage.getItem('moodle_grader_grades');
+      if (savedGrades && grades.length === 0) {
+        setGrades(JSON.parse(savedGrades));
+        setSampleDataLoaded(true);
+        console.log("Restored grades from localStorage");
+      }
+    } catch (error) {
+      console.error("Error restoring data from localStorage:", error);
+    }
+  }, []);
+
+  // Update folder structure when files change
   useEffect(() => {
     if (files.length > 0) {
       const structure = organizeFilesByFolder();
       setFolderStructure(structure);
+      
+      // Save files to sessionStorage (we can't store File objects in localStorage)
+      // Instead, we'll just save the count to know files were uploaded
+      sessionStorage.setItem('moodle_grader_file_count', files.length.toString());
     }
   }, [files]);
   
@@ -615,6 +642,10 @@ export function useGradingWorkflow() {
 
   const handleAssignmentSubmit = (data: AssignmentFormData) => {
     setAssignmentData(data);
+    
+    // Store assignment data in localStorage for persistence
+    localStorage.setItem('moodle_grader_assignment_data', JSON.stringify(data));
+    
     setCurrentStep(3);
     setSampleDataLoaded(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -667,7 +698,16 @@ export function useGradingWorkflow() {
   };
 
   const handleStepClick = (step: number) => {
+    // Allow navigation to any previously accessed step
     if (step < currentStep) {
+      // Store current step data in localStorage before navigating away
+      if (assignmentData) {
+        localStorage.setItem('moodle_grader_assignment_data', JSON.stringify(assignmentData));
+      }
+      if (grades.length > 0) {
+        localStorage.setItem('moodle_grader_grades', JSON.stringify(grades));
+      }
+      
       setCurrentStep(step);
       window.scrollTo({ top: 0, behavior: "smooth" });
     }

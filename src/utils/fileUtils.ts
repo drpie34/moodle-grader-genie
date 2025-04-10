@@ -5,8 +5,47 @@ import * as pdfjs from 'pdfjs-dist';
 import { extractHTMLFromDOCX } from './docxUtils';
 
 // Set the worker URL for PDF.js
-const PDFJS_WORKER_SRC = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
-pdfjs.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_SRC;
+// Try multiple CDNs and also provide a bundled fallback option
+const trySetPdfWorker = () => {
+  try {
+    // Define multiple potential worker URLs to try
+    const potentialWorkerSources = [
+      // Use unpkg as primary source
+      `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`,
+      // Fallback to jsdelivr
+      `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`,
+      // Original cdnjs as last resort
+      `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`
+    ];
+    
+    // Use the first worker source
+    pdfjs.GlobalWorkerOptions.workerSrc = potentialWorkerSources[0];
+    console.log(`PDF.js worker set to: ${potentialWorkerSources[0]}`);
+    
+    // Pre-fetch the worker to check if it's available
+    fetch(potentialWorkerSources[0], { method: 'HEAD' })
+      .catch(() => {
+        console.warn(`Primary PDF.js worker source failed, trying fallback...`);
+        // If the first worker fails, try the second one
+        pdfjs.GlobalWorkerOptions.workerSrc = potentialWorkerSources[1];
+        console.log(`PDF.js worker set to fallback: ${potentialWorkerSources[1]}`);
+        
+        // Pre-fetch the second worker
+        return fetch(potentialWorkerSources[1], { method: 'HEAD' });
+      })
+      .catch(() => {
+        console.warn(`Secondary PDF.js worker source failed, trying last resort...`);
+        // If the second worker fails, try the third one
+        pdfjs.GlobalWorkerOptions.workerSrc = potentialWorkerSources[2];
+        console.log(`PDF.js worker set to last resort: ${potentialWorkerSources[2]}`);
+      });
+  } catch (error) {
+    console.error("Error setting PDF.js worker:", error);
+  }
+};
+
+// Initialize the PDF worker
+trySetPdfWorker();
 
 /**
  * Extract text content from a file based on type
@@ -46,28 +85,81 @@ export async function extractTextFromFile(file: File): Promise<string> {
 }
 
 /**
- * Extract text from a PDF file
+ * Extract text from a PDF file with fallback mechanisms
  */
 async function extractTextFromPDF(file: File): Promise<string> {
   try {
-    const arrayBuffer = await file.arrayBuffer();
-    const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
-    let fullText = '';
+    console.log(`Attempting to extract text from PDF: ${file.name} (${file.size} bytes)`);
     
-    for (let i = 1; i <= pdf.numPages; i++) {
-      const page = await pdf.getPage(i);
-      const textContent = await page.getTextContent();
-      const pageText = textContent.items
-        .map((item: any) => item.str)
-        .join(' ');
+    // Store the arrayBuffer for potential retries
+    const arrayBuffer = await file.arrayBuffer();
+    
+    // Attempt extraction with current worker configuration
+    try {
+      console.log("Starting PDF extraction with configured worker");
+      const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
+      let fullText = '';
       
-      fullText += pageText + '\n\n';
+      console.log(`PDF loaded successfully with ${pdf.numPages} pages`);
+      
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const textContent = await page.getTextContent();
+        const pageText = textContent.items
+          .map((item: any) => item.str)
+          .join(' ');
+        
+        fullText += pageText + '\n\n';
+      }
+      
+      console.log(`Successfully extracted ${fullText.length} characters from PDF`);
+      return fullText;
+    } catch (workerError) {
+      // If worker fails, try alternative CDN sources
+      console.error("PDF.js worker error:", workerError);
+      console.log("Attempting to use alternative PDF worker source...");
+      
+      // Try another CDN
+      const alternativeWorkerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
+      pdfjs.GlobalWorkerOptions.workerSrc = alternativeWorkerSrc;
+      console.log(`Switched PDF.js worker to: ${alternativeWorkerSrc}`);
+      
+      try {
+        // Retry with new worker source
+        const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
+        let fullText = '';
+        
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const textContent = await page.getTextContent();
+          const pageText = textContent.items
+            .map((item: any) => item.str)
+            .join(' ');
+          
+          fullText += pageText + '\n\n';
+        }
+        
+        console.log(`Successfully extracted ${fullText.length} characters from PDF with alternative worker`);
+        return fullText;
+      } catch (retryError) {
+        console.error("Alternative PDF worker also failed:", retryError);
+        throw retryError; // Throw to trigger final fallback
+      }
+    }
+  } catch (error) {
+    console.error('All PDF extraction methods failed:', error);
+    // Last resort: try to extract text directly from the raw bytes
+    try {
+      const text = await extractTextFromRawFile(file);
+      if (text && text.length > 50) {
+        console.log(`Extracted ${text.length} characters from PDF using raw text fallback`);
+        return text;
+      }
+    } catch (fallbackError) {
+      console.error("Raw text extraction fallback also failed:", fallbackError);
     }
     
-    return fullText;
-  } catch (error) {
-    console.error('Error extracting text from PDF:', error);
-    return '';
+    return `[Unable to extract text from PDF file: ${file.name}. The PDF might be scanned or protected.]`;
   }
 }
 
