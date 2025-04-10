@@ -46,14 +46,31 @@ export async function gradeWithOpenAI(submissionText: string, assignmentData: an
     
     while (retryCount < maxRetries) {
       try {
-        // Check if we're in local development
-        const isLocalDevelopment = window.location.hostname === 'localhost';
         let response;
         
-        if (isLocalDevelopment) {
-          // In local development, bypass the Supabase Edge Function and use OpenAI directly if apiKey is provided
+        // Always try the Supabase Edge Function first (now with CORS support)
+        try {
+          console.log("Calling Supabase edge function for OpenAI proxy");
+          response = await fetch(`${supabaseUrl}/functions/v1/openai-proxy`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              // Include original API key for backwards compatibility
+              ...(apiKey && { 'x-openai-key': apiKey }),
+            },
+            body: JSON.stringify({
+              model: modelToUse,
+              messages: [{ role: "user", content: prompt }],
+              temperature: 0.7,
+            }),
+          });
+          console.log("Edge function response status:", response.status);
+        } catch (edgeFunctionError) {
+          console.error("Edge function error:", edgeFunctionError);
+          
+          // Fallback to direct OpenAI API if edge function fails and we have an API key
           if (apiKey) {
-            console.log("Local development: Using OpenAI API directly");
+            console.log("Falling back to direct OpenAI API call");
             response = await fetch('https://api.openai.com/v1/chat/completions', {
               method: 'POST',
               headers: {
@@ -67,75 +84,12 @@ export async function gradeWithOpenAI(submissionText: string, assignmentData: an
               }),
             });
           } else {
-            // If no API key for local development, provide simulated response
-            console.log("Local development: Using simulated grading response");
-            
-            // Calculate a reasonable grade based on content length
-            const contentLength = submissionText.length;
-            const simulatedGrade = Math.min(95, Math.max(60, Math.round(75 + contentLength / 1000)));
-            
-            // Create a simulated response that looks like it came from the API
-            const simulatedResponse = {
-              status: 200,
-              json: async () => ({
-                choices: [{
-                  message: {
-                    content: `Grade: ${simulatedGrade}\n\nFeedback: This is simulated feedback for local development testing. The submission shows good understanding of the material and addresses the key points of the assignment. Some areas could be developed further with more specific examples and deeper analysis.`
-                  }
-                }]
-              })
-            };
-            
-            response = simulatedResponse as Response;
-            console.log("Simulated response created for local development");
-          }
-        } else {
-          // In production, use the Supabase Edge Function
-          try {
-            console.log("Production: Calling Supabase edge function for OpenAI proxy");
-            // Try with Supabase Edge Function
-            response = await fetch(`${supabaseUrl}/functions/v1/openai-proxy`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                // Include original API key for backwards compatibility
-                ...(apiKey && { 'x-openai-key': apiKey }),
-              },
-              body: JSON.stringify({
-                model: modelToUse,
-                messages: [{ role: "user", content: prompt }],
-                temperature: 0.7,
-              }),
-            });
-            console.log("Edge function response status:", response.status);
-          } catch (edgeFunctionError) {
-            console.error("Edge function error:", edgeFunctionError);
-            
-            // Fallback to direct OpenAI API if edge function fails and we have an API key
-            if (apiKey) {
-              console.log("Falling back to direct OpenAI API call");
-              response = await fetch('https://api.openai.com/v1/chat/completions', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${apiKey}`,
-                },
-                body: JSON.stringify({
-                  model: modelToUse,
-                  messages: [{ role: "user", content: prompt }],
-                  temperature: 0.7,
-                }),
-              });
-            } else {
-              throw edgeFunctionError;
-            }
+            throw edgeFunctionError;
           }
         }
         
-        // Check if we have a simulated response for local development
-        const isSimulatedResponse = isLocalDevelopment && !apiKey;
-        
-        if (!isSimulatedResponse) {
+        // Check standard response properties
+        if (response) {
           // Only check these properties for real API responses
           if (response.status === 429) {  // Rate limit error
             const retryAfter = response.headers.get('Retry-After') || retryCount + 1;
