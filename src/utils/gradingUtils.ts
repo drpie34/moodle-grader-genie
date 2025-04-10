@@ -4,6 +4,7 @@
  */
 
 // src/utils/gradingUtils.ts
+import { supabase } from "@/integrations/supabase/client";
 export async function gradeWithOpenAI(submissionText: string, assignmentData: any, apiKey: string = "", gradingScale: number = 100): Promise<{ grade: number; feedback: string }> {
   try {
     if (!submissionText || submissionText.trim().length === 0) {
@@ -39,7 +40,6 @@ export async function gradeWithOpenAI(submissionText: string, assignmentData: an
     let lastError: Error | null = null;
     
     // Get the Supabase URL from client
-    import { supabase } from "@/integrations/supabase/client";
     const supabaseUrl = supabase.auth.url()?.split('/auth')[0] || "";
     
     while (retryCount < maxRetries) {
