@@ -4,20 +4,25 @@
 import * as pdfjs from 'pdfjs-dist';
 import { extractHTMLFromDOCX } from './docxUtils';
 
-// CRITICAL: Force PDF.js to use the built-in fake worker option to avoid CORS issues in local development
-// This is essential for localhost testing where external worker files can't be loaded due to CORS restrictions
-console.log("Setting up PDF.js with fake worker to avoid CORS issues");
+// Set up PDF.js with the correct worker URL
+console.log("Setting up PDF.js with correct worker URL format");
 
-// When running locally, we'll always use the fake worker approach
-// This bypasses the need to load external worker files completely
-pdfjs.GlobalWorkerOptions.workerSrc = '';
-(window as any).pdfjsWorkerSrc = '';
+// Use the correct modern URL format for the worker
+// The .mjs extension is important for new versions of PDF.js
+const WORKER_URL = `https://app.unpkg.com/pdfjs-dist@${pdfjs.version}/files/build/pdf.worker.min.mjs`;
+pdfjs.GlobalWorkerOptions.workerSrc = WORKER_URL;
 
-// Explicitly disable workers to prevent any attempts to load external files
-(pdfjs as any).disableWorker = true;
-(pdfjs as any).GlobalWorkerOptions.disableWorker = true;
+console.log(`PDF.js worker URL set to: ${WORKER_URL}`);
 
-console.log("PDF.js configured to use fake worker - no external files needed");
+// Fallback to fake worker if loading fails
+window.addEventListener('error', (e) => {
+  // Check if error is related to loading PDF.js worker
+  if (e.filename?.includes('pdf.worker') || e.message?.includes('pdf.worker')) {
+    console.warn('PDF.js worker failed to load, switching to fake worker mode');
+    // Enable fake worker mode
+    (pdfjs as any).disableWorker = true;
+  }
+}, { once: true });
 
 /**
  * Extract text content from a file based on type
