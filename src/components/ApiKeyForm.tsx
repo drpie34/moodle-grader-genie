@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Lock, CloudCheck } from "lucide-react";
+import { Lock, Cloud } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 
 interface ApiKeyFormProps {
@@ -74,7 +74,7 @@ const ApiKeyForm: React.FC<ApiKeyFormProps> = ({ onApiKeySubmit }) => {
             />
             <Label htmlFor="use-server-key" className="cursor-pointer">
               <div className="flex items-center">
-                <CloudCheck className="h-4 w-4 mr-2" />
+                <Cloud className="h-4 w-4 mr-2" />
                 Use server-provided API key
               </div>
             </Label>
