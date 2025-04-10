@@ -46,32 +46,14 @@ export async function gradeWithOpenAI(submissionText: string, assignmentData: an
     
     while (retryCount < maxRetries) {
       try {
-        // Use Supabase Edge Function instead of direct OpenAI call
-        console.log("Calling Supabase edge function for OpenAI proxy");
+        // Check if we're in local development
+        const isLocalDevelopment = window.location.hostname === 'localhost';
         let response;
         
-        try {
-          // First try with Supabase Edge Function
-          response = await fetch(`${supabaseUrl}/functions/v1/openai-proxy`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              // Include original API key for backwards compatibility
-              ...(apiKey && { 'x-openai-key': apiKey }),
-            },
-            body: JSON.stringify({
-              model: modelToUse,
-              messages: [{ role: "user", content: prompt }],
-              temperature: 0.7,
-            }),
-          });
-          console.log("Edge function response status:", response.status);
-        } catch (edgeFunctionError) {
-          console.error("Edge function error:", edgeFunctionError);
-          
-          // Fallback to direct OpenAI API if edge function fails and we have an API key
+        if (isLocalDevelopment) {
+          // In local development, bypass the Supabase Edge Function and use OpenAI directly if apiKey is provided
           if (apiKey) {
-            console.log("Falling back to direct OpenAI API call");
+            console.log("Local development: Using OpenAI API directly");
             response = await fetch('https://api.openai.com/v1/chat/completions', {
               method: 'POST',
               headers: {
@@ -85,20 +67,87 @@ export async function gradeWithOpenAI(submissionText: string, assignmentData: an
               }),
             });
           } else {
-            throw edgeFunctionError;
+            // If no API key for local development, provide simulated response
+            console.log("Local development: Using simulated grading response");
+            
+            // Calculate a reasonable grade based on content length
+            const contentLength = submissionText.length;
+            const simulatedGrade = Math.min(95, Math.max(60, Math.round(75 + contentLength / 1000)));
+            
+            // Create a simulated response that looks like it came from the API
+            const simulatedResponse = {
+              status: 200,
+              json: async () => ({
+                choices: [{
+                  message: {
+                    content: `Grade: ${simulatedGrade}\n\nFeedback: This is simulated feedback for local development testing. The submission shows good understanding of the material and addresses the key points of the assignment. Some areas could be developed further with more specific examples and deeper analysis.`
+                  }
+                }]
+              })
+            };
+            
+            response = simulatedResponse as Response;
+            console.log("Simulated response created for local development");
+          }
+        } else {
+          // In production, use the Supabase Edge Function
+          try {
+            console.log("Production: Calling Supabase edge function for OpenAI proxy");
+            // Try with Supabase Edge Function
+            response = await fetch(`${supabaseUrl}/functions/v1/openai-proxy`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                // Include original API key for backwards compatibility
+                ...(apiKey && { 'x-openai-key': apiKey }),
+              },
+              body: JSON.stringify({
+                model: modelToUse,
+                messages: [{ role: "user", content: prompt }],
+                temperature: 0.7,
+              }),
+            });
+            console.log("Edge function response status:", response.status);
+          } catch (edgeFunctionError) {
+            console.error("Edge function error:", edgeFunctionError);
+            
+            // Fallback to direct OpenAI API if edge function fails and we have an API key
+            if (apiKey) {
+              console.log("Falling back to direct OpenAI API call");
+              response = await fetch('https://api.openai.com/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${apiKey}`,
+                },
+                body: JSON.stringify({
+                  model: modelToUse,
+                  messages: [{ role: "user", content: prompt }],
+                  temperature: 0.7,
+                }),
+              });
+            } else {
+              throw edgeFunctionError;
+            }
           }
         }
         
-        if (response.status === 429) {  // Rate limit error
-          const retryAfter = response.headers.get('Retry-After') || retryCount + 1;
-          console.warn(`Rate limit hit. Retry after ${retryAfter} seconds. Attempt ${retryCount + 1}/${maxRetries}`);
-          await new Promise(resolve => setTimeout(resolve, parseInt(retryAfter as string) * 1000 || (retryCount + 1) * 1000));
-          retryCount++;
-          continue;
-        }
+        // Check if we have a simulated response for local development
+        const isSimulatedResponse = isLocalDevelopment && !apiKey;
         
-        if (!response.ok) {
-          throw new Error(`OpenAI API error: ${response.status} ${response.statusText}`);
+        if (!isSimulatedResponse) {
+          // Only check these properties for real API responses
+          if (response.status === 429) {  // Rate limit error
+            const retryAfter = response.headers.get('Retry-After') || retryCount + 1;
+            console.warn(`Rate limit hit. Retry after ${retryAfter} seconds. Attempt ${retryCount + 1}/${maxRetries}`);
+            await new Promise(resolve => setTimeout(resolve, parseInt(retryAfter as string) * 1000 || (retryCount + 1) * 1000));
+            retryCount++;
+            continue;
+          }
+          
+          if (!response.ok) {
+            throw new Error(`OpenAI API error: ${response.status} ${response.statusText}`);
+          }
         }
         
         const data = await response.json();
