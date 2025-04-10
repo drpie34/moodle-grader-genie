@@ -272,7 +272,11 @@ export function useGradingWorkflow() {
   
   useEffect(() => {
     const processFilesWithAI = async () => {
-      if (currentStep === 3 && assignmentData && files.length > 0 && getApiKey() && !sampleDataLoaded && !isProcessing) {
+      // Check if using server API key
+      const usingServerKey = localStorage.getItem("use_server_api_key") === "true";
+      const hasApiKey = getApiKey() || usingServerKey;
+      
+      if (currentStep === 3 && assignmentData && files.length > 0 && hasApiKey && !sampleDataLoaded && !isProcessing) {
         setIsProcessing(true);
         
         const filesByFolder = folderStructure;
@@ -490,8 +494,12 @@ export function useGradingWorkflow() {
         } finally {
           setIsProcessing(false);
         }
-      } else if (currentStep === 3 && assignmentData && files.length > 0 && !getApiKey() && !sampleDataLoaded) {
-        fetchSampleData();
+      } else if (currentStep === 3 && assignmentData && files.length > 0 && !sampleDataLoaded) {
+        // Only use sample data if neither personal nor server API key is available
+        const usingServerKey = localStorage.getItem("use_server_api_key") === "true";
+        if (!getApiKey() && !usingServerKey) {
+          fetchSampleData();
+        }
       }
     };
     
@@ -575,8 +583,12 @@ export function useGradingWorkflow() {
           
           setSampleDataLoaded(true);
           
-          if (!getApiKey()) {
+          // Show "using sample data" message only if neither personal nor server API key is available
+          const usingServerKey = localStorage.getItem("use_server_api_key") === "true";
+          if (!getApiKey() && !usingServerKey) {
             toast.info("Using sample data. Add an OpenAI API key for real grading.");
+          } else if (usingServerKey) {
+            toast.info("Using server API key for grading");
           }
         })
         .catch(error => {
