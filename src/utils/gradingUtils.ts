@@ -4,7 +4,7 @@
  */
 
 // src/utils/gradingUtils.ts
-export async function gradeWithOpenAI(submissionText: string, assignmentData: any, apiKey: string, gradingScale: number = 100): Promise<{ grade: number; feedback: string }> {
+export async function gradeWithOpenAI(submissionText: string, assignmentData: any, apiKey: string = "", gradingScale: number = 100): Promise<{ grade: number; feedback: string }> {
   try {
     if (!submissionText || submissionText.trim().length === 0) {
       console.warn("Empty submission text detected - unable to grade properly");
@@ -38,13 +38,19 @@ export async function gradeWithOpenAI(submissionText: string, assignmentData: an
     let retryCount = 0;
     let lastError: Error | null = null;
     
+    // Get the Supabase URL from client
+    import { supabase } from "@/integrations/supabase/client";
+    const supabaseUrl = supabase.auth.url()?.split('/auth')[0] || "";
+    
     while (retryCount < maxRetries) {
       try {
-        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        // Use Supabase Edge Function instead of direct OpenAI call
+        const response = await fetch(`${supabaseUrl}/functions/v1/openai-proxy`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`,
+            // Include original API key for backwards compatibility
+            ...(apiKey && { 'x-openai-key': apiKey }),
           },
           body: JSON.stringify({
             model: modelToUse,

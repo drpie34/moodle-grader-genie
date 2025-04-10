@@ -37,7 +37,8 @@ const Index = () => {
   const {
     showApiKeyForm,
     setShowApiKeyForm,
-    handleApiKeySubmit
+    handleApiKeySubmit,
+    useServerKey
   } = useApiKey();
 
   const handleMoodleGradebookUploaded = (gradebookData: any) => {
