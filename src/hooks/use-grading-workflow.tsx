@@ -145,6 +145,93 @@ export function useGradingWorkflow() {
     return filesByFolder;
   };
   
+  /**
+   * Groups files by student name across all folders
+   * This is needed because a student might have files in multiple folders
+   * (e.g., both onlinetext and file submission folders)
+   */
+  const groupFilesByStudent = (folderStructure: { [key: string]: File[] }) => {
+    // Initialize student files map
+    const studentFiles: { [studentName: string]: File[] } = {};
+    
+    // Temporary map to track which folders belong to which students
+    const folderToStudent: { [folderPath: string]: string } = {};
+    
+    // First pass: Determine student names from folder names
+    for (const folderPath of Object.keys(folderStructure)) {
+      // Skip 'root' folder for student name extraction
+      if (folderPath === 'root') continue;
+      
+      // Extract student name from folder path
+      let studentName = '';
+      
+      // Handle Moodle format folders like "John Smith_12345_assignsubmission_file"
+      if (folderPath.includes('_assignsubmission_')) {
+        studentName = folderPath.split('_assignsubmission_')[0];
+      } else if (folderPath.includes('_onlinetext_')) {
+        studentName = folderPath.split('_onlinetext_')[0];
+      }
+      
+      // Clean up student name
+      if (studentName.includes('_')) {
+        // Remove numeric ID if present (e.g., "John Smith_12345" -> "John Smith")
+        const parts = studentName.split('_');
+        if (parts.length > 1 && /^\d+$/.test(parts[parts.length - 1])) {
+          studentName = parts.slice(0, -1).join('_');
+        }
+      }
+      
+      if (studentName) {
+        folderToStudent[folderPath] = studentName;
+        
+        // Initialize the student's file array if needed
+        if (!studentFiles[studentName]) {
+          studentFiles[studentName] = [];
+        }
+        
+        // Add this folder's files to the student's files
+        studentFiles[studentName].push(...folderStructure[folderPath]);
+        
+        console.log(`Mapped folder "${folderPath}" to student "${studentName}" with ${folderStructure[folderPath].length} files`);
+      }
+    }
+    
+    // Handle files in the root folder (if any)
+    if (folderStructure['root']) {
+      folderStructure['root'].forEach(file => {
+        // Try to extract student name from filename
+        const fileName = file.name;
+        let studentName = '';
+        
+        if (fileName.includes('_assignsubmission_')) {
+          studentName = fileName.split('_assignsubmission_')[0];
+        } else if (fileName.includes('_onlinetext_')) {
+          studentName = fileName.split('_onlinetext_')[0];
+        }
+        
+        if (studentName) {
+          if (!studentFiles[studentName]) {
+            studentFiles[studentName] = [];
+          }
+          studentFiles[studentName].push(file);
+          console.log(`Added root file "${fileName}" to student "${studentName}"`);
+        } else {
+          console.warn(`Could not determine student name for root file: ${fileName}`);
+        }
+      });
+    }
+    
+    // Log summary of student files
+    const studentCount = Object.keys(studentFiles).length;
+    console.log(`Grouped files by student: ${studentCount} students found`);
+    
+    Object.entries(studentFiles).forEach(([student, files]) => {
+      console.log(`Student "${student}" has ${files.length} files: ${files.map(f => f.name).join(', ')}`);
+    });
+    
+    return studentFiles;
+  };
+  
   const textExtractionCache = new Map<string, string>();
   
   // Check if file is a supported type
@@ -223,61 +310,133 @@ export function useGradingWorkflow() {
     studentInfo: any,
     batchSize = 3
   ) => {
-    console.log(`Processing folder "${folderName}" with ${folderFiles.length} files`);
+    console.log(`Processing files for "${studentInfo.fullName}" (${folderFiles.length} files)`);
+    
+    // Log all files found for this student
+    const fileDetails = folderFiles.map(f => ({
+      name: f.name,
+      type: f.type,
+      size: f.size,
+      isImage: isImageFile(f),
+      path: f.webkitRelativePath || f.name
+    }));
+    
+    // Store debug information
+    const debugInfo = {
+      student: studentInfo.fullName,
+      files: fileDetails,
+      timestamp: new Date().toISOString(),
+      processedAt: Date.now()
+    };
+    
+    // Add to window debug object
+    // @ts-ignore
+    if (!window._fileProcessingDebug.perStudentFiles) {
+      // @ts-ignore
+      window._fileProcessingDebug.perStudentFiles = {};
+    }
+    // @ts-ignore
+    window._fileProcessingDebug.perStudentFiles[studentInfo.fullName] = debugInfo;
     
     // Find the best file to use - this prioritizes non-HTML files using our improved function
     const bestFile = findBestSubmissionFile(folderFiles);
     
     if (!bestFile) {
-      console.log(`No files found for ${studentInfo.fullName} in folder ${folderName}`);
+      console.log(`No files found for ${studentInfo.fullName}`);
       return { 
         submissionText: CONTENT_MARKERS.NO_SUBMISSION,
         submissionFile: null,
-        hasEmptySubmission: true 
+        hasEmptySubmission: true
       };
     }
     
-    console.log(`Selected best file for ${studentInfo.fullName}: ${bestFile.name} (${bestFile.type})`);
+    console.log(`Selected best file for ${studentInfo.fullName}: ${bestFile.name} (${bestFile.type}, ${bestFile.size} bytes)`);
     
-    // Extract text from the best file
+    // Add selected file to debug info
+    debugInfo.selectedFile = {
+      name: bestFile.name,
+      type: bestFile.type,
+      size: bestFile.size,
+      isImage: isImageFile(bestFile)
+    };
+    
+    // Check if this is an image file - we'll handle it specially
+    const isImage = isImageFile(bestFile);
+    
+    // Update debug info
+    debugInfo.isImageFile = isImage;
+    debugInfo.processingMethod = isImage ? "direct-image-upload" : "text-extraction";
+    
+    // For image files, we'll send the image directly to the OpenAI API
+    // This is more accurate than trying to extract text first
+    if (isImage) {
+      console.log(`Image file detected for ${studentInfo.fullName} - will send directly to OpenAI`);
+      debugInfo.processingDecision = "Image file will be sent directly to OpenAI for vision processing";
+      
+      return { 
+        submissionText: `[IMAGE_SUBMISSION]`, 
+        submissionFile: bestFile,
+        isImageFile: true,
+        hasEmptySubmission: false,
+        debug: debugInfo
+      };
+    }
+    
+    // For non-image files, extract text as before
     try {
       const text = await extractTextWithCache(bestFile);
       console.log(`Extracted ${text.length} chars from ${bestFile.name}`);
       
-      // Check if we got the special empty marker back
-      const isEmpty = isEmptySubmission(text);
+      // Update debug info
+      debugInfo.extractedTextLength = text.length;
+      debugInfo.textPreview = text.substring(0, 150) + (text.length > 150 ? '...' : '');
       
-      // Important: If it's an image file, even if there's no extractable text,
-      // we should NOT consider it empty - we'll let the OpenAI vision API handle it
-      const isImage = isImageFile(bestFile);
-      const hasEmptySubmission = isEmpty && !isImage;
+      // Only consider VERY short content (< 5 chars) as truly empty 
+      // This allows short submissions like "freeloader" to still be graded
+      const isTrulyEmpty = !text || text.trim().length < 5 || 
+        text === CONTENT_MARKERS.EMPTY_SUBMISSION || text === CONTENT_MARKERS.NO_SUBMISSION;
       
-      if (hasEmptySubmission) {
-        console.log(`Empty submission detected for ${studentInfo.fullName}`);
+      // Update debug
+      debugInfo.isEmpty = isTrulyEmpty;
+      debugInfo.emptyReason = isTrulyEmpty ? 
+        ((!text || text.trim().length < 5) ? "Content too short (< 5 chars)" : "Empty submission marker") : 
+        "Not empty";
+      
+      if (isTrulyEmpty) {
+        console.log(`Truly empty submission detected for ${studentInfo.fullName}`);
+        debugInfo.processingDecision = "Empty submission - will not be sent to OpenAI";
+        
         return { 
           submissionText: CONTENT_MARKERS.EMPTY_SUBMISSION,
           submissionFile: bestFile,
-          hasEmptySubmission: true 
+          hasEmptySubmission: true,
+          debug: debugInfo
         };
       }
       
-      if (isImage) {
-        console.log(`Image file detected for ${studentInfo.fullName} - will use OpenAI vision API`);
-      }
+      // Not empty, will be processed normally
+      debugInfo.processingDecision = "Content will be sent to OpenAI for grading";
       
       return { 
         submissionText: text, 
         submissionFile: bestFile,
-        hasEmptySubmission: false
+        hasEmptySubmission: false,
+        debug: debugInfo
       };
     } catch (error) {
       console.error(`Error extracting text from ${bestFile.name}:`, error);
+      
+      // Update debug with error
+      debugInfo.error = error.message;
+      debugInfo.errorStack = error.stack;
+      debugInfo.processingDecision = "Error occurred during processing - marking as empty";
       
       // If extraction fails completely, we should still return the file but mark it empty
       return { 
         submissionText: `Error extracting content from ${bestFile.name}: ${error}`, 
         submissionFile: bestFile,
-        hasEmptySubmission: true
+        hasEmptySubmission: true,
+        debug: debugInfo
       };
     }
   };
@@ -321,11 +480,35 @@ export function useGradingWorkflow() {
     }
   }, [currentStep, assignmentData, grades.length, files.length]);
 
+  // Initialize debug object for file processing
+  useEffect(() => {
+    // @ts-ignore - Add debugging object to window
+    window._fileProcessingDebug = {
+      studentFiles: {},
+      folderStructure: {},
+      selectedFiles: {},
+      timestamp: new Date().toISOString(),
+      summary: "File processing debug information"
+    };
+  }, []);
+
   // Update folder structure when files change
   useEffect(() => {
     if (files.length > 0) {
+      // First organize by folder
       const structure = organizeFilesByFolder();
       setFolderStructure(structure);
+      
+      // Then organize by student name - this helps us handle files across multiple folders
+      const studentFiles = groupFilesByStudent(structure);
+      
+      // Store in the debug object
+      // @ts-ignore - Add to window object for debugging
+      window._fileProcessingDebug.folderStructure = structure;
+      // @ts-ignore
+      window._fileProcessingDebug.studentFiles = studentFiles;
+      
+      console.log("Files organized by student:", Object.keys(studentFiles));
       
       // Save files to sessionStorage (we can't store File objects in localStorage)
       // Instead, we'll just save the count to know files were uploaded
@@ -366,34 +549,60 @@ export function useGradingWorkflow() {
             });
           }
           
-          const concurrencyLimit = 5;
-          const folders = Object.keys(filesByFolder);
+          // Get student files grouped across folders
+          const studentFiles = groupFilesByStudent(filesByFolder);
           
-          for (let i = 0; i < folders.length; i += concurrencyLimit) {
-            const batch = folders.slice(i, i + concurrencyLimit);
-            const batchPromises = batch.map(async (folder) => {
-              const folderFiles = filesByFolder[folder];
-              if (folderFiles.length === 0) return null;
+          // Store for debugging
+          // @ts-ignore
+          window._fileProcessingDebug.currentStudentFiles = studentFiles;
+          // @ts-ignore
+          window._fileProcessingDebug.processStartTime = new Date().toISOString();
+          
+          const concurrencyLimit = 5;
+          const students = Object.keys(studentFiles);
+          
+          console.log(`Processing ${students.length} students with concurrency limit ${concurrencyLimit}`);
+          
+          for (let i = 0; i < students.length; i += concurrencyLimit) {
+            const batch = students.slice(i, i + concurrencyLimit);
+            const batchPromises = batch.map(async (studentName) => {
+              const studentAllFiles = studentFiles[studentName];
+              if (studentAllFiles.length === 0) return null;
               
-              const firstFile = folderFiles[0];
-              const folderName = folder !== 'root' ? folder : '';
+              console.log(`\nPROCESSING STUDENT: "${studentName}" with ${studentAllFiles.length} files`);
               
-              console.log(`\nPROCESSING FOLDER: "${folderName}"`);
-              console.log(`First file in folder: ${firstFile.name}`);
-              console.log(`File has webkitRelativePath: ${!!firstFile.webkitRelativePath}`);
-              if (firstFile.webkitRelativePath) {
-                console.log(`  webkitRelativePath: ${firstFile.webkitRelativePath}`);
+              // Get best file info for debugging
+              const fileDetails = studentAllFiles.map(f => ({
+                name: f.name, 
+                type: f.type, 
+                size: f.size,
+                isImage: isImageFile(f),
+                path: f.webkitRelativePath || f.name
+              }));
+              
+              console.log(`Files for ${studentName}:`, fileDetails);
+              
+              // Extract student info from name - needed for the gradebook
+              const studentInfo = {
+                fullName: studentName,
+                firstName: '',
+                lastName: '',
+                email: `${studentName.toLowerCase().replace(/\s+/g, '.')}@example.com`,
+                identifier: studentName.replace(/\s+/g, '_').toLowerCase()
+              };
+              
+              // Split name into first/last if possible
+              if (studentName.includes(' ')) {
+                const nameParts = studentName.split(' ');
+                studentInfo.firstName = nameParts[0];
+                studentInfo.lastName = nameParts.slice(1).join(' ');
               }
               
-              const studentInfo = extractStudentInfoFromFilename(firstFile.name, folderName);
-              console.log(`Extracted student info:`, studentInfo);
+              console.log(`Student info for ${studentName}:`, studentInfo);
               
-              if (studentInfo.fullName.toLowerCase() === "onlinetext") {
-                console.log(`Skipping folder with invalid student name "onlinetext"`);
-                return null;
-              }
-              
-              const { submissionText, submissionFile, hasEmptySubmission } = await processFolderInBatches(folderFiles, folderName, studentInfo);
+              // Process all the student's files to find the best one
+              const { submissionText, submissionFile, hasEmptySubmission, isImageFile: isImage } = 
+                await processFolderInBatches(studentAllFiles, studentName, studentInfo);
               
               if (submissionFile) {
                 let studentName = studentInfo.fullName;
@@ -531,16 +740,28 @@ export function useGradingWorkflow() {
                   } else {
                     console.log(`Grading submission for ${studentName} with OpenAI`);
                     
-                    // Special note if this is an image file
-                    if (isImageFile(submissionFile)) {
-                      console.log(`Using Vision API for image submission from ${studentName}`);
+                    // Special handling for image submissions - direct upload to OpenAI
+                    const isDirectImageSubmission = isImage || 
+                                                   (isImageFile(submissionFile) && submissionText === '[IMAGE_SUBMISSION]');
+                    
+                    if (isDirectImageSubmission) {
+                      console.log(`Using direct image upload for submission from ${studentName}`);
+                      // @ts-ignore - Update debug info
+                      if (window._fileProcessingDebug?.perStudentFiles?.[studentName]) {
+                        // @ts-ignore
+                        window._fileProcessingDebug.perStudentFiles[studentName].processingMethod = "direct-image-upload";
+                        // @ts-ignore
+                        window._fileProcessingDebug.perStudentFiles[studentName].imageProcessingStarted = new Date().toISOString();
+                      }
                     }
                     
+                    // Pass the file along for image submissions
                     const gradingResult = await gradeWithOpenAI(
                       submissionText, 
                       assignmentData, 
                       getApiKey() || "",
-                      assignmentData.gradingScale
+                      assignmentData.gradingScale,
+                      isDirectImageSubmission ? submissionFile : undefined
                     );
                     
                     console.log(`Grading result for ${studentName}: Grade ${gradingResult.grade}, Feedback length: ${gradingResult.feedback.length} chars`);

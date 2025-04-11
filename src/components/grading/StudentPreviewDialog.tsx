@@ -192,28 +192,86 @@ const StudentPreviewDialog: React.FC<StudentPreviewDialogProps> = ({
                 ) : (
                   <div className="max-h-[600px] overflow-y-auto mt-2">
                     <div className="bg-muted p-4 rounded">
-                      {student && student.file && isImageFile(student.file) ? (
-                        <div className="flex flex-col items-center space-y-4">
-                          <img 
-                            src={URL.createObjectURL(student.file)} 
-                            alt={`${student.fullName}'s submission`}
-                            className="max-w-full max-h-[400px] object-contain rounded border border-gray-200 shadow-sm"
-                          />
-                          <div className="w-full mt-4">
-                            <h4 className="text-sm font-medium mb-2">Image Content:</h4>
-                            <pre className="whitespace-pre-wrap text-sm font-mono bg-gray-50 dark:bg-gray-800 p-3 rounded-md overflow-auto">
-                              {submissionContent || "No content extracted from image"}
-                            </pre>
-                          </div>
-                        </div>
-                      ) : isHtmlContent ? (
-                        <div 
-                          className="prose dark:prose-invert max-w-none"
-                          dangerouslySetInnerHTML={{ __html: submissionContent }}
-                        />
+                      {student && student.file ? (
+                        <>
+                          {/* For Image Files - Show the image directly */}
+                          {isImageFile(student.file) ? (
+                            <div className="flex flex-col items-center space-y-4">
+                              <div className="relative w-full">
+                                <img 
+                                  src={URL.createObjectURL(student.file)} 
+                                  alt={`${student.fullName}'s submission`}
+                                  className="max-w-full max-h-[500px] object-contain rounded border border-gray-200 shadow-sm mx-auto"
+                                />
+                                <div className="absolute top-2 right-2 bg-gray-700/60 text-white text-xs px-2 py-1 rounded">
+                                  {student.file.name.split('.').pop()?.toUpperCase()} {Math.round(student.file.size/1024)} KB
+                                </div>
+                              </div>
+                              
+                              {/* Show extracted text if available */}
+                              {submissionContent && submissionContent !== "[IMAGE_SUBMISSION]" && (
+                                <div className="w-full mt-4">
+                                  <h4 className="text-sm font-medium mb-2">Extracted Content:</h4>
+                                  <pre className="whitespace-pre-wrap text-sm font-mono bg-gray-50 dark:bg-gray-800 p-3 rounded-md overflow-auto">
+                                    {submissionContent || "No content extracted from image"}
+                                  </pre>
+                                </div>
+                              )}
+                            </div>
+                          ) : 
+                          
+                          {/* For PDF Files - Show PDF in iframe */}
+                          student.file.type === 'application/pdf' || student.file.name.toLowerCase().endsWith('.pdf') ? (
+                            <div className="flex flex-col space-y-2">
+                              <div className="text-sm text-muted-foreground mb-1">
+                                PDF Document: {student.file.name} ({Math.round(student.file.size/1024)} KB)
+                              </div>
+                              <iframe 
+                                src={URL.createObjectURL(student.file)} 
+                                title={`${student.fullName}'s PDF submission`}
+                                className="w-full h-[550px] rounded border border-gray-200"
+                              />
+                              <div className="text-xs text-muted-foreground">
+                                <span className="font-medium">Note:</span> If the PDF doesn't load correctly, you can still view the extracted text below.
+                              </div>
+                              <div className="mt-2">
+                                <h4 className="text-sm font-medium mb-1">Extracted Text:</h4>
+                                <pre className="whitespace-pre-wrap text-sm font-mono bg-gray-50 dark:bg-gray-800 p-3 rounded-md overflow-auto max-h-[200px]">
+                                  {submissionContent || "No text extracted from PDF"}
+                                </pre>
+                              </div>
+                            </div>
+                          ) :
+                          
+                          {/* For HTML Content - Show rendered HTML */}
+                          isHtmlContent ? (
+                            <>
+                              <div className="text-sm text-muted-foreground mb-2">
+                                HTML Document: {student.file.name} ({Math.round(student.file.size/1024)} KB)
+                              </div>
+                              <div 
+                                className="prose dark:prose-invert max-w-none border border-gray-200 rounded p-4 bg-white dark:bg-gray-800"
+                                dangerouslySetInnerHTML={{ __html: submissionContent }}
+                              />
+                            </>
+                          ) : 
+                          
+                          {/* For all other files - Show the extracted text */}
+                          (
+                            <>
+                              <div className="text-sm text-muted-foreground mb-2">
+                                {student.file.name} ({Math.round(student.file.size/1024)} KB)
+                              </div>
+                              <pre className="whitespace-pre-wrap text-sm font-mono overflow-auto border border-gray-200 rounded p-4 bg-gray-50 dark:bg-gray-900">
+                                {submissionContent || "No content available"}
+                              </pre>
+                            </>
+                          )}
+                        </>
                       ) : (
-                        <pre className="whitespace-pre-wrap text-sm font-mono overflow-auto">
-                          {submissionContent || "No content available"}
+                        // No file case
+                        <pre className="whitespace-pre-wrap text-sm font-mono overflow-auto bg-gray-50 dark:bg-gray-900 p-4 rounded border border-gray-200">
+                          {submissionContent || "No submission file found for this student."}
                         </pre>
                       )}
                     </div>

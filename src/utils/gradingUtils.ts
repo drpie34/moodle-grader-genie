@@ -64,7 +64,21 @@ window.fetch = function(url, options) {
   return originalFetch.apply(this, arguments);
 };
 
-export async function gradeWithOpenAI(submissionText: string, assignmentData: any, apiKey: string = "", gradingScale: number = 100): Promise<{ grade: number; feedback: string }> {
+/**
+ * Grades a student submission using OpenAI, handling both text and image submissions
+ * @param submissionText Text content to grade, or special marker for image files
+ * @param assignmentData Assignment details and grading parameters
+ * @param apiKey API key to use (usually "server" to use server-side key)
+ * @param gradingScale Maximum points for the assignment
+ * @param submissionFile Optional file object for image submissions
+ */
+export async function gradeWithOpenAI(
+  submissionText: string, 
+  assignmentData: any, 
+  apiKey: string = "", 
+  gradingScale: number = 100,
+  submissionFile?: File
+): Promise<{ grade: number; feedback: string }> {
   window._debugGrading.logPath('gradeWithOpenAI function start');
   console.log('[DEBUG] Function parameters:', { 
     submissionLength: submissionText?.length,
@@ -73,7 +87,10 @@ export async function gradeWithOpenAI(submissionText: string, assignmentData: an
     apiKeyType: typeof apiKey,
     apiKeyIsString: typeof apiKey === 'string',
     apiKeyLength: typeof apiKey === 'string' ? apiKey.length : 0,
-    gradingScale 
+    gradingScale,
+    hasSubmissionFile: !!submissionFile,
+    fileType: submissionFile?.type,
+    isImageSubmission: submissionText === '[IMAGE_SUBMISSION]'
   });
   
   // CRITICAL CHECK: If someone is passing an actual OpenAI API key, this could lead to direct calls
@@ -89,6 +106,27 @@ export async function gradeWithOpenAI(submissionText: string, assignmentData: an
   }
   
   try {
+    // Handle image submissions specially
+    const isImageSubmission = submissionText === '[IMAGE_SUBMISSION]' && submissionFile;
+    
+    if (isImageSubmission) {
+      window._debugGrading.logPath('Image submission detected');
+      console.log("Processing image submission:", submissionFile?.name);
+      
+      // Make sure we have a file
+      if (!submissionFile) {
+        console.error("Image submission marker found but no file provided");
+        return {
+          grade: 0,
+          feedback: "Error: Image submission detected but file is missing. Please review manually."
+        };
+      }
+      
+      // Image submissions are handled through a different flow
+      return await gradeImageSubmission(submissionFile, assignmentData, apiKey, gradingScale);
+    }
+    
+    // Regular text submission flow
     if (!submissionText || submissionText.trim().length === 0) {
       window._debugGrading.logPath('Empty submission detected');
       console.warn("Empty submission text detected - unable to grade properly");
@@ -467,6 +505,211 @@ export async function gradeWithOpenAI(submissionText: string, assignmentData: an
       feedback: "Failed to grade submission. Error: " + (error instanceof Error ? error.message : "Unknown error") 
     };
   }
+}
+
+/**
+ * Grade a submission that contains an image file
+ * This sends the image directly to OpenAI's vision model for grading
+ */
+async function gradeImageSubmission(
+  imageFile: File, 
+  assignmentData: any,
+  apiKey: string,
+  gradingScale: number
+): Promise<{ grade: number; feedback: string }> {
+  window._debugGrading.logPath('gradeImageSubmission function start');
+  console.log(`Processing image file: ${imageFile.name} (${imageFile.type}, ${imageFile.size} bytes)`);
+  
+  try {
+    // Convert image to base64
+    const base64Image = await fileToBase64(imageFile);
+    
+    // Extract just the base64 data part (remove data:image/jpeg;base64, prefix)
+    const base64Data = base64Image.split(',')[1];
+    
+    // Get the file's content type
+    const contentType = imageFile.type || 'image/jpeg';
+    
+    // Create a unique ID for this assignment configuration
+    const assignmentId = `${assignmentData.assignmentName}-${assignmentData.gradingScale}-${assignmentData.gradingStrictness}-${assignmentData.feedbackLength}-${assignmentData.feedbackFormality}`;
+    
+    // Setup grading instructions similar to the text-based version
+    if (!gradingCache.systemMessage || gradingCache.assignmentId !== assignmentId) {
+      console.log("Setting up new system message for image grading");
+      gradingCache.assignmentId = assignmentId;
+      setupGradingFunction(assignmentData);
+    }
+    
+    // Save the actual API request data to localStorage for accurate debugging
+    const apiRequestSummary = {
+      systemMessage: gradingCache.systemMessage || "None",
+      userMessage: `Grade this image-based submission`,
+      function: gradingCache.functionDefinition ? gradingCache.functionDefinition.name : "None",
+      cached: !!gradingCache.assignmentId,
+      assignmentId: gradingCache.assignmentId || "None",
+      isImageSubmission: true,
+      imageInfo: {
+        fileName: imageFile.name,
+        fileSize: imageFile.size,
+        fileType: imageFile.type
+      }
+    };
+    
+    // Save for debug purposes
+    saveApiRequest(apiRequestSummary, `[Image submission: ${imageFile.name}]`);
+    
+    // Get the Supabase URL from client
+    const supabaseUrl = "https://owaqnztggyxahjhbcylj.supabase.co";
+    console.log("Using Supabase URL for edge function:", supabaseUrl);
+    
+    // Implement retry logic with exponential backoff
+    const maxRetries = 3;
+    let retryCount = 0;
+    let lastError: Error | null = null;
+    
+    while (retryCount < maxRetries) {
+      try {
+        // Always use the Edge Function
+        const isLocalDevelopment = window.location.hostname === 'localhost';
+        window._debugGrading.logPath(`Environment detection for image: isLocalDevelopment=${isLocalDevelopment}`);
+        
+        // Get authentication credentials for the Edge Function
+        const ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im93YXFuenRnZ3l4YWhqaGJjeWxqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDI2NTA3NzMsImV4cCI6MjA1ODIyNjc3M30.hPtP2iECWacaUFthBGItwezPox5JX6GhdlKFqRZMcOA";
+        const sessionKey = supabase.auth.getSession()?.data?.session?.access_token;
+        const clientKey = (supabase as any).supabaseKey;
+        const SUPABASE_KEY = sessionKey || clientKey || ANON_KEY;
+        
+        console.log("Using SUPABASE_KEY:", SUPABASE_KEY ? `${SUPABASE_KEY.substring(0, 10)}...` : "none");
+        
+        // Set up headers for the Edge Function
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_KEY}`,
+          'x-use-server-key': 'true'
+        };
+        
+        // Add the deployment flag for non-localhost environments
+        const isDeployedEnvironment = window.location.hostname !== 'localhost';
+        if (isDeployedEnvironment) {
+          headers['x-supabase-auth'] = 'deployment';
+        }
+        
+        window._debugGrading.logPath('Preparing image API request');
+        
+        // Set up request to include the image with vision specific instructions
+        const requestBody = {
+          model: "gpt-4o-mini", // Use GPT-4o mini which supports vision
+          messages: [
+            {
+              role: "system",
+              content: gradingCache.systemMessage
+            },
+            {
+              role: "user",
+              content: [
+                { 
+                  type: "text", 
+                  text: "Grade this image-based submission. Look carefully at any handwritten text, diagrams, or other visual content." 
+                },
+                {
+                  type: "image_url",
+                  image_url: {
+                    url: `data:${contentType};base64,${base64Data}`,
+                    detail: "high" // Request high detail for academic work
+                  }
+                }
+              ]
+            }
+          ],
+          functions: [gradingCache.functionDefinition],
+          function_call: { name: "gradeSubmission" },
+          temperature: 0.7,
+        };
+        
+        window._debugGrading.logPath('Sending image to OpenAI via Edge Function');
+        
+        // Call the OpenAI API via Edge Function
+        const edgeFunctionUrl = "https://owaqnztggyxahjhbcylj.supabase.co/functions/v1/openai-proxy";
+        console.log("[DEBUG] Sending image to Edge Function URL:", edgeFunctionUrl);
+        
+        const response = await fetch(edgeFunctionUrl, {
+          method: 'POST',
+          headers: headers,
+          body: JSON.stringify(requestBody)
+        });
+        
+        window._debugGrading.logPath(`Edge function response for image: status=${response.status}`);
+        
+        if (!response.ok) {
+          const errorText = await response.text().catch(e => "Could not read error text");
+          throw new Error(`Edge function returned status ${response.status}: ${errorText}`);
+        }
+        
+        const data = await response.json();
+        
+        // Parse the response - same code as the text version
+        let grade, feedback;
+        
+        if (data.choices[0]?.message?.function_call) {
+          // Parse function arguments
+          try {
+            const functionArgs = JSON.parse(data.choices[0].message.function_call.arguments);
+            grade = functionArgs.grade;
+            feedback = functionArgs.feedback;
+            console.log("Successfully parsed function call response for image");
+          } catch (error) {
+            console.error("Error parsing function call response:", error);
+            throw new Error("Failed to parse function call response");
+          }
+        } else {
+          // Fallback if function calling wasn't used
+          const content = data.choices[0].message.content;
+          const extracted = extractGradeAndFeedback(content, gradingScale);
+          grade = extracted.grade;
+          feedback = extracted.feedback;
+        }
+        
+        // Validate the grade to ensure it's within proper range
+        const validatedGrade = Math.min(Math.max(0, grade), gradingScale);
+        
+        // Ensure the feedback doesn't start with a "/points" format
+        const cleanedFeedback = typeof feedback === 'string' ? feedback.replace(/^\/\d+\s*/, '') : '';
+        
+        return { grade: validatedGrade, feedback: cleanedFeedback };
+      } catch (error) {
+        console.error(`Image grading attempt ${retryCount + 1}/${maxRetries} failed:`, error);
+        lastError = error instanceof Error ? error : new Error(String(error));
+        retryCount++;
+        
+        // Add exponential backoff
+        if (retryCount < maxRetries) {
+          const backoffTime = Math.pow(2, retryCount) * 1000;
+          console.log(`Retrying in ${backoffTime/1000} seconds...`);
+          await new Promise(resolve => setTimeout(resolve, backoffTime));
+        }
+      }
+    }
+    
+    throw lastError || new Error("Failed after max retries");
+  } catch (error) {
+    console.error("Error in gradeImageSubmission:", error);
+    return {
+      grade: 0,
+      feedback: `Failed to grade image submission. Error: ${error instanceof Error ? error.message : "Unknown error"}. Please review this image submission manually.`
+    };
+  }
+}
+
+/**
+ * Convert a File object to a base64 string
+ */
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = error => reject(error);
+  });
 }
 
 // Setup function definition and system message once and cache it
