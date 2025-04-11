@@ -20,7 +20,7 @@ interface InputElementAttributes extends React.InputHTMLAttributes<HTMLInputElem
 
 const FileUploader: React.FC<FileUploaderProps> = ({
   onFilesSelected,
-  acceptedFileTypes = [".pdf", ".docx", ".doc", ".txt", ".zip", ".html", ".htm", ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".tiff", ".tif"],
+  acceptedFileTypes = [".zip", ".csv"],
   maxFileSize = 10 * 1024 * 1024, // 10MB default
   maxFiles = 100,
   onFolderStructureDetected,
@@ -28,7 +28,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const directoryInputRef = useRef<HTMLInputElement>(null);
+  // No longer using directory upload
 
   const handleDragEnter = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -60,7 +60,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({
       );
       
       if (!isValidType) {
-        errors.push(`"${file.name}" has an unsupported file type.`);
+        errors.push(`"${file.name}" has an unsupported file type. Please upload only Moodle ZIP files and gradebook CSV files.`);
         return;
       }
 
@@ -123,41 +123,25 @@ const FileUploader: React.FC<FileUploaderProps> = ({
   const processFilesByFolder = (files: File[]) => {
     const filesByFolder: {[folder: string]: File[]} = {};
     
-    console.log("Processing files by folder, total files:", files.length);
-    console.log("First few files:");
-    files.slice(0, 5).forEach(file => {
-      console.log(`- ${file.webkitRelativePath || file.name}`);
-    });
-    
-    const hasWebkitPath = files.some(file => file.webkitRelativePath && file.webkitRelativePath.includes('/'));
-    
+    // Simplified folder processing - just focus on Moodle structure
     for (const file of files) {
       let folderPath = '';
       
-      if (hasWebkitPath && file.webkitRelativePath) {
+      if (file.webkitRelativePath) {
         const pathParts = file.webkitRelativePath.split('/');
-        
         if (pathParts.length > 1) {
           folderPath = pathParts[0];
-          console.log(`From webkitRelativePath: file=${file.name}, folder=${folderPath}`);
         }
       } else if (file.name.includes('_assignsubmission_') || file.name.includes('_onlinetext_')) {
+        // Typical Moodle file naming pattern
         const submissionParts = file.name.split('_assignsubmission_');
         if (submissionParts.length > 1) {
           folderPath = submissionParts[0];
-          console.log(`From _assignsubmission_ pattern: file=${file.name}, folder=${folderPath}`);
         } else {
           const onlineTextParts = file.name.split('_onlinetext_');
           if (onlineTextParts.length > 1) {
             folderPath = onlineTextParts[0];
-            console.log(`From _onlinetext_ pattern: file=${file.name}, folder=${folderPath}`);
           }
-        }
-      } else {
-        const pathParts = file.name.split('/');
-        if (pathParts.length > 1) {
-          folderPath = pathParts[0];
-          console.log(`From filename slash: file=${file.name}, folder=${folderPath}`);
         }
       }
       
@@ -169,11 +153,6 @@ const FileUploader: React.FC<FileUploaderProps> = ({
       
       filesByFolder[folderKey].push(file);
     }
-    
-    console.log("Identified folders:", Object.keys(filesByFolder));
-    Object.keys(filesByFolder).forEach(folder => {
-      console.log(`Folder "${folder}": ${filesByFolder[folder].length} files`);
-    });
     
     if (onFolderStructureDetected) {
       onFolderStructureDetected(filesByFolder);
@@ -188,7 +167,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({
       
       const hasDirectoryStructure = inputFiles.some(file => file.webkitRelativePath);
       if (hasDirectoryStructure) {
-        toast.info("Processing folder structure...");
+        toast.info("Processing Moodle file structure...");
         processFilesByFolder(inputFiles);
       }
       
@@ -199,12 +178,12 @@ const FileUploader: React.FC<FileUploaderProps> = ({
       let extractedFiles: File[] = [];
       
       if (zipFiles.length > 0) {
-        toast.info(`Processing ${zipFiles.length} ZIP files...`);
+        toast.info(`Processing Moodle submission files...`);
         
         for (const zipFile of zipFiles) {
           try {
             const files = await processZipFile(zipFile);
-            toast.success(`Extracted ${files.length} files from ${zipFile.name}`);
+            toast.success(`Extracted ${files.length} student submission files`);
             
             if (files.length > 0) {
               processFilesByFolder(files);
@@ -213,8 +192,8 @@ const FileUploader: React.FC<FileUploaderProps> = ({
             const validExtractedFiles = validateFiles(files);
             extractedFiles = [...extractedFiles, ...validExtractedFiles];
           } catch (error) {
-            console.error(`Error extracting files from ${zipFile.name}:`, error);
-            toast.error(`Failed to extract files from ${zipFile.name}`);
+            console.error(`Error extracting Moodle submissions:`, error);
+            toast.error(`Failed to extract Moodle submission files. Please ensure this is a valid Moodle ZIP export.`);
           }
         }
       }
@@ -225,32 +204,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({
     }
   }, [onFilesSelected, selectedFiles, validateFiles, onFolderStructureDetected]);
 
-  const handleDirectoryInputChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      console.log("Directory selected, files count:", e.target.files.length);
-      
-      const inputFiles = Array.from(e.target.files).map(file => {
-        console.log("File from directory:", file.webkitRelativePath || file.name);
-        return file;
-      });
-      
-      const filesByFolder = processFilesByFolder(inputFiles);
-      console.log(`Detected ${Object.keys(filesByFolder).length} folders from directory upload`);
-      
-      if (Object.keys(filesByFolder).length <= 1 && inputFiles.length > 1) {
-        console.warn("WARNING: Folder structure not properly detected. This could affect student matching.");
-        toast.warning("Folder structure might not be properly preserved. This could affect student matching.");
-      }
-      
-      const validFiles = validateFiles(inputFiles);
-      const updatedFiles = [...selectedFiles, ...validFiles];
-      
-      setSelectedFiles(updatedFiles);
-      onFilesSelected(updatedFiles);
-      
-      toast.success(`Added ${validFiles.length} files from directory`);
-    }
-  }, [onFilesSelected, selectedFiles, validateFiles, onFolderStructureDetected]);
+  // Directory upload removed
 
   const handleBrowseClick = useCallback(() => {
     if (fileInputRef.current) {
@@ -258,11 +212,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({
     }
   }, []);
 
-  const handleBrowseFolderClick = useCallback(() => {
-    if (directoryInputRef.current) {
-      directoryInputRef.current.click();
-    }
-  }, []);
+  // Folder upload removed
 
   const handleRemoveFile = useCallback((indexToRemove: number) => {
     const updatedFiles = selectedFiles.filter((_, index) => index !== indexToRemove);
@@ -296,13 +246,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({
         accept={acceptedFileTypes.join(',')}
       />
       
-      <input
-        type="file"
-        ref={directoryInputRef}
-        onChange={handleDirectoryInputChange}
-        className="hidden"
-        {...{webkitdirectory: "true", directory: ""} as InputElementAttributes}
-      />
+      {/* Directory upload removed */}
       
       <div 
         className={`relative rounded-lg border-2 border-dashed p-12 text-center transition-all duration-300 ease-in-out ${
@@ -321,15 +265,13 @@ const FileUploader: React.FC<FileUploaderProps> = ({
           </div>
           <div className="space-y-2">
             <h3 className="text-lg font-medium">
-              {isDragging ? 'Drop files here' : 'Drag & drop files here'}
+              {isDragging ? 'Drop Moodle files here' : 'Drag & drop Moodle files here'}
             </h3>
             <p className="text-sm text-muted-foreground space-x-2">
               <button type="button" onClick={handleBrowseClick} className="text-primary hover:underline">browse files</button>
-              <span>or</span>
-              <button type="button" onClick={handleBrowseFolderClick} className="text-primary hover:underline font-medium">upload folder</button>
             </p>
             <p className="text-xs text-muted-foreground">
-              Accepted files: PDF, DOCX, DOC, TXT, HTML, ZIP, and IMAGE files (JPG, PNG, etc.)
+              Upload Moodle submission ZIP file and gradebook CSV file
             </p>
           </div>
         </div>
@@ -338,7 +280,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({
       {selectedFiles.length > 0 && (
         <Card className="mt-6 overflow-hidden">
           <div className="flex items-center justify-between border-b p-4">
-            <h3 className="font-medium">Selected Files</h3>
+            <h3 className="font-medium">Selected Moodle Files</h3>
             <div className="flex items-center space-x-2">
               <span className="text-xs text-muted-foreground">{selectedFiles.length} file{selectedFiles.length !== 1 ? 's' : ''}</span>
               <Button 
