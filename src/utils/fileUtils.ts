@@ -3,16 +3,15 @@
  */
 import * as pdfjs from 'pdfjs-dist';
 import { extractHTMLFromDOCX } from './docxUtils';
+// Import the worker script first, as it's bundled via pdfUtils
+import './pdfUtils';
 
-// Set up PDF.js worker - This is critical for it to work in production
-const pdfjsVersion = pdfjs.version;
-console.log(`PDF.js version: ${pdfjsVersion}`);
-
-// Use a CDN to load the worker script dynamically
-pdfjs.GlobalWorkerOptions.workerSrc = 
-  `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsVersion}/pdf.worker.min.js`;
-
-console.log(`PDF.js worker source set to: ${pdfjs.GlobalWorkerOptions.workerSrc}`);
+// Log PDF.js status, but don't override worker setup from pdfUtils.ts
+console.log(`[fileUtils] PDF.js version: ${pdfjs.version}`);
+console.log(`[fileUtils] PDF.js worker status:`, {
+  workerSrc: pdfjs.GlobalWorkerOptions.workerSrc,
+  workerSrcIsSet: !!pdfjs.GlobalWorkerOptions.workerSrc
+});
 
 // For local development, we'll also have a fallback method
 if (window.location.hostname === 'localhost') {

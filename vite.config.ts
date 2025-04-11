@@ -19,4 +19,22 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  // CRITICAL: Ensure PDF.js worker is properly handled
+  build: {
+    commonjsOptions: {
+      include: [/pdfjs-dist/],
+    },
+    rollupOptions: {
+      // Treat worker as external asset
+      output: {
+        manualChunks: {
+          'pdf.worker': ['pdfjs-dist/build/pdf.worker.entry'],
+        },
+      },
+    },
+  },
+  optimizeDeps: {
+    // Include PDF.js worker in dependencies
+    include: ['pdfjs-dist/build/pdf.worker.entry'],
+  },
 }));
