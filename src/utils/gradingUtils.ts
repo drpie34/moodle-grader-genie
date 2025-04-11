@@ -94,9 +94,11 @@ export async function gradeWithOpenAI(submissionText: string, assignmentData: an
             
             console.log("Using SUPABASE_KEY:", SUPABASE_KEY ? `${SUPABASE_KEY.substring(0, 10)}...` : "none");
             
-            // In local development with no personal API key, use simulated response
-            if (isLocalDevelopment && !hasPersonalKey) {
-              console.log("Local development with no API key: Using simulated response");
+            // Optional simulation mode - disabled by default
+            const useSimulation = false; // Set to true if you want to use simulated responses
+            
+            if (isLocalDevelopment && !hasPersonalKey && useSimulation) {
+              console.log("Local development with no API key: Using simulated response (simulation mode enabled)");
               
               // Create a simulated response
               const simulatedGrade = Math.min(95, Math.max(60, Math.round(75 + submissionText.length / 1000)));
