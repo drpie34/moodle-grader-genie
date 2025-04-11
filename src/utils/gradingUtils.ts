@@ -44,9 +44,10 @@ export async function gradeWithOpenAI(submissionText: string, assignmentData: an
       console.log("Using cached grading function and system message");
     }
     
-    // Save the full prompt to localStorage for debugging only
-    const fullPrompt = constructPrompt(submissionText, assignmentData);
-    saveGradingPrompt(fullPrompt, submissionText.substring(0, 200));
+    // Save optimized data to localStorage instead of the full prompt
+    // We'll only use the old constructPrompt function for debugging purposes
+    const promptSummary = `Assignment: ${assignmentData.assignmentName}, Submission length: ${submissionText.length} chars`;
+    saveGradingPrompt(promptSummary, submissionText.substring(0, 200));
     
     // Always use GPT-4 for grading
     const modelToUse = "gpt-4o-mini";
@@ -443,12 +444,18 @@ function saveGradingPrompt(prompt: string, submissionPreview: string) {
     }
   }
   
-  // Add new prompt with timestamp
-  prompts.push({
+  // In the optimized version, only save a minimal record without duplicating large amounts of text
+  // This prevents storing the full instructions repeatedly for each submission
+  const optimizedData = {
     timestamp: new Date().toISOString(),
-    prompt: prompt,
-    submissionPreview: submissionPreview
-  });
+    usingCache: !!gradingCache.systemMessage,
+    submissionPreview: submissionPreview,
+    // Just store the summary, not the full prompt
+    prompt: prompt
+  };
+  
+  // Add the optimized data
+  prompts.push(optimizedData);
   
   // Store back in localStorage (limit to last 50 prompts to avoid storage limits)
   if (prompts.length > 50) {
@@ -456,7 +463,7 @@ function saveGradingPrompt(prompt: string, submissionPreview: string) {
   }
   
   localStorage.setItem('grading_prompts', JSON.stringify(prompts, null, 2));
-  console.log(`Saved grading prompt to localStorage (${prompts.length} prompts total)`);
+  console.log(`Saved optimized grading prompt to localStorage (${prompts.length} prompts total)`);
 }
 
 function extractGradeAndFeedback(content: string, gradingScale: number): { grade: number; feedback: string } {
