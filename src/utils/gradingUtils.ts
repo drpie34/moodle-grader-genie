@@ -1,10 +1,17 @@
-
 /**
  * Utilities for grading student submissions using OpenAI
  */
 
 // src/utils/gradingUtils.ts
 import { supabase } from "@/integrations/supabase/client";
+
+// Cache for storing assignment instruction information to avoid redundant tokens
+const gradingCache: {
+  functionDefinition?: any, 
+  systemMessage?: string,
+  assignmentId?: string
+} = {};
+
 export async function gradeWithOpenAI(submissionText: string, assignmentData: any, apiKey: string = "", gradingScale: number = 100): Promise<{ grade: number; feedback: string }> {
   try {
     if (!submissionText || submissionText.trim().length === 0) {
@@ -25,12 +32,23 @@ export async function gradeWithOpenAI(submissionText: string, assignmentData: an
       submissionText = submissionText.substring(0, 15000) + "\n\n[Content truncated due to length]";
     }
     
-    const prompt = constructPrompt(submissionText, assignmentData);
+    // Create a unique ID for this assignment configuration to check if we need to update the cache
+    const assignmentId = `${assignmentData.assignmentName}-${assignmentData.gradingScale}-${assignmentData.gradingStrictness}-${assignmentData.feedbackLength}-${assignmentData.feedbackFormality}`;
     
-    // Save the prompt to localStorage for later inspection
-    saveGradingPrompt(prompt, submissionText.substring(0, 200));
+    // Setup function calling for token optimization
+    if (!gradingCache.functionDefinition || !gradingCache.systemMessage || gradingCache.assignmentId !== assignmentId) {
+      console.log("Setting up new grading function and system message");
+      gradingCache.assignmentId = assignmentId;
+      setupGradingFunction(assignmentData);
+    } else {
+      console.log("Using cached grading function and system message");
+    }
     
-    // Always use GPT-4o mini for grading
+    // Save the full prompt to localStorage for debugging only
+    const fullPrompt = constructPrompt(submissionText, assignmentData);
+    saveGradingPrompt(fullPrompt, submissionText.substring(0, 200));
+    
+    // Always use GPT-4 for grading
     const modelToUse = "gpt-4o-mini";
     console.log(`Using OpenAI model: ${modelToUse} for grading`);
     
@@ -60,6 +78,18 @@ export async function gradeWithOpenAI(submissionText: string, assignmentData: an
           apiKeyLength: apiKey ? apiKey.length : 0 
         });
         
+        // Prepare optimized request with function calling
+        const requestBody = {
+          model: modelToUse,
+          messages: [
+            { role: "system", content: gradingCache.systemMessage },
+            { role: "user", content: `Grade this submission: ${submissionText}` }
+          ],
+          functions: [gradingCache.functionDefinition],
+          function_call: { name: "gradeSubmission" },
+          temperature: 0.7,
+        };
+        
         // For local development with personal API key (not server key), use OpenAI directly
         if (isLocalDevelopment && hasPersonalKey) {
           console.log("Local development with personal API key: Using OpenAI API directly");
@@ -70,11 +100,7 @@ export async function gradeWithOpenAI(submissionText: string, assignmentData: an
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${apiKey}`,
               },
-              body: JSON.stringify({
-                model: modelToUse,
-                messages: [{ role: "user", content: prompt }],
-                temperature: 0.7,
-              }),
+              body: JSON.stringify(requestBody),
             });
           } catch (error) {
             console.error("Direct OpenAI API error:", error);
@@ -103,6 +129,7 @@ export async function gradeWithOpenAI(submissionText: string, assignmentData: an
               // Create a simulated response
               const simulatedGrade = Math.min(95, Math.max(60, Math.round(75 + submissionText.length / 1000)));
               
+              // Create simulated function call response format
               response = {
                 status: 200,
                 ok: true,
@@ -110,7 +137,13 @@ export async function gradeWithOpenAI(submissionText: string, assignmentData: an
                 json: async () => ({
                   choices: [{
                     message: {
-                      content: `Grade: ${simulatedGrade}\n\nFeedback: This is simulated feedback for local development. The submission demonstrates a good understanding of the material. There are several strong points as well as areas that could be improved.`
+                      function_call: {
+                        name: "gradeSubmission",
+                        arguments: JSON.stringify({
+                          grade: simulatedGrade,
+                          feedback: "This is simulated feedback for local development. The submission demonstrates a good understanding of the material. There are several strong points as well as areas that could be improved."
+                        })
+                      }
                     }
                   }]
                 })
@@ -138,11 +171,7 @@ export async function gradeWithOpenAI(submissionText: string, assignmentData: an
               response = await fetch(`${supabaseUrl}/functions/v1/openai-proxy`, {
                 method: 'POST',
                 headers,
-                body: JSON.stringify({
-                  model: modelToUse,
-                  messages: [{ role: "user", content: prompt }],
-                  temperature: 0.7,
-                }),
+                body: JSON.stringify(requestBody),
               });
               
               console.log("Edge function response status:", response.status);
@@ -159,11 +188,7 @@ export async function gradeWithOpenAI(submissionText: string, assignmentData: an
                   'Content-Type': 'application/json',
                   'Authorization': `Bearer ${apiKey}`,
                 },
-                body: JSON.stringify({
-                  model: modelToUse,
-                  messages: [{ role: "user", content: prompt }],
-                  temperature: 0.7,
-                }),
+                body: JSON.stringify(requestBody),
               });
             } else {
               throw edgeFunctionError;
@@ -188,16 +213,34 @@ export async function gradeWithOpenAI(submissionText: string, assignmentData: an
         }
         
         const data = await response.json();
-        const content = data.choices[0].message.content;
         
-        // Extract grade and feedback from the response
-        const { grade, feedback } = extractGradeAndFeedback(content, gradingScale);
+        // Handle function call response format
+        let grade, feedback;
+        
+        if (data.choices[0]?.message?.function_call) {
+          // Parse function arguments
+          try {
+            const functionArgs = JSON.parse(data.choices[0].message.function_call.arguments);
+            grade = functionArgs.grade;
+            feedback = functionArgs.feedback;
+            console.log("Successfully parsed function call response");
+          } catch (error) {
+            console.error("Error parsing function call response:", error);
+            throw new Error("Failed to parse function call response");
+          }
+        } else {
+          // Fallback to old format if function calling isn't supported
+          const content = data.choices[0].message.content;
+          const extracted = extractGradeAndFeedback(content, gradingScale);
+          grade = extracted.grade;
+          feedback = extracted.feedback;
+        }
         
         // Validate the grade to ensure it's within proper range
         const validatedGrade = Math.min(Math.max(0, grade), gradingScale);
         
         // Ensure the feedback doesn't start with a "/points" format (issue #3)
-        const cleanedFeedback = feedback.replace(/^\/\d+\s*/, '');
+        const cleanedFeedback = typeof feedback === 'string' ? feedback.replace(/^\/\d+\s*/, '') : '';
         
         return { grade: validatedGrade, feedback: cleanedFeedback };
       } catch (error) {
@@ -222,6 +265,84 @@ export async function gradeWithOpenAI(submissionText: string, assignmentData: an
       feedback: "Failed to grade submission. Error: " + (error instanceof Error ? error.message : "Unknown error") 
     };
   }
+}
+
+// Setup function definition and system message once and cache it
+function setupGradingFunction(assignmentData: any) {
+  // Create the function definition
+  gradingCache.functionDefinition = {
+    name: "gradeSubmission",
+    description: "Grade a student submission based on assignment criteria",
+    parameters: {
+      type: "object",
+      properties: {
+        grade: {
+          type: "number",
+          description: `Numeric grade out of ${assignmentData.gradingScale} points`
+        },
+        feedback: {
+          type: "string",
+          description: "Detailed feedback for the student"
+        }
+      },
+      required: ["grade", "feedback"]
+    }
+  };
+  
+  // Create fine-grained scale mappings (same as in constructPrompt)
+  const strictnessDescriptions = [
+    "extremely lenient", "very lenient", "lenient", "somewhat lenient", "balanced", 
+    "slightly firm", "moderately strict", "firm", "very strict", "extremely strict"
+  ];
+  
+  const feedbackLengthDescriptions = [
+    "very brief", "brief", "concise", "somewhat detailed", "moderately detailed",
+    "detailed", "quite detailed", "thorough", "very thorough", "extremely detailed"
+  ];
+  
+  const formalityDescriptions = [
+    "very casual and conversational", "casual and friendly", "informal", "somewhat informal", "balanced",
+    "somewhat formal", "professional", "formal", "quite formal", "highly formal and academic"
+  ];
+  
+  // Convert values and get appropriate levels
+  const strictnessValue = typeof assignmentData.gradingStrictness === 'string' ? 
+    parseInt(assignmentData.gradingStrictness, 10) : assignmentData.gradingStrictness;
+    
+  const lengthValue = typeof assignmentData.feedbackLength === 'string' ? 
+    parseInt(assignmentData.feedbackLength, 10) : assignmentData.feedbackLength;
+    
+  const formalityValue = typeof assignmentData.feedbackFormality === 'string' ? 
+    parseInt(assignmentData.feedbackFormality, 10) : assignmentData.feedbackFormality;
+  
+  const strictnessLevel = Math.min(Math.max(1, Math.round(strictnessValue || 5)), 10);
+  const lengthLevel = Math.min(Math.max(1, Math.round(lengthValue || 5)), 10);
+  const formalityLevel = Math.min(Math.max(1, Math.round(formalityValue || 5)), 10);
+  
+  // Create system message with all the reusable instructions
+  gradingCache.systemMessage = `You are acting as the instructor for ${assignmentData.courseName} at the ${assignmentData.academicLevel} level.
+  You are an expert teacher, and you think carefully about how best to assess assignments and provide helpful and friendly feedback.
+  You always pay very close attention to the requirements of the assignment and make sure to structure your feedback in a way that takes into account all the components of the assignment,
+  while carefully weighing them against any grading instructions or rubric you receive. You write in a way that would be indistinguishable from a human instructor.
+  
+  Your task is to grade student submissions for the assignment "${assignmentData.assignmentName}" out of ${assignmentData.gradingScale} points.
+  
+  Assignment instructions: ${assignmentData.assignmentInstructions}
+  
+  ${assignmentData.rubric ? `Rubric: ${assignmentData.rubric}` : ''}
+  
+  Grading parameters:
+  - Be ${strictnessDescriptions[strictnessLevel - 1]} in your grading (${strictnessLevel}/10 on strictness scale)
+  - Provide feedback that is ${feedbackLengthDescriptions[lengthLevel - 1]} (${lengthLevel}/10 on detail scale)
+  - The tone of your feedback should be ${formalityDescriptions[formalityLevel - 1]} (${formalityLevel}/10 on formality scale)
+  
+  DO NOT begin your feedback with a grade or score like "/30" - just provide the actual feedback directly.
+  
+  ${assignmentData.instructorTone ? `This is a sample of the tone to adopt in your feedback. Remember, this is tone only, the actual example provided may be for an entirely different assignment: ${assignmentData.instructorTone}` : ''}
+  
+  ${assignmentData.additionalInstructions ? `Additional instructions: ${assignmentData.additionalInstructions}` : ''}`;
+  
+  console.log("Grading function and system message setup complete");
 }
 
 function constructPrompt(submissionText: string, assignmentData: any): string {

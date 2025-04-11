@@ -29,7 +29,25 @@ export interface MoodleGradebookData {
 }
 
 export function useGradingWorkflow() {
-  const [currentStep, setCurrentStep] = useState(1);
+  // Try to restore current step from localStorage on initial load
+  const getSavedStep = (): number => {
+    try {
+      const savedStep = localStorage.getItem('moodle_grader_current_step');
+      if (savedStep) {
+        const step = parseInt(savedStep, 10);
+        // Validate step is between 1-4
+        if (step >= 1 && step <= 4) {
+          console.log(`Restoring to saved step: ${step}`);
+          return step;
+        }
+      }
+    } catch (error) {
+      console.error("Error restoring step from localStorage:", error);
+    }
+    return 1; // Default to step 1
+  };
+
+  const [currentStep, setCurrentStep] = useState(getSavedStep());
   const [files, setFiles] = useState<File[]>([]);
   const [assignmentData, setAssignmentData] = useState<AssignmentFormData | null>(null);
   const [grades, setGrades] = useState<StudentGrade[]>([]);
@@ -305,27 +323,44 @@ export function useGradingWorkflow() {
     return { submissionText, submissionFile };
   };
   
-  // Load saved data from localStorage on component mount
+  // Load saved data from localStorage on component mount and whenever step changes
   useEffect(() => {
     try {
-      // Try to load assignment data
-      const savedAssignmentData = localStorage.getItem('moodle_grader_assignment_data');
-      if (savedAssignmentData && !assignmentData) {
-        setAssignmentData(JSON.parse(savedAssignmentData));
-        console.log("Restored assignment data from localStorage");
+      // Always try to load any saved state when step changes
+      console.log(`Step changed to ${currentStep}, checking for saved state`);
+      
+      // Try to load assignment data when entering step 2 or later
+      if (currentStep >= 2 && !assignmentData) {
+        const savedAssignmentData = localStorage.getItem('moodle_grader_assignment_data');
+        if (savedAssignmentData) {
+          setAssignmentData(JSON.parse(savedAssignmentData));
+          console.log("Restored assignment data from localStorage for step", currentStep);
+        }
       }
       
-      // Try to load grades
-      const savedGrades = localStorage.getItem('moodle_grader_grades');
-      if (savedGrades && grades.length === 0) {
-        setGrades(JSON.parse(savedGrades));
-        setSampleDataLoaded(true);
-        console.log("Restored grades from localStorage");
+      // Try to load grades when entering step 3 or later
+      if (currentStep >= 3 && grades.length === 0) {
+        const savedGrades = localStorage.getItem('moodle_grader_grades');
+        if (savedGrades) {
+          setGrades(JSON.parse(savedGrades));
+          setSampleDataLoaded(true);
+          console.log("Restored grades from localStorage for step", currentStep);
+        }
+      }
+      
+      // Also check for file uploads
+      const fileCount = sessionStorage.getItem('moodle_grader_file_count');
+      if (currentStep >= 2 && fileCount && files.length === 0) {
+        console.log(`Session storage shows ${fileCount} files were uploaded but none are loaded`);
+        // We can't restore the actual files, but we can inform the user
+        if (parseInt(fileCount) > 0) {
+          toast.info(`You had ${fileCount} files uploaded previously. Please re-upload them to continue.`);
+        }
       }
     } catch (error) {
       console.error("Error restoring data from localStorage:", error);
     }
-  }, []);
+  }, [currentStep, assignmentData, grades.length, files.length]);
 
   // Update folder structure when files change
   useEffect(() => {
@@ -816,15 +851,30 @@ export function useGradingWorkflow() {
   };
 
   const handleStepClick = (step: number) => {
-    // Allow navigation to any previously accessed step
-    if (step < currentStep) {
-      // Store current step data in localStorage before navigating away
+    // Allow navigation to any previously accessed step or forward if we have the necessary data
+    const canGoForward = (step === 2 && files.length > 0) || 
+                         (step === 3 && assignmentData) ||
+                         (step === 4 && grades.length > 0);
+                         
+    if (step < currentStep || canGoForward) {
+      // Store all current state in localStorage before navigating
       if (assignmentData) {
         localStorage.setItem('moodle_grader_assignment_data', JSON.stringify(assignmentData));
+        console.log("Saved assignment data to localStorage");
       }
+      
       if (grades.length > 0) {
         localStorage.setItem('moodle_grader_grades', JSON.stringify(grades));
+        console.log("Saved grades to localStorage");
       }
+      
+      if (files.length > 0) {
+        sessionStorage.setItem('moodle_grader_file_count', files.length.toString());
+        console.log("Saved file count to sessionStorage");
+      }
+      
+      // Update localStorage with current step for potential refresh recovery
+      localStorage.setItem('moodle_grader_current_step', step.toString());
       
       setCurrentStep(step);
       window.scrollTo({ top: 0, behavior: "smooth" });
