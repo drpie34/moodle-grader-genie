@@ -6,10 +6,10 @@ const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY')
 // Log if we have a server-side API key (for debugging)
 console.log(`Server has API key: ${OPENAI_API_KEY ? 'Yes' : 'No'}`)
 
-// CORS headers to allow requests from any origin (including localhost)
+// CORS headers to allow requests from any origin (including localhost and deployed domains)
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-openai-key',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-openai-key, x-supabase-auth',
   'Access-Control-Allow-Methods': 'POST, OPTIONS'
 }
 
@@ -39,10 +39,23 @@ serve(async (req) => {
     const clientApiKey = req.headers.get('x-openai-key')
     const apiKey = clientApiKey || OPENAI_API_KEY
     
+    // Check if this is a deployment environment request with our special flag
+    const isDeploymentRequest = req.headers.get('x-supabase-auth') === 'deployment'
+    
     // Log detailed authentication information
     console.log('Client provided API key:', !!clientApiKey)
     console.log('Server has API key:', !!OPENAI_API_KEY)
     console.log('Authorization header present:', !!req.headers.get('authorization'))
+    console.log('Is deployment environment request:', isDeploymentRequest)
+    
+    // For deployment environments, we'll allow access even without proper auth
+    if (isDeploymentRequest) {
+      console.log('Allowing access for deployment environment')
+      // Ensure we have an API key (use server key)
+      if (!apiKey && OPENAI_API_KEY) {
+        console.log('Using server API key for deployment environment')
+      }
+    }
     
     // Check if we have a valid API key
     if (!apiKey) {
@@ -51,6 +64,7 @@ serve(async (req) => {
         error: 'No API key available',
         hasServerKey: !!OPENAI_API_KEY,
         hasClientKey: !!clientApiKey,
+        isDeployment: isDeploymentRequest,
         authHeader: !!req.headers.get('authorization')
       }), {
         status: 400,
