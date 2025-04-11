@@ -628,18 +628,36 @@ export function useGradingWorkflow() {
                 const hasEmptySubmission = !aiGrade.contentPreview || aiGrade.contentPreview.trim().length < 10;
                 const shouldSkip = assignmentData?.skipEmptySubmissions && hasEmptySubmission;
                 
-                if (shouldSkip) {
-                  console.log(`Skipping empty submission for ${aiGrade.fullName}`);
-                  mergedGrades[moodleIndex] = {
-                    ...mergedGrades[moodleIndex],
-                    status: "No Submission",
-                    grade: null as any, // Use null instead of 0 for empty submissions
-                    feedback: "", // Clear any feedback
-                    file: aiGrade.file,
-                    contentPreview: aiGrade.contentPreview,
-                    edited: true // Mark as edited to prevent further prompts
-                  };
+                if (shouldSkip || hasEmptySubmission) {
+                  console.log(`Empty submission detected for ${aiGrade.fullName}`);
+                  
+                  // If skipEmptySubmissions is true, mark it as "No Submission" with null grade and no feedback
+                  if (shouldSkip) {
+                    console.log(`Skipping empty submission for ${aiGrade.fullName}`);
+                    mergedGrades[moodleIndex] = {
+                      ...mergedGrades[moodleIndex],
+                      status: "No Submission",
+                      grade: null as any, // Use null instead of 0 for empty submissions
+                      feedback: "", // Clear any feedback
+                      file: aiGrade.file,
+                      contentPreview: aiGrade.contentPreview,
+                      edited: true // Mark as edited to prevent further prompts
+                    };
+                  } else {
+                    // If skipEmptySubmissions is false, still mark as empty but use AI grading
+                    console.log(`Grading empty submission for ${aiGrade.fullName}`);
+                    mergedGrades[moodleIndex] = {
+                      ...mergedGrades[moodleIndex],
+                      status: "Empty Submission",
+                      grade: aiGrade.grade,
+                      feedback: aiGrade.feedback,
+                      file: aiGrade.file,
+                      contentPreview: aiGrade.contentPreview,
+                      edited: false
+                    };
+                  }
                 } else {
+                  // Normal submission with content
                   mergedGrades[moodleIndex] = {
                     ...mergedGrades[moodleIndex],
                     grade: aiGrade.grade,

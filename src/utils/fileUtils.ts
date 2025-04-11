@@ -151,10 +151,22 @@ export async function extractTextFromHTML(file: File): Promise<string> {
         const html = e.target?.result as string;
         
         if (html) {
-          // Return the raw HTML to preserve formatting
-          resolve(html);
+          // Check if the HTML contains mostly empty content
+          const tempDiv = document.createElement('div');
+          tempDiv.innerHTML = html;
+          const textContent = tempDiv.textContent || '';
+          const cleanText = textContent.trim();
+          
+          if (cleanText.length < 10) {
+            console.log('HTML file contains minimal/empty content:', cleanText);
+            resolve('[EMPTY SUBMISSION]');
+          } else {
+            // Return the raw HTML to preserve formatting
+            resolve(html);
+          }
         } else {
-          resolve('');
+          console.log('Empty HTML content detected');
+          resolve('[EMPTY SUBMISSION]');
         }
       } catch (error) {
         console.error('Error processing HTML:', error);

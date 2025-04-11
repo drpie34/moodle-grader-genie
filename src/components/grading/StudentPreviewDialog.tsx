@@ -196,9 +196,9 @@ const StudentPreviewDialog: React.FC<StudentPreviewDialogProps> = ({
                           dangerouslySetInnerHTML={{ __html: submissionContent }}
                         />
                       ) : (
-                        <div className="whitespace-pre-wrap">
+                        <pre className="whitespace-pre-wrap text-sm font-mono overflow-auto">
                           {submissionContent || "No content available"}
-                        </div>
+                        </pre>
                       )}
                     </div>
                   </div>

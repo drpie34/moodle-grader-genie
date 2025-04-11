@@ -28,12 +28,24 @@ const StudentGradeRow: React.FC<StudentGradeRowProps> = ({
         <span className="text-xs text-muted-foreground">{student.email}</span>
       </div>
       <div className="col-span-2 font-medium">
-        {student.grade}/{maxPoints}
+        {student.status === "No Submission" ? (
+          <span className="text-slate-400">No Grade</span>
+        ) : (
+          <span>{student.grade !== null ? `${student.grade}/${maxPoints}` : "No Grade"}</span>
+        )}
       </div>
       <div className="col-span-5">
-        <p className="line-clamp-2 text-muted-foreground">
-          {student.feedback}
-        </p>
+        {student.status === "No Submission" ? (
+          <p className="text-slate-400 italic">No submission</p>
+        ) : student.status === "Empty Submission" ? (
+          <p className="text-amber-600 dark:text-amber-400 font-medium">
+            Empty submission: {student.feedback}
+          </p>
+        ) : (
+          <p className="line-clamp-2 text-muted-foreground">
+            {student.feedback}
+          </p>
+        )}
       </div>
       <div className="col-span-2 flex justify-end gap-2">
         {student.edited ? (
