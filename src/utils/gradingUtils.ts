@@ -266,6 +266,44 @@ export async function gradeWithOpenAI(submissionText: string, assignmentData: an
             
             // CRITICAL FIX: Hardcode the Supabase URL and endpoint to guarantee we don't call OpenAI directly
             const edgeFunctionUrl = "https://owaqnztggyxahjhbcylj.supabase.co/functions/v1/openai-proxy";
+            
+            // Create permanent debug object that won't be removed in production builds
+            try {
+              window.__TRACK_FETCH_CALLS = window.__TRACK_FETCH_CALLS || [];
+              const originalFetchDirect = window.fetch;
+              
+              // Only override if we haven't already
+              if (!window.__FETCH_OVERRIDDEN) {
+                window.__FETCH_OVERRIDDEN = true;
+                window.fetch = function directFetchTracker(url, options) {
+                  // Track API calls in a way that will survive minification
+                  window.__TRACK_FETCH_CALLS.push({
+                    url: url?.toString?.() || "unknown",
+                    time: new Date().toISOString()
+                  });
+                  
+                  // Detect direct OpenAI calls
+                  if (url?.toString?.().includes('api.openai.com')) {
+                    console.error('⚠️ DIRECT OPENAI CALL DETECTED ⚠️', { url });
+                    
+                    // Capture full info to diagnose the issue
+                    window.__OPENAI_DIRECT_CALLS = window.__OPENAI_DIRECT_CALLS || [];
+                    window.__OPENAI_DIRECT_CALLS.push({
+                      url: url?.toString?.(),
+                      options: JSON.stringify(options || {}),
+                      stack: new Error().stack,
+                      time: new Date().toISOString()
+                    });
+                  }
+                  
+                  // Call original fetch
+                  return originalFetchDirect.apply(this, arguments);
+                };
+              }
+            } catch (e) {
+              console.error("Failed to set up fetch tracking:", e);
+            }
+            
             window._debugGrading.environment.edgeFunctionUrl = edgeFunctionUrl;
             
             console.log("[DEBUG] Using Edge Function URL:", edgeFunctionUrl);
