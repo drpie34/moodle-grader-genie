@@ -54,22 +54,46 @@ export async function gradeWithOpenAI(submissionText: string, assignmentData: an
         // For local development with a key, just use OpenAI directly
         if (isLocalDevelopment && apiKey) {
           console.log("Local development: Using OpenAI API directly");
-          try {
-            response = await fetch('https://api.openai.com/v1/chat/completions', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${apiKey}`,
-              },
-              body: JSON.stringify({
-                model: modelToUse,
-                messages: [{ role: "user", content: prompt }],
-                temperature: 0.7,
-              }),
-            });
-          } catch (error) {
-            console.error("Direct OpenAI API error:", error);
-            throw error;
+          console.log("API key type:", typeof apiKey, "length:", apiKey.length);
+          console.log("API key starts with:", apiKey.substring(0, 3));
+          console.log("Is using server key?", apiKey === "server");
+          
+          // If "server" placeholder is being used, use simulated response instead
+          if (apiKey === "server") {
+            console.log("Using server key placeholder in local dev - switching to simulation");
+            const simulatedGrade = Math.min(95, Math.max(60, Math.round(75 + submissionText.length / 1000)));
+            
+            response = {
+              status: 200,
+              ok: true,
+              headers: new Headers(),
+              json: async () => ({
+                choices: [{
+                  message: {
+                    content: `Grade: ${simulatedGrade}\n\nFeedback: This is simulated feedback for local development. The submission demonstrates a good understanding of the material. There are several strong points as well as areas that could be improved.`
+                  }
+                }]
+              })
+            } as Response;
+          } else {
+            try {
+              // Only use direct API call if we have a real API key (not the "server" placeholder)
+              response = await fetch('https://api.openai.com/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${apiKey}`,
+                },
+                body: JSON.stringify({
+                  model: modelToUse,
+                  messages: [{ role: "user", content: prompt }],
+                  temperature: 0.7,
+                }),
+              });
+            } catch (error) {
+              console.error("Direct OpenAI API error:", error);
+              throw error;
+            }
           }
         } 
         // For production or when using server key, use Supabase Edge Function
