@@ -5,6 +5,7 @@ import * as pdfjs from 'pdfjs-dist';
 import { extractHTMLFromDOCX } from './docxUtils';
 // Import the worker script first, as it's bundled via pdfUtils
 import './pdfUtils';
+import { isImageFile, processImageWithOpenAI, extractTextFromImage } from './imageUtils';
 
 // Log PDF.js status, but don't override worker setup from pdfUtils.ts
 console.log(`[fileUtils] PDF.js version: ${pdfjs.version}`);
@@ -24,6 +25,38 @@ if (window.location.hostname === 'localhost') {
 export async function extractTextFromFile(file: File): Promise<string> {
   const fileType = file.type.toLowerCase();
   const fileName = file.name.toLowerCase();
+  
+  // For image files - use OpenAI vision API
+  if (isImageFile(file)) {
+    console.log(`Processing image file: ${file.name} (${file.size} bytes)`);
+    try {
+      // First try using OpenAI's vision capabilities
+      const prompt = "You are a teaching assistant grading a student's submission. " +
+                    "Please extract all text from this image, preserve formatting where possible, " +
+                    "and describe any diagrams, charts or visual elements that are relevant to academic grading. " +
+                    "If you can't extract meaningful text, please state that this appears to be an image " +
+                    "without substantial text content.";
+      
+      const oaiResult = await processImageWithOpenAI(file, prompt);
+      
+      if (oaiResult && !oaiResult.includes("Error processing image")) {
+        return oaiResult;
+      }
+      
+      // Fall back to Tesseract.js if OpenAI fails
+      console.log("Falling back to Tesseract for image text extraction");
+      return await extractTextFromImage(file);
+    } catch (error) {
+      console.error("Error processing image with OpenAI:", error);
+      // Fall back to Tesseract.js if OpenAI fails
+      try {
+        return await extractTextFromImage(file);
+      } catch (fallbackError) {
+        console.error("Fallback image processing also failed:", fallbackError);
+        return `[Image file detected: ${file.name}. Please review this submission manually.]`;
+      }
+    }
+  }
   
   // For PDF files
   if (fileType.includes('pdf') || fileName.endsWith('.pdf')) {
@@ -292,9 +325,12 @@ export function findBestSubmissionFile(files: File[]): File | null {
       if (name.includes('onlinetext') || name.endsWith('.html') || name.endsWith('.htm') || type.includes('html')) return 8;
       if (name.endsWith('.txt') || type.includes('text/plain')) return 7;
       
+      // Give image files medium priority
+      if (isImageFile(file)) return 6;
+      
       // Lower priority for other common files
-      if (name.endsWith('.ppt') || name.endsWith('.pptx') || type.includes('presentation')) return 6;
-      if (name.endsWith('.xls') || name.endsWith('.xlsx') || type.includes('excel') || type.includes('spreadsheet')) return 5;
+      if (name.endsWith('.ppt') || name.endsWith('.pptx') || type.includes('presentation')) return 5;
+      if (name.endsWith('.xls') || name.endsWith('.xlsx') || type.includes('excel') || type.includes('spreadsheet')) return 4;
       
       // Lowest priority for other files
       return 0;

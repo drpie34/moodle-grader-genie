@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { extractTextFromFile, extractTextFromHTML, findBestSubmissionFile, extractStudentInfoFromFilename } from "@/utils/fileUtils";
 import { uploadMoodleGradebook, generateMoodleCSV } from "@/utils/csv";
 import { gradeWithOpenAI } from "@/utils/gradingUtils";
+import { isImageFile } from "@/utils/imageUtils";
 import type { AssignmentFormData } from "@/components/assignment/AssignmentFormTypes";
 import { findBestStudentMatch } from "@/utils/nameMatchingUtils";
 
@@ -154,23 +155,14 @@ export function useGradingWorkflow() {
       'application/pdf', 'text/plain', 'text/html', 
       'application/vnd.openxmlformats-officedocument', 'application/msword',
       // Special case for Moodle online text
-      'onlinetext'
-    ];
-    
-    // Check if file name or type contains any of the supported types
-    return supportedTypes.some(type => 
-      file.name.toLowerCase().includes(type) || (file.type && file.type.toLowerCase().includes(type))
-    );
-  };
-  
-  // Check if file is likely an image
-  const isImageFile = (file: File): boolean => {
-    const imageTypes = [
+      'onlinetext',
+      // Now we also support images
       '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff', '.tif',
       'image/'
     ];
     
-    return imageTypes.some(type => 
+    // Check if file name or type contains any of the supported types
+    return supportedTypes.some(type => 
       file.name.toLowerCase().includes(type) || (file.type && file.type.toLowerCase().includes(type))
     );
   };
@@ -185,13 +177,6 @@ export function useGradingWorkflow() {
     try {
       // Check if this is an unsupported file type
       if (!isSupportedFileType(file)) {
-        // Special handling for image files
-        if (isImageFile(file)) {
-          console.warn(`Image file detected: ${file.name}. These need manual review.`);
-          return `[UNSUPPORTED_FILE_TYPE: This appears to be an image (${file.name}). Images cannot be automatically graded and require manual review.]`;
-        }
-        
-        // Handle other unsupported types
         console.warn(`Unsupported file type: ${file.name} (${file.type || "unknown type"})`);
         return `[UNSUPPORTED_FILE_TYPE: The file "${file.name}" cannot be processed automatically. Please review this submission manually.]`;
       }
@@ -504,8 +489,10 @@ export function useGradingWorkflow() {
                   
                   console.log(`Submission preview for ${studentName}: "${submissionText.substring(0, 200)}..."`);
                   
-                  // Check if the submission contains an unsupported file type warning
-                  const isUnsupportedFile = submissionText.includes('[UNSUPPORTED_FILE_TYPE:');
+                  // Check if the submission contains a truly unsupported file type warning
+                  // (but not image files which we now support)
+                  const isUnsupportedFile = submissionText.includes('[UNSUPPORTED_FILE_TYPE:') && 
+                                            !isImageFile(submissionFile);
                   
                   if (isUnsupportedFile) {
                     console.warn(`Unsupported file detected for ${studentName}`);

@@ -10,6 +10,7 @@ import { FileText } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { extractTextFromFile, extractTextFromHTML } from "@/utils/fileUtils";
 import { extractHTMLFromDOCX } from "@/utils/docxUtils";
+import { isImageFile } from "@/utils/imageUtils";
 import type { StudentGrade } from "@/hooks/use-grading-workflow";
 
 interface StudentPreviewDialogProps {
@@ -190,7 +191,21 @@ const StudentPreviewDialog: React.FC<StudentPreviewDialogProps> = ({
                 ) : (
                   <div className="max-h-[600px] overflow-y-auto mt-2">
                     <div className="bg-muted p-4 rounded">
-                      {isHtmlContent ? (
+                      {student && student.file && isImageFile(student.file) ? (
+                        <div className="flex flex-col items-center space-y-4">
+                          <img 
+                            src={URL.createObjectURL(student.file)} 
+                            alt={`${student.fullName}'s submission`}
+                            className="max-w-full max-h-[400px] object-contain rounded border border-gray-200 shadow-sm"
+                          />
+                          <div className="w-full mt-4">
+                            <h4 className="text-sm font-medium mb-2">Image Content:</h4>
+                            <pre className="whitespace-pre-wrap text-sm font-mono bg-gray-50 dark:bg-gray-800 p-3 rounded-md overflow-auto">
+                              {submissionContent || "No content extracted from image"}
+                            </pre>
+                          </div>
+                        </div>
+                      ) : isHtmlContent ? (
                         <div 
                           className="prose dark:prose-invert max-w-none"
                           dangerouslySetInnerHTML={{ __html: submissionContent }}
