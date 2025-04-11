@@ -2,6 +2,8 @@
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import type { AssignmentFormData } from "./AssignmentFormTypes";
 import BasicInfoFields from "./BasicInfoFields";
 import FileUploadField from "./FileUploadField";
@@ -29,7 +31,8 @@ const AssignmentForm: React.FC<AssignmentFormProps> = ({ onSubmit }) => {
     feedbackLength: 5,
     feedbackFormality: 5,
     instructorTone: "",
-    additionalInstructions: ""
+    additionalInstructions: "",
+    skipEmptySubmissions: true // Default to skipping empty submissions
   });
 
   const handleChange = (field: keyof AssignmentFormData, value: string | number) => {
@@ -132,6 +135,20 @@ const AssignmentForm: React.FC<AssignmentFormProps> = ({ onSubmit }) => {
             value={formData.additionalInstructions}
             onChange={(value) => handleChange("additionalInstructions", value)}
           />
+          
+          <div className="flex items-center space-x-2 pt-2">
+            <Switch 
+              id="skipEmptySubmissions" 
+              checked={formData.skipEmptySubmissions} 
+              onCheckedChange={(checked) => handleChange("skipEmptySubmissions", checked)}
+            />
+            <Label htmlFor="skipEmptySubmissions" className="text-sm font-medium cursor-pointer">
+              Leave grades blank for students without submissions
+            </Label>
+          </div>
+          <div className="text-xs text-muted-foreground ml-8 -mt-2">
+            When enabled, students with no submission will not receive a grade or feedback
+          </div>
 
           <Button 
             type="submit" 

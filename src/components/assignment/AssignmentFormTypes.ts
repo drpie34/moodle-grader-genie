@@ -12,4 +12,5 @@ export interface AssignmentFormData {
   feedbackFormality: number;
   instructorTone: string;
   additionalInstructions: string;
+  skipEmptySubmissions: boolean; // New field for skipping students with no submissions
 }

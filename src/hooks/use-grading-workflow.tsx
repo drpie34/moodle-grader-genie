@@ -478,12 +478,42 @@ export function useGradingWorkflow() {
             toast.info(`Processed ${processedCount}/${Object.keys(filesByFolder).length} submissions`);
           }
           
-          console.log("FINISHED PROCESSING - Processed Grades:", processedGrades.map(g => g.fullName));
+          // Deduplicate processed grades before merging
+          // This prevents duplicate entries from online text + file submission folders
+          console.log("DEDUPLICATION - Before:", processedGrades.length, "processed grades");
+          
+          // Use a Map to deduplicate by student identifier
+          const uniqueGrades = new Map<string, StudentGrade>();
+          
+          // First pass: add all grades to the map
+          processedGrades.forEach(grade => {
+            const key = grade.identifier || grade.fullName.toLowerCase();
+            
+            // If this student already exists, keep the entry with more content
+            if (uniqueGrades.has(key)) {
+              const existing = uniqueGrades.get(key)!;
+              const existingContentLength = existing.contentPreview?.length || 0;
+              const newContentLength = grade.contentPreview?.length || 0;
+              
+              // Only replace if the new entry has more content
+              if (newContentLength > existingContentLength) {
+                console.log(`DEDUPLICATION - Replacing entry for ${grade.fullName} with more content`);
+                uniqueGrades.set(key, grade);
+              }
+            } else {
+              uniqueGrades.set(key, grade);
+            }
+          });
+          
+          // Convert back to array
+          const deduplicatedGrades = Array.from(uniqueGrades.values());
+          console.log("DEDUPLICATION - After:", deduplicatedGrades.length, "unique grades");
+          console.log("FINISHED PROCESSING - Processed Grades:", deduplicatedGrades.map(g => g.fullName));
           
           if (moodleGradebook && moodleGradebook.grades.length > 0) {
             const mergedGrades = [...moodleGradebook.grades];
             
-            processedGrades.forEach(aiGrade => {
+            deduplicatedGrades.forEach(aiGrade => {
               console.log(`Merging grade for ${aiGrade.fullName}`);
               
               const moodleIndex = mergedGrades.findIndex(grade => 
@@ -492,14 +522,30 @@ export function useGradingWorkflow() {
               
               if (moodleIndex >= 0) {
                 console.log(`Found matching student in merged grades at index ${moodleIndex}`);
-                mergedGrades[moodleIndex] = {
-                  ...mergedGrades[moodleIndex],
-                  grade: aiGrade.grade,
-                  feedback: aiGrade.feedback,
-                  file: aiGrade.file,
-                  contentPreview: aiGrade.contentPreview,
-                  edited: false
-                };
+                
+                // Check if student has empty submission and if we should skip it
+                const hasEmptySubmission = !aiGrade.contentPreview || aiGrade.contentPreview.trim().length < 10;
+                const shouldSkip = assignmentData?.skipEmptySubmissions && hasEmptySubmission;
+                
+                if (shouldSkip) {
+                  console.log(`Skipping empty submission for ${aiGrade.fullName}`);
+                  mergedGrades[moodleIndex] = {
+                    ...mergedGrades[moodleIndex],
+                    status: "No Submission",
+                    file: aiGrade.file,
+                    contentPreview: aiGrade.contentPreview,
+                    edited: true // Mark as edited to prevent further prompts
+                  };
+                } else {
+                  mergedGrades[moodleIndex] = {
+                    ...mergedGrades[moodleIndex],
+                    grade: aiGrade.grade,
+                    feedback: aiGrade.feedback,
+                    file: aiGrade.file,
+                    contentPreview: aiGrade.contentPreview,
+                    edited: false
+                  };
+                }
               } else {
                 console.log(`No matching student found in merged grades for ${aiGrade.fullName}, adding new entry`);
                 mergedGrades.push(aiGrade);
@@ -508,7 +554,7 @@ export function useGradingWorkflow() {
             
             setGrades(mergedGrades);
           } else {
-            setGrades(processedGrades);
+            setGrades(deduplicatedGrades);
           }
           
           setSampleDataLoaded(true);
