@@ -34,8 +34,10 @@ const StudentPreviewDialog: React.FC<StudentPreviewDialogProps> = ({
   const [feedback, setFeedback] = useState<string>("");
   const [submissionContent, setSubmissionContent] = useState<string>("");
   const [isLoadingContent, setIsLoadingContent] = useState(false);
+  const [isLoadingImageText, setIsLoadingImageText] = useState(false);
   const [activeTab, setActiveTab] = useState("feedback");
   const [isHtmlContent, setIsHtmlContent] = useState(false);
+  const [imageObjectUrl, setImageObjectUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (student) {
@@ -62,11 +64,52 @@ const StudentPreviewDialog: React.FC<StudentPreviewDialogProps> = ({
         setIsHtmlContent(false);
       }
     }
-  }, [student]);
+    
+    // Cleanup function to revoke any object URLs when component unmounts or student changes
+    return () => {
+      if (imageObjectUrl) {
+        URL.revokeObjectURL(imageObjectUrl);
+      }
+    };
+  }, [student, imageObjectUrl]);
 
   const loadFileContent = async (file: File) => {
     if (!file) return;
     
+    // Clean up any previous image object URL
+    if (imageObjectUrl) {
+      URL.revokeObjectURL(imageObjectUrl);
+      setImageObjectUrl(null);
+    }
+    
+    // Check if it's an image file
+    if (isImageFile(file)) {
+      // For images, immediately display the image and load text asynchronously
+      const objectUrl = URL.createObjectURL(file);
+      setImageObjectUrl(objectUrl);
+      
+      // Set a loading message for the text extraction
+      setSubmissionContent("Loading extracted text from image...");
+      setIsHtmlContent(false);
+      setIsLoadingImageText(true);
+      
+      // Process text extraction in background
+      extractTextFromFile(file)
+        .then(content => {
+          setSubmissionContent(content || "No text could be extracted from this image.");
+        })
+        .catch(error => {
+          console.error("Error extracting text from image:", error);
+          setSubmissionContent("Error extracting text: " + (error as Error).message);
+        })
+        .finally(() => {
+          setIsLoadingImageText(false);
+        });
+      
+      return; // Exit early since we're handling this asynchronously
+    }
+    
+    // For non-image files, use the normal flow
     setIsLoadingContent(true);
     
     try {
@@ -202,7 +245,7 @@ const StudentPreviewDialog: React.FC<StudentPreviewDialogProps> = ({
                             <div className="flex flex-col items-center space-y-4">
                               <div className="relative w-full">
                                 <img 
-                                  src={URL.createObjectURL(student.file)} 
+                                  src={imageObjectUrl || URL.createObjectURL(student.file)} 
                                   alt={`${student.fullName}'s submission`}
                                   className="max-w-full max-h-[500px] object-contain rounded border border-gray-200 shadow-sm mx-auto"
                                 />
@@ -211,15 +254,21 @@ const StudentPreviewDialog: React.FC<StudentPreviewDialogProps> = ({
                                 </div>
                               </div>
                               
-                              {/* Show extracted text if available */}
-                              {submissionContent && submissionContent !== "[IMAGE_SUBMISSION]" && (
-                                <div className="w-full mt-4">
-                                  <h4 className="text-sm font-medium mb-2">Extracted Content:</h4>
-                                  <pre className="whitespace-pre-wrap text-sm font-mono bg-gray-50 dark:bg-gray-800 p-3 rounded-md overflow-auto">
-                                    {submissionContent || "No content extracted from image"}
-                                  </pre>
+                              {/* Show loading indicator or extracted text */}
+                              <div className="w-full mt-4">
+                                <div className="flex justify-between items-center mb-2">
+                                  <h4 className="text-sm font-medium">Extracted Content:</h4>
+                                  {isLoadingImageText && (
+                                    <div className="flex items-center">
+                                      <div className="animate-spin h-4 w-4 border-t-2 border-b-2 border-primary rounded-full mr-2"></div>
+                                      <span className="text-xs text-muted-foreground">Extracting text...</span>
+                                    </div>
+                                  )}
                                 </div>
-                              )}
+                                <pre className="whitespace-pre-wrap text-sm font-mono bg-gray-50 dark:bg-gray-800 p-3 rounded-md overflow-auto max-h-[250px]">
+                                  {submissionContent || "No content extracted from image"}
+                                </pre>
+                              </div>
                             </div>
                           ) : (student.file.type === 'application/pdf' || student.file.name.toLowerCase().endsWith('.pdf')) ? (
                             // PDF files
