@@ -12,9 +12,81 @@ const gradingCache: {
   assignmentId?: string
 } = {};
 
+// Add a global debug object to track execution path
+window._debugGrading = {
+  executionPath: [],
+  environment: {},
+  lastUrl: '',
+  logPath: function(step) {
+    this.executionPath.push({
+      step: step,
+      timestamp: new Date().toISOString()
+    });
+    console.log(`[DEBUG] Execution path: ${step}`);
+  }
+};
+
+// Initialize environment info
+window._debugGrading.environment = {
+  hostname: window.location.hostname,
+  protocol: window.location.protocol,
+  pathname: window.location.pathname,
+  isLocal: window.location.hostname === 'localhost',
+  userAgent: navigator.userAgent,
+  timestamp: new Date().toISOString()
+};
+
+// Log environment details
+console.log('[DEBUG] Environment:', window._debugGrading.environment);
+
+// Create a wrapper for fetch that logs all API calls
+const originalFetch = window.fetch;
+window.fetch = function(url, options) {
+  // Log all fetch calls
+  console.log(`[DEBUG] Fetch call to: ${url}`);
+  window._debugGrading.lastUrl = url;
+  
+  // Special detection for direct OpenAI calls
+  if (url.includes('api.openai.com')) {
+    console.error('‼️ DIRECT OPENAI CALL DETECTED ‼️', {
+      url: url,
+      options: options,
+      executionPath: window._debugGrading.executionPath,
+      environment: window._debugGrading.environment
+    });
+  }
+  
+  // Call original fetch
+  return originalFetch.apply(this, arguments);
+};
+
 export async function gradeWithOpenAI(submissionText: string, assignmentData: any, apiKey: string = "", gradingScale: number = 100): Promise<{ grade: number; feedback: string }> {
+  window._debugGrading.logPath('gradeWithOpenAI function start');
+  console.log('[DEBUG] Function parameters:', { 
+    submissionLength: submissionText?.length,
+    assignmentName: assignmentData?.assignmentName,
+    apiKeyProvided: !!apiKey,
+    apiKeyType: typeof apiKey,
+    apiKeyIsString: typeof apiKey === 'string',
+    apiKeyLength: typeof apiKey === 'string' ? apiKey.length : 0,
+    gradingScale 
+  });
+  
+  // CRITICAL CHECK: If someone is passing an actual OpenAI API key, this could lead to direct calls
+  if (typeof apiKey === 'string' && apiKey.length > 30 && apiKey.startsWith('sk-')) {
+    window._debugGrading.logPath('⚠️ DIRECT OPENAI API KEY DETECTED');
+    console.error('⚠️ DIRECT OPENAI API KEY DETECTED - This should never happen with server-side key architecture');
+    
+    // Save for diagnostic purposes
+    window._debugGrading.environment.directApiKeyDetected = true;
+    
+    // Replace with safe value to prevent direct calls
+    apiKey = "server";
+  }
+  
   try {
     if (!submissionText || submissionText.trim().length === 0) {
+      window._debugGrading.logPath('Empty submission detected');
       console.warn("Empty submission text detected - unable to grade properly");
       return { 
         grade: 0, 
@@ -75,9 +147,18 @@ export async function gradeWithOpenAI(submissionText: string, assignmentData: an
         
         // Always use the Edge Function regardless of environment
         const isLocalDevelopment = window.location.hostname === 'localhost';
+        window._debugGrading.logPath(`Environment detection: isLocalDevelopment=${isLocalDevelopment}`);
         
-        console.log("Environment check:", { 
+        // Capture all environment variables that could affect routing
+        window._debugGrading.environment.isLocalDevelopment = isLocalDevelopment;
+        window._debugGrading.environment.locationHostname = window.location.hostname;
+        window._debugGrading.environment.locationOrigin = window.location.origin;
+        
+        console.log("[DEBUG] Detailed environment info:", { 
           isLocalDevelopment,
+          hostname: window.location.hostname,
+          origin: window.location.origin,
+          href: window.location.href,
           useServerSideKey: true
         });
         
@@ -85,16 +166,25 @@ export async function gradeWithOpenAI(submissionText: string, assignmentData: an
         const requestBody = {
           model: modelToUse,
           messages: [
-            { role: "system", content: gradingCache.systemMessage },
-            { role: "user", content: `Grade this submission: ${submissionText}` }
+            { role: "system", content: gradingCache.systemMessage ? gradingCache.systemMessage.substring(0, 50) + "..." : undefined },
+            { role: "user", content: `Grade this submission: ${submissionText.substring(0, 50)}...` }
           ],
           functions: [gradingCache.functionDefinition],
           function_call: { name: "gradeSubmission" },
           temperature: 0.7,
         };
         
+        window._debugGrading.logPath('Request body prepared');
+        console.log("[DEBUG] Request body prepared:", {
+          modelToUse,
+          functionName: requestBody.function_call.name,
+          systemMessageLength: gradingCache.systemMessage?.length,
+          userMessageLength: submissionText.length
+        });
+        
         // Always use Supabase Edge Function
         try {
+          window._debugGrading.logPath('Preparing to call Supabase edge function');
           console.log("Calling Supabase edge function for OpenAI proxy");
           
           // Get the Supabase key - try multiple sources to ensure we have a key
@@ -171,34 +261,92 @@ export async function gradeWithOpenAI(submissionText: string, assignmentData: an
             console.log("Is deployed environment:", isDeployedEnvironment);
             console.log("Edge function request headers:", Object.keys(headers));
             
+            // CRITICAL CHANGE: Add debugging for API call path
+            window._debugGrading.logPath('Preparing to call Edge Function with hardcoded URL');
+            
             // CRITICAL FIX: Hardcode the Supabase URL and endpoint to guarantee we don't call OpenAI directly
             const edgeFunctionUrl = "https://owaqnztggyxahjhbcylj.supabase.co/functions/v1/openai-proxy";
+            window._debugGrading.environment.edgeFunctionUrl = edgeFunctionUrl;
             
-            console.log("Using Edge Function URL:", edgeFunctionUrl);
-            console.log("Request headers:", JSON.stringify(Object.keys(headers)));
+            console.log("[DEBUG] Using Edge Function URL:", edgeFunctionUrl);
+            console.log("[DEBUG] Headers being sent:", {
+              headerKeys: Object.keys(headers),
+              contentType: headers['Content-Type'],
+              authPresent: !!headers['Authorization'],
+              xDeployment: headers['x-supabase-auth'],
+              xServerKey: headers['x-use-server-key']
+            });
+            
+            // Check for any potential fetch overrides
+            window._debugGrading.environment.fetchIsOverridden = window.fetch !== originalFetch;
+            console.log("[DEBUG] Is fetch overridden:", window._debugGrading.environment.fetchIsOverridden);
             
             try {
-              response = await fetch(edgeFunctionUrl, {
+              window._debugGrading.logPath('Executing Edge Function fetch call');
+              
+              // Record the URL we're about to call to verify it's not changed
+              const beforeCallUrl = edgeFunctionUrl;
+              window._debugGrading.lastUrlBeforeCall = beforeCallUrl;
+              
+              // Use a direct, explicit fetch call that's harder to transform
+              response = await (function(url, options) {
+                window._debugGrading.logPath(`Actual fetch call to: ${url}`);
+                console.log("[DEBUG] Making fetch call with URL:", url);
+                return fetch(url, options);
+              })(edgeFunctionUrl, {
                 method: 'POST',
-                headers,
-                body: JSON.stringify(requestBody),
+                headers: headers,
+                body: JSON.stringify(requestBody)
               });
               
-              console.log("Edge function response status:", response.status);
+              window._debugGrading.logPath(`Edge function response received: status=${response.status}`);
+              console.log("[DEBUG] Edge function response:", {
+                status: response.status,
+                ok: response.ok,
+                statusText: response.statusText,
+                headers: [...response.headers.entries()]
+              });
               
               // Add detailed logging for non-200 responses
               if (!response.ok) {
+                window._debugGrading.logPath(`Error response from Edge Function: ${response.status}`);
                 const errorText = await response.text().catch(e => "Could not read error text");
-                console.error("Edge function error response:", errorText);
+                console.error("[DEBUG] Edge function error response:", errorText);
                 throw new Error(`Edge function returned status ${response.status}: ${errorText}`);
               }
             } catch (fetchError) {
-              console.error("Fetch to Edge Function failed:", fetchError);
+              window._debugGrading.logPath(`Fetch error: ${fetchError.message}`);
+              console.error("[DEBUG] Fetch to Edge Function failed:", {
+                error: fetchError,
+                message: fetchError.message,
+                url: edgeFunctionUrl,
+                headers: headers
+              });
               throw fetchError;
             }
           }
         } catch (edgeFunctionError) {
           console.error("Edge function error:", edgeFunctionError);
+          
+          // IMPORTANT: Add detection for direct OpenAI fallback
+          window._debugGrading.logPath(`Edge function error: ${edgeFunctionError.message}`);
+          
+          // Check if there's any code that might try to directly call OpenAI as a fallback
+          console.error("[DEBUG] Edge Function error - checking for fallback paths:", {
+            error: edgeFunctionError,
+            message: edgeFunctionError.message,
+            edgeFunctionUrl: window._debugGrading.environment.edgeFunctionUrl,
+            executionPath: window._debugGrading.executionPath
+          });
+          
+          // We should NEVER fall back to direct OpenAI calls - explicitly block any potential fallback
+          if (apiKey && apiKey.length > 0 && apiKey !== "server") {
+            window._debugGrading.logPath('⚠️ POTENTIAL DIRECT OPENAI FALLBACK DETECTED');
+            console.error('⚠️ DETECTED POTENTIAL DIRECT OPENAI FALLBACK - Blocking this path');
+            
+            // Override apiKey to prevent direct calls
+            apiKey = "BLOCKED_DIRECT_CALL_" + (new Date()).getTime();
+          }
           
           // If the edge function fails completely, we have no fallback
           // since we're only using the server key
