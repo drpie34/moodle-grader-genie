@@ -4,13 +4,19 @@
 import * as pdfjs from 'pdfjs-dist';
 import { extractHTMLFromDOCX } from './docxUtils';
 
-// For local development, we'll implement a simplified approach without relying on the PDF.js worker
-console.log("PDF.js: Using simple configuration for local development");
+// Set up PDF.js worker - This is critical for it to work in production
+const pdfjsVersion = pdfjs.version;
+console.log(`PDF.js version: ${pdfjsVersion}`);
 
-// Keep original worker setting for production (will be used in the deployed app)
-// For local development, we'll bypass PDF.js extraction and use our own fallback
+// Use a CDN to load the worker script dynamically
+pdfjs.GlobalWorkerOptions.workerSrc = 
+  `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsVersion}/pdf.worker.min.js`;
+
+console.log(`PDF.js worker source set to: ${pdfjs.GlobalWorkerOptions.workerSrc}`);
+
+// For local development, we'll also have a fallback method
 if (window.location.hostname === 'localhost') {
-  console.log("Local development detected - will prioritize fallback extraction methods");
+  console.log("Local development detected - will have fallback extraction methods available");
 }
 
 /**
@@ -56,12 +62,49 @@ export async function extractTextFromFile(file: File): Promise<string> {
 async function extractTextFromPDF(file: File): Promise<string> {
   console.log(`Processing PDF file: ${file.name} (${file.size} bytes)`);
   
-  // For local development, use the Moodle server's text extraction feature
-  if (window.location.hostname === 'localhost') {
-    try {
-      console.log("Local development: Using Moodle's built-in text extraction");
+  // Try real PDF.js extraction for all environments first
+  try {
+    // Log our setup to help debug
+    console.log("PDF.js worker setup:", {
+      workerSrc: pdfjs.GlobalWorkerOptions.workerSrc,
+      version: pdfjs.version,
+      isWorkerSet: !!pdfjs.GlobalWorkerOptions.workerSrc
+    });
+    
+    // Load the file as ArrayBuffer
+    const arrayBuffer = await file.arrayBuffer();
+    
+    // Load the PDF document
+    const loadingTask = pdfjs.getDocument({ data: arrayBuffer });
+    console.log("PDF loading task created");
+    
+    const pdf = await loadingTask.promise;
+    console.log(`PDF loaded successfully with ${pdf.numPages} pages`);
+    
+    // Extract text from each page
+    let fullText = '';
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const textContent = await page.getTextContent();
+      const pageText = textContent.items
+        .map((item: any) => item.str)
+        .join(' ');
       
-      // For local testing, we'll just simulate extracted text since we know the PDF content
+      fullText += pageText + '\n\n';
+    }
+    
+    if (fullText.trim().length > 0) {
+      console.log(`Successfully extracted ${fullText.length} characters from ${file.name}`);
+      return fullText.trim();
+    }
+  } catch (pdfJsError) {
+    console.error("PDF.js extraction failed:", pdfJsError);
+    
+    // Only use the simulated content in local development as a fallback
+    if (window.location.hostname === 'localhost') {
+      console.log("Local development: Falling back to simulated content");
+      
+      // For local testing, we'll just simulate extracted text
       const fakePdfContent = `Structured Reading Groups for Sociology 151
 
 Throughout the semester, we will be reading two books together in class. To help facilitate deep engagement with the material, we'll be using structured reading groups.
@@ -89,37 +132,7 @@ I'm looking forward to seeing how these discussions deepen your understanding of
       
       console.log("Returning simulated text for local development");
       return fakePdfContent;
-    } catch (error) {
-      console.error("Simulated text extraction failed:", error);
     }
-  }
-  
-  // For production, attempt PDF.js extraction
-  try {
-    // Try PDF.js extraction
-    const arrayBuffer = await file.arrayBuffer();
-    const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
-    
-    console.log(`PDF loaded successfully with ${pdf.numPages} pages`);
-    
-    // Extract text from each page
-    let fullText = '';
-    for (let i = 1; i <= pdf.numPages; i++) {
-      const page = await pdf.getPage(i);
-      const textContent = await page.getTextContent();
-      const pageText = textContent.items
-        .map((item: any) => item.str)
-        .join(' ');
-      
-      fullText += pageText + '\n\n';
-    }
-    
-    if (fullText.trim().length > 0) {
-      console.log(`Successfully extracted ${fullText.length} characters from PDF`);
-      return fullText.trim();
-    }
-  } catch (pdfJsError) {
-    console.error("PDF.js extraction failed:", pdfJsError);
   }
   
   // Final fallback - return placeholder text

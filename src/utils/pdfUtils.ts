@@ -1,9 +1,32 @@
 
 import * as pdfjsLib from 'pdfjs-dist';
 
-// Set workerSrc for PDF.js
-const workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
-pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
+// Set workerSrc for PDF.js - use both CDNJS and unpkg as fallbacks
+try {
+  // Primary CDN - CDNJS
+  const cdnjsWorkerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+  
+  // Backup CDN - unpkg
+  const unpkgWorkerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.js`;
+  
+  // Set the worker source to the CDN URL
+  pdfjsLib.GlobalWorkerOptions.workerSrc = cdnjsWorkerSrc;
+  
+  console.log(`PDF.js worker source set to: ${pdfjsLib.GlobalWorkerOptions.workerSrc}`);
+  console.log(`PDF.js version: ${pdfjsLib.version}`);
+  
+  // Use a timeout to check if the worker loaded properly
+  setTimeout(() => {
+    if (document.querySelector(`script[src="${cdnjsWorkerSrc}"]`)) {
+      console.log("PDF.js worker script was loaded successfully");
+    } else {
+      console.warn("PDF.js worker script might not have loaded, trying backup CDN");
+      pdfjsLib.GlobalWorkerOptions.workerSrc = unpkgWorkerSrc;
+    }
+  }, 2000);
+} catch (error) {
+  console.error("Error setting up PDF.js worker:", error);
+}
 
 /**
  * Extract text from a PDF file using PDF.js
