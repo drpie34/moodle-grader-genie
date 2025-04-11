@@ -194,8 +194,8 @@ const StudentPreviewDialog: React.FC<StudentPreviewDialogProps> = ({
                     <div className="bg-muted p-4 rounded">
                       {student && student.file ? (
                         <>
-                          {/* For Image Files - Show the image directly */}
                           {isImageFile(student.file) ? (
+                            // Image files
                             <div className="flex flex-col items-center space-y-4">
                               <div className="relative w-full">
                                 <img 
@@ -218,10 +218,8 @@ const StudentPreviewDialog: React.FC<StudentPreviewDialogProps> = ({
                                 </div>
                               )}
                             </div>
-                          ) : 
-                          
-                          {/* For PDF Files - Show PDF in iframe */}
-                          student.file.type === 'application/pdf' || student.file.name.toLowerCase().endsWith('.pdf') ? (
+                          ) : (student.file.type === 'application/pdf' || student.file.name.toLowerCase().endsWith('.pdf')) ? (
+                            // PDF files
                             <div className="flex flex-col space-y-2">
                               <div className="text-sm text-muted-foreground mb-1">
                                 PDF Document: {student.file.name} ({Math.round(student.file.size/1024)} KB)
@@ -241,10 +239,8 @@ const StudentPreviewDialog: React.FC<StudentPreviewDialogProps> = ({
                                 </pre>
                               </div>
                             </div>
-                          ) :
-                          
-                          {/* For HTML Content - Show rendered HTML */}
-                          isHtmlContent ? (
+                          ) : isHtmlContent ? (
+                            // HTML content
                             <>
                               <div className="text-sm text-muted-foreground mb-2">
                                 HTML Document: {student.file.name} ({Math.round(student.file.size/1024)} KB)
@@ -254,10 +250,8 @@ const StudentPreviewDialog: React.FC<StudentPreviewDialogProps> = ({
                                 dangerouslySetInnerHTML={{ __html: submissionContent }}
                               />
                             </>
-                          ) : 
-                          
-                          {/* For all other files - Show the extracted text */}
-                          (
+                          ) : (
+                            // All other files
                             <>
                               <div className="text-sm text-muted-foreground mb-2">
                                 {student.file.name} ({Math.round(student.file.size/1024)} KB)
