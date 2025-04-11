@@ -2,10 +2,11 @@
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Check, AlertCircle, Info, FileText } from "lucide-react";
+import { Check, AlertCircle, Info, FileText, Bug } from "lucide-react";
 import { AssignmentFormData } from "./assignment/AssignmentFormTypes";
 import StudentGradeRow from "./grading/StudentGradeRow";
 import StudentPreviewDialog from "./grading/StudentPreviewDialog";
+import GradingApiDebug from "./GradingApiDebug";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import type { StudentGrade } from "@/hooks/use-grading-workflow";
@@ -28,6 +29,7 @@ const GradingPreview: React.FC<GradingPreviewProps> = ({
   const [selectedStudent, setSelectedStudent] = useState<number | null>(null);
   const [showDiagnostics, setShowDiagnostics] = useState(false);
   const [showNameDetails, setShowNameDetails] = useState(false);
+  const [showApiDebug, setShowApiDebug] = useState(false);
 
   const openStudentPreview = (index: number) => {
     setSelectedStudent(index);
@@ -60,6 +62,15 @@ const GradingPreview: React.FC<GradingPreviewProps> = ({
             <p className="text-sm text-muted-foreground">{assignmentData.courseName}</p>
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              onClick={() => setShowApiDebug(true)}
+              variant="ghost"
+              size="sm"
+              className="flex items-center gap-1 mr-1 text-muted-foreground hover:text-foreground"
+            >
+              <Bug className="h-4 w-4" />
+              <span className="text-xs">View API Prompt</span>
+            </Button>
             <span className="text-sm text-muted-foreground">
               {pendingReviews} of {grades.length} pending review
             </span>
@@ -197,6 +208,12 @@ const GradingPreview: React.FC<GradingPreviewProps> = ({
           studentIndex={selectedStudent}
           maxPoints={assignmentData.gradingScale}
           onUpdateGrade={onUpdateGrade}
+        />
+        
+        {/* API Debug Modal */}
+        <GradingApiDebug
+          open={showApiDebug}
+          onClose={() => setShowApiDebug(false)}
         />
       </CardContent>
     </Card>

@@ -12,6 +12,10 @@ const gradingCache: {
   assignmentId?: string
 } = {};
 
+// Expose gradingCache to window for debugging
+// @ts-ignore
+window.gradingCache = gradingCache;
+
 // Add a global debug object to track execution path
 window._debugGrading = {
   executionPath: [],
