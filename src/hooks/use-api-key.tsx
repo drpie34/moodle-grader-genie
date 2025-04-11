@@ -2,54 +2,31 @@
 import { useState, useEffect } from "react";
 
 export function useApiKey() {
-  const [apiKey, setApiKey] = useState<string>("");
   const [showApiKeyForm, setShowApiKeyForm] = useState(false);
-  const [useServerKey, setUseServerKey] = useState(true);
 
-  // Load API key from localStorage on component mount
+  // Always use server key, clean up any old settings
   useEffect(() => {
-    const savedApiKey = localStorage.getItem("openai_api_key");
-    const useServerKeySetting = localStorage.getItem("use_server_api_key");
-    
-    if (savedApiKey) {
-      setApiKey(savedApiKey);
-      setUseServerKey(false);
-      setShowApiKeyForm(false);
-    } else if (useServerKeySetting === "false") {
-      // User explicitly chose not to use the server key, but no key is saved
-      setUseServerKey(false);
-      setShowApiKeyForm(true);
-    } else {
-      // Default to using server key
-      setUseServerKey(true);
-      setShowApiKeyForm(false);
-    }
+    // Remove any saved API key
+    localStorage.removeItem("openai_api_key");
+    // Always use server key
+    localStorage.setItem("use_server_api_key", "true");
   }, []);
 
-  const handleApiKeySubmit = (key: string) => {
-    if (key === "") {
-      // User chose to use server key
-      setApiKey("");
-      setUseServerKey(true);
-      localStorage.removeItem("openai_api_key");
-      localStorage.setItem("use_server_api_key", "true");
-    } else {
-      // User provided their own key
-      setApiKey(key);
-      setUseServerKey(false);
-      localStorage.setItem("openai_api_key", key);
-      localStorage.setItem("use_server_api_key", "false");
-    }
+  const handleApiKeySubmit = () => {
+    // Always use server key
+    localStorage.removeItem("openai_api_key");
+    localStorage.setItem("use_server_api_key", "true");
     
     setShowApiKeyForm(false);
     
-    // Return true to indicate the API key was updated
+    // Return true to indicate success
     return true;
   };
 
   return {
-    apiKey,
-    useServerKey,
+    // Always return server as key
+    apiKey: "server",
+    useServerKey: true,
     showApiKeyForm,
     setShowApiKeyForm,
     handleApiKeySubmit

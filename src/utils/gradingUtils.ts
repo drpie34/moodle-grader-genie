@@ -73,16 +73,12 @@ export async function gradeWithOpenAI(submissionText: string, assignmentData: an
       try {
         let response;
         
-        // Check if we're in local development and determine proper API handling
+        // Always use the Edge Function regardless of environment
         const isLocalDevelopment = window.location.hostname === 'localhost';
-        const isUsingServerKey = apiKey === "server";
-        const hasPersonalKey = apiKey && !isUsingServerKey;
         
         console.log("Environment check:", { 
-          isLocalDevelopment, 
-          isUsingServerKey, 
-          hasPersonalKey,
-          apiKeyLength: apiKey ? apiKey.length : 0 
+          isLocalDevelopment,
+          useServerSideKey: true
         });
         
         // Prepare optimized request with function calling
@@ -97,110 +93,71 @@ export async function gradeWithOpenAI(submissionText: string, assignmentData: an
           temperature: 0.7,
         };
         
-        // For local development with personal API key (not server key), use OpenAI directly
-        if (isLocalDevelopment && hasPersonalKey) {
-          console.log("Local development with personal API key: Using OpenAI API directly");
-          try {
-            response = await fetch('https://api.openai.com/v1/chat/completions', {
+        // Always use Supabase Edge Function
+        try {
+          console.log("Calling Supabase edge function for OpenAI proxy");
+          
+          // Get the Supabase key from the supabase client to keep it in sync
+          const SUPABASE_KEY = supabase.auth.getSession()?.data?.session?.access_token || 
+                            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im93YXFuenRnZ3l4YWhqaGJjeWxqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDI2NTA3NzMsImV4cCI6MjA1ODIyNjc3M30.hPtP2iECWacaUFthBGItwezPox5JX6GhdlKFqRZMcOA";
+          
+          console.log("Using SUPABASE_KEY:", SUPABASE_KEY ? `${SUPABASE_KEY.substring(0, 10)}...` : "none");
+          
+          // Optional simulation mode for local development testing - disabled by default
+          const useSimulation = false; // Set to true if you want to use simulated responses
+          
+          if (isLocalDevelopment && useSimulation) {
+            console.log("Local development: Using simulated response (simulation mode enabled)");
+            
+            // Create a simulated response
+            const simulatedGrade = Math.min(95, Math.max(60, Math.round(75 + submissionText.length / 1000)));
+            
+            // Create simulated function call response format
+            response = {
+              status: 200,
+              ok: true,
+              headers: new Headers(),
+              json: async () => ({
+                choices: [{
+                  message: {
+                    function_call: {
+                      name: "gradeSubmission",
+                      arguments: JSON.stringify({
+                        grade: simulatedGrade,
+                        feedback: "This is simulated feedback for local development. The submission demonstrates a good understanding of the material. There are several strong points as well as areas that could be improved."
+                      })
+                    }
+                  }
+                }]
+              })
+            } as Response;
+          } else {
+            // Production or local development - always use Edge Function
+            console.log("Calling Supabase Edge Function from:", isLocalDevelopment ? "local development" : "production");
+            
+            // Set up headers for the Edge Function
+            const headers: Record<string, string> = {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${SUPABASE_KEY}`
+            };
+            
+            console.log("Using server's API key in edge function");
+            console.log("Edge function request headers:", Object.keys(headers));
+            
+            response = await fetch(`${supabaseUrl}/functions/v1/openai-proxy`, {
               method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${apiKey}`,
-              },
+              headers,
               body: JSON.stringify(requestBody),
             });
-          } catch (error) {
-            console.error("Direct OpenAI API error:", error);
-            throw error;
+            
+            console.log("Edge function response status:", response.status);
           }
-        } 
-        // For production OR when using server key, use Supabase Edge Function
-        else {
-          try {
-            console.log("Calling Supabase edge function for OpenAI proxy");
-            console.log("Is using server key:", isUsingServerKey);
-            console.log("Has personal API key:", hasPersonalKey);
-            
-            // Get the Supabase key from the supabase client to keep it in sync
-            const SUPABASE_KEY = supabase.auth.getSession()?.data?.session?.access_token || 
-                                "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im93YXFuenRnZ3l4YWhqaGJjeWxqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDI2NTA3NzMsImV4cCI6MjA1ODIyNjc3M30.hPtP2iECWacaUFthBGItwezPox5JX6GhdlKFqRZMcOA";
-            
-            console.log("Using SUPABASE_KEY:", SUPABASE_KEY ? `${SUPABASE_KEY.substring(0, 10)}...` : "none");
-            
-            // Optional simulation mode - disabled by default
-            const useSimulation = false; // Set to true if you want to use simulated responses
-            
-            if (isLocalDevelopment && !hasPersonalKey && useSimulation) {
-              console.log("Local development with no API key: Using simulated response (simulation mode enabled)");
-              
-              // Create a simulated response
-              const simulatedGrade = Math.min(95, Math.max(60, Math.round(75 + submissionText.length / 1000)));
-              
-              // Create simulated function call response format
-              response = {
-                status: 200,
-                ok: true,
-                headers: new Headers(),
-                json: async () => ({
-                  choices: [{
-                    message: {
-                      function_call: {
-                        name: "gradeSubmission",
-                        arguments: JSON.stringify({
-                          grade: simulatedGrade,
-                          feedback: "This is simulated feedback for local development. The submission demonstrates a good understanding of the material. There are several strong points as well as areas that could be improved."
-                        })
-                      }
-                    }
-                  }]
-                })
-              } as Response;
-            } else {
-              // Production or testing with Edge Function
-              console.log("Calling Supabase Edge Function from:", isLocalDevelopment ? "local development" : "production");
-              
-              // For server key mode, don't pass any API key to the edge function
-              const headers: Record<string, string> = {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${SUPABASE_KEY}`
-              };
-              
-              // Only pass personal API key if we have one and aren't using server key
-              if (hasPersonalKey) {
-                headers['x-openai-key'] = apiKey;
-                console.log("Passing personal API key to edge function");
-              } else {
-                console.log("Using server's API key in edge function");
-              }
-              
-              console.log("Edge function request headers:", Object.keys(headers));
-              
-              response = await fetch(`${supabaseUrl}/functions/v1/openai-proxy`, {
-                method: 'POST',
-                headers,
-                body: JSON.stringify(requestBody),
-              });
-              
-              console.log("Edge function response status:", response.status);
-            }
-          } catch (edgeFunctionError) {
-            console.error("Edge function error:", edgeFunctionError);
-            
-            // Fallback to direct OpenAI API if edge function fails and we have an API key
-            if (apiKey) {
-              console.log("Falling back to direct OpenAI API call");
-              response = await fetch('https://api.openai.com/v1/chat/completions', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${apiKey}`,
-                },
-                body: JSON.stringify(requestBody),
-              });
-            } else {
-              throw edgeFunctionError;
-            }
-          }
+        } catch (edgeFunctionError) {
+          console.error("Edge function error:", edgeFunctionError);
+          
+          // If the edge function fails completely, we have no fallback
+          // since we're only using the server key
+          throw edgeFunctionError;
         }
         
         // Check standard response properties
@@ -458,6 +415,11 @@ function saveApiRequest(apiRequest: any, submissionPreview: string) {
     // Include details of what's sent to the API
     apiRequest: apiRequest,
     // Add useful metadata
+    edgeFunction: {
+      description: "Using Supabase Edge Function for secure server-side API access",
+      details: "All API calls are routed through our secure Edge Function",
+      benefit: "Your OpenAI API key is never exposed to the client"
+    },
     tokenOptimization: {
       description: "Using OpenAI function calling for token optimization",
       details: "System message and function definition are cached and reused between requests",
