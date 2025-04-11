@@ -39,9 +39,21 @@ const StudentPreviewDialog: React.FC<StudentPreviewDialogProps> = ({
   const [isHtmlContent, setIsHtmlContent] = useState(false);
   const [imageObjectUrl, setImageObjectUrl] = useState<string | null>(null);
 
+  // Track if text extraction has been started for this student
+  const [extractionStarted, setExtractionStarted] = useState(false);
+  
   useEffect(() => {
+    // Reset extraction state when student changes
+    setExtractionStarted(false);
+    
     if (student) {
       setGrade(student.grade);
+      
+      // Clean up previous image URL if it exists
+      if (imageObjectUrl) {
+        URL.revokeObjectURL(imageObjectUrl);
+        setImageObjectUrl(null);
+      }
       
       // Remove any "/30" prefix from feedback (issue #3)
       setFeedback(student.feedback.replace(/^\/\d+\s*/, ''));
@@ -52,7 +64,7 @@ const StudentPreviewDialog: React.FC<StudentPreviewDialogProps> = ({
         setIsHtmlContent(false);
       } else if (student.file) {
         // If the student has a file, always load that file's content
-        // (this will include image files which will be properly displayed)
+        // This will handle image files properly
         loadFileContent(student.file);
       } else if (student.contentPreview) {
         // Fall back to preview content if no file is available
@@ -69,9 +81,13 @@ const StudentPreviewDialog: React.FC<StudentPreviewDialogProps> = ({
     return () => {
       if (imageObjectUrl) {
         URL.revokeObjectURL(imageObjectUrl);
+        setImageObjectUrl(null);
       }
+      setIsLoadingImageText(false);
     };
-  }, [student, imageObjectUrl]);
+    // IMPORTANT: Do NOT include imageObjectUrl in the dependency array
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [student]);
 
   const loadFileContent = async (file: File) => {
     if (!file) return;
@@ -85,26 +101,37 @@ const StudentPreviewDialog: React.FC<StudentPreviewDialogProps> = ({
     // Check if it's an image file
     if (isImageFile(file)) {
       // For images, immediately display the image and load text asynchronously
-      const objectUrl = URL.createObjectURL(file);
-      setImageObjectUrl(objectUrl);
+      // Only create the object URL once here, not in the render
+      if (!imageObjectUrl) {
+        const objectUrl = URL.createObjectURL(file);
+        setImageObjectUrl(objectUrl);
+      }
       
       // Set a loading message for the text extraction
       setSubmissionContent("Loading extracted text from image...");
       setIsHtmlContent(false);
-      setIsLoadingImageText(true);
       
-      // Process text extraction in background
-      extractTextFromFile(file)
-        .then(content => {
-          setSubmissionContent(content || "No text could be extracted from this image.");
-        })
-        .catch(error => {
-          console.error("Error extracting text from image:", error);
-          setSubmissionContent("Error extracting text: " + (error as Error).message);
-        })
-        .finally(() => {
-          setIsLoadingImageText(false);
-        });
+      // Only start extraction if we haven't already started it for this student
+      if (!extractionStarted) {
+        setIsLoadingImageText(true);
+        setExtractionStarted(true); // Mark extraction as started
+        
+        console.log(`Starting text extraction for image: ${file.name}`);
+        
+        // Process text extraction in background - once per image
+        extractTextFromFile(file)
+          .then(content => {
+            console.log(`Text extraction completed for ${file.name}`);
+            setSubmissionContent(content || "No text could be extracted from this image.");
+          })
+          .catch(error => {
+            console.error("Error extracting text from image:", error);
+            setSubmissionContent("Error extracting text: " + (error as Error).message);
+          })
+          .finally(() => {
+            setIsLoadingImageText(false);
+          });
+      }
       
       return; // Exit early since we're handling this asynchronously
     }
@@ -245,9 +272,15 @@ const StudentPreviewDialog: React.FC<StudentPreviewDialogProps> = ({
                             <div className="flex flex-col items-center space-y-4">
                               <div className="relative w-full">
                                 <img 
-                                  src={imageObjectUrl || URL.createObjectURL(student.file)} 
+                                  src={imageObjectUrl || (student.file ? URL.createObjectURL(student.file) : '')} 
                                   alt={`${student.fullName}'s submission`}
                                   className="max-w-full max-h-[500px] object-contain rounded border border-gray-200 shadow-sm mx-auto"
+                                  onLoad={() => {
+                                    // If we're using the fallback URL, store it to prevent regeneration
+                                    if (!imageObjectUrl && student.file) {
+                                      setImageObjectUrl(URL.createObjectURL(student.file));
+                                    }
+                                  }}
                                 />
                                 <div className="absolute top-2 right-2 bg-gray-700/60 text-white text-xs px-2 py-1 rounded">
                                   {student.file.name.split('.').pop()?.toUpperCase()} {Math.round(student.file.size/1024)} KB
