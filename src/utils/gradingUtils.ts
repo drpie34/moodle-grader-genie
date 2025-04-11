@@ -158,24 +158,44 @@ export async function gradeWithOpenAI(submissionText: string, assignmentData: an
               'Authorization': `Bearer ${SUPABASE_KEY}`
             };
             
-            // Add a special flag for deployment environments to help bypass auth
-            // Also add for cases where we have no valid authorization token
+            // ALWAYS add the deployment flag for non-localhost environments
             if (isDeployedEnvironment || !SUPABASE_KEY || SUPABASE_KEY.length < 10) {
               headers['x-supabase-auth'] = 'deployment';
               console.log("Using deployment auth mode");
             }
             
+            // IMPORTANT: Signal to our edge function that we want it to use the server's API key
+            headers['x-use-server-key'] = 'true';
+            
             console.log("Using server's API key in edge function");
             console.log("Is deployed environment:", isDeployedEnvironment);
             console.log("Edge function request headers:", Object.keys(headers));
             
-            response = await fetch(`${supabaseUrl}/functions/v1/openai-proxy`, {
-              method: 'POST',
-              headers,
-              body: JSON.stringify(requestBody),
-            });
+            // CRITICAL FIX: Hardcode the Supabase URL and endpoint to guarantee we don't call OpenAI directly
+            const edgeFunctionUrl = "https://owaqnztggyxahjhbcylj.supabase.co/functions/v1/openai-proxy";
             
-            console.log("Edge function response status:", response.status);
+            console.log("Using Edge Function URL:", edgeFunctionUrl);
+            console.log("Request headers:", JSON.stringify(Object.keys(headers)));
+            
+            try {
+              response = await fetch(edgeFunctionUrl, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify(requestBody),
+              });
+              
+              console.log("Edge function response status:", response.status);
+              
+              // Add detailed logging for non-200 responses
+              if (!response.ok) {
+                const errorText = await response.text().catch(e => "Could not read error text");
+                console.error("Edge function error response:", errorText);
+                throw new Error(`Edge function returned status ${response.status}: ${errorText}`);
+              }
+            } catch (fetchError) {
+              console.error("Fetch to Edge Function failed:", fetchError);
+              throw fetchError;
+            }
           }
         } catch (edgeFunctionError) {
           console.error("Edge function error:", edgeFunctionError);
