@@ -44,20 +44,21 @@ const StudentPreviewDialog: React.FC<StudentPreviewDialogProps> = ({
       // Remove any "/30" prefix from feedback (issue #3)
       setFeedback(student.feedback.replace(/^\/\d+\s*/, ''));
       
-      if (student.contentPreview) {
-        // If we already have a preview, use the full content instead of the preview
-        if (student.file) {
-          // Load the full content
-          loadFileContent(student.file);
-        } else {
-          setSubmissionContent(student.contentPreview);
-          setIsHtmlContent(false);
-        }
+      if (student.status === "No Submission") {
+        // Handle special case for students marked as having no submission
+        setSubmissionContent("No submission provided by this student.");
+        setIsHtmlContent(false);
       } else if (student.file) {
-        // Load file content
+        // If the student has a file, always load that file's content
+        // (this will include image files which will be properly displayed)
         loadFileContent(student.file);
+      } else if (student.contentPreview) {
+        // Fall back to preview content if no file is available
+        setSubmissionContent(student.contentPreview);
+        setIsHtmlContent(false);
       } else {
-        setSubmissionContent("No submission file found for this student.");
+        // Default case if no content and no file
+        setSubmissionContent("No submission content available for this student.");
         setIsHtmlContent(false);
       }
     }

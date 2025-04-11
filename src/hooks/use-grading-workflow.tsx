@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { extractTextFromFile, extractTextFromHTML, findBestSubmissionFile, extractStudentInfoFromFilename } from "@/utils/fileUtils";
+import { extractTextFromFile, extractTextFromHTML, findBestSubmissionFile, extractStudentInfoFromFilename, isEmptySubmission, CONTENT_MARKERS } from "@/utils/fileUtils";
 import { uploadMoodleGradebook, generateMoodleCSV } from "@/utils/csv";
 import { gradeWithOpenAI } from "@/utils/gradingUtils";
 import { isImageFile } from "@/utils/imageUtils";
@@ -223,89 +223,63 @@ export function useGradingWorkflow() {
     studentInfo: any,
     batchSize = 3
   ) => {
-    const onlineTextFiles = folderFiles.filter(file => file.name.includes('onlinetext') || file.type.includes('html'));
-    const otherFiles = folderFiles.filter(file => !file.name.includes('onlinetext') && !file.type.includes('html'));
+    console.log(`Processing folder "${folderName}" with ${folderFiles.length} files`);
     
-    console.log(`Processing folder "${folderName}" with ${otherFiles.length} regular files and ${onlineTextFiles.length} HTML files`);
+    // Find the best file to use - this prioritizes non-HTML files using our improved function
+    const bestFile = findBestSubmissionFile(folderFiles);
     
-    let submissionText = '';
-    let submissionFile: File | null = null;
-    
-    for (let i = 0; i < otherFiles.length; i += batchSize) {
-      const batch = otherFiles.slice(i, i + batchSize);
-      
-      const results = await Promise.all(
-        batch.map(async file => {
-          try {
-            const text = await extractTextWithCache(file);
-            const meaningful = text.trim().length > 50;
-            return { file, text, success: meaningful };
-          } catch (error) {
-            console.error(`Error extracting text from ${file.name}:`, error);
-            return { file, text: '', success: false };
-          }
-        })
-      );
-      
-      results.sort((a, b) => b.text.length - a.text.length);
-      
-      const successfulResult = results.find(r => r.success);
-      if (successfulResult) {
-        submissionText = successfulResult.text;
-        submissionFile = successfulResult.file;
-        console.log(`Using file "${submissionFile.name}" with ${submissionText.length} chars of text`);
-        break;
-      }
+    if (!bestFile) {
+      console.log(`No files found for ${studentInfo.fullName} in folder ${folderName}`);
+      return { 
+        submissionText: CONTENT_MARKERS.NO_SUBMISSION,
+        submissionFile: null,
+        hasEmptySubmission: true 
+      };
     }
     
-    if ((!submissionText || submissionText.length < 100) && onlineTextFiles.length > 0) {
-      console.log(`No substantial content found in regular files, trying ${onlineTextFiles.length} HTML files`);
+    console.log(`Selected best file for ${studentInfo.fullName}: ${bestFile.name} (${bestFile.type})`);
+    
+    // Extract text from the best file
+    try {
+      const text = await extractTextWithCache(bestFile);
+      console.log(`Extracted ${text.length} chars from ${bestFile.name}`);
       
-      for (let i = 0; i < onlineTextFiles.length; i += batchSize) {
-        const batch = onlineTextFiles.slice(i, i + batchSize);
-        
-        const results = await Promise.all(
-          batch.map(async file => {
-            try {
-              const text = await extractTextWithCache(file);
-              console.log(`HTML file ${file.name} content preview: "${text.substring(0, 100)}..."`);
-              return { file, text, success: text.trim().length > 50 };
-            } catch (error) {
-              console.error(`Error extracting text from ${file.name}:`, error);
-              return { file, text: '', success: false };
-            }
-          })
-        );
-        
-        results.sort((a, b) => b.text.length - a.text.length);
-        
-        const successfulResult = results.find(r => r.success);
-        if (successfulResult) {
-          if (!submissionText || successfulResult.text.length > submissionText.length * 1.5) {
-            submissionText = successfulResult.text;
-            submissionFile = successfulResult.file;
-            console.log(`Using HTML file "${submissionFile.name}" with ${submissionText.length} chars of text`);
-          }
-          break;
-        }
+      // Check if we got the special empty marker back
+      const isEmpty = isEmptySubmission(text);
+      
+      // Important: If it's an image file, even if there's no extractable text,
+      // we should NOT consider it empty - we'll let the OpenAI vision API handle it
+      const isImage = isImageFile(bestFile);
+      const hasEmptySubmission = isEmpty && !isImage;
+      
+      if (hasEmptySubmission) {
+        console.log(`Empty submission detected for ${studentInfo.fullName}`);
+        return { 
+          submissionText: CONTENT_MARKERS.EMPTY_SUBMISSION,
+          submissionFile: bestFile,
+          hasEmptySubmission: true 
+        };
       }
-    }
-    
-    if (!submissionFile) {
-      const fallbackFile = otherFiles[0] || onlineTextFiles[0];
-      if (fallbackFile) {
-        submissionFile = fallbackFile;
-        try {
-          submissionText = await extractTextWithCache(fallbackFile);
-          console.log(`Using fallback file "${submissionFile.name}" with ${submissionText.length} chars of text`);
-        } catch (error) {
-          console.error(`Error extracting text from fallback file ${fallbackFile.name}:`, error);
-          submissionText = '';
-        }
+      
+      if (isImage) {
+        console.log(`Image file detected for ${studentInfo.fullName} - will use OpenAI vision API`);
       }
+      
+      return { 
+        submissionText: text, 
+        submissionFile: bestFile,
+        hasEmptySubmission: false
+      };
+    } catch (error) {
+      console.error(`Error extracting text from ${bestFile.name}:`, error);
+      
+      // If extraction fails completely, we should still return the file but mark it empty
+      return { 
+        submissionText: `Error extracting content from ${bestFile.name}: ${error}`, 
+        submissionFile: bestFile,
+        hasEmptySubmission: true
+      };
     }
-    
-    return { submissionText, submissionFile };
   };
   
   // Load saved data from localStorage on component mount and whenever step changes
@@ -419,7 +393,7 @@ export function useGradingWorkflow() {
                 return null;
               }
               
-              const { submissionText, submissionFile } = await processFolderInBatches(folderFiles, folderName, studentInfo);
+              const { submissionText, submissionFile, hasEmptySubmission } = await processFolderInBatches(folderFiles, folderName, studentInfo);
               
               if (submissionFile) {
                 let studentName = studentInfo.fullName;
@@ -485,12 +459,53 @@ export function useGradingWorkflow() {
                 }
                 
                 try {
-                  console.log(`Grading submission for ${studentName} (${submissionText.length} chars)`);
-                  
+                  console.log(`Processing submission for ${studentName} (${submissionText.length} chars)`);
                   console.log(`Submission preview for ${studentName}: "${submissionText.substring(0, 200)}..."`);
                   
+                  // Handle empty submissions - don't send them to OpenAI at all
+                  if (hasEmptySubmission || submissionText === CONTENT_MARKERS.EMPTY_SUBMISSION || submissionText === CONTENT_MARKERS.NO_SUBMISSION) {
+                    console.log(`Empty submission detected for ${studentName} - not sending to OpenAI`);
+                    
+                    // Check if we should mark empty submissions as "No Submission" or grade them
+                    const shouldSkipGrading = assignmentData?.skipEmptySubmissions === true;
+                    
+                    if (shouldSkipGrading) {
+                      console.log(`Marking empty submission as "No Submission" for ${studentName}`);
+                      processedGrades.push({
+                        identifier: studentIdentifier,
+                        fullName: studentName,
+                        firstName: firstName,
+                        lastName: lastName,
+                        email: studentEmail,
+                        status: "No Submission",
+                        grade: null as any, // Use null to prevent displaying a 0
+                        feedback: "", // No feedback for empty submissions
+                        file: submissionFile,
+                        edited: true, // Mark as edited to prevent prompts
+                        originalRow: originalRow,
+                        contentPreview: submissionText
+                      });
+                    } else {
+                      console.log(`Marking empty submission as "Empty Submission" for ${studentName} - will be graded later`);
+                      processedGrades.push({
+                        identifier: studentIdentifier,
+                        fullName: studentName,
+                        firstName: firstName,
+                        lastName: lastName,
+                        email: studentEmail,
+                        status: "Empty Submission",
+                        grade: 0, // Default grade for empty submissions
+                        feedback: "This submission appears to be empty or contains insufficient content to grade.",
+                        file: submissionFile,
+                        edited: false,
+                        originalRow: originalRow,
+                        contentPreview: submissionText
+                      });
+                    }
+                    return; // Skip the rest of the processing
+                  }
+                  
                   // Check if the submission contains a truly unsupported file type warning
-                  // (but not image files which we now support)
                   const isUnsupportedFile = submissionText.includes('[UNSUPPORTED_FILE_TYPE:') && 
                                             !isImageFile(submissionFile);
                   
@@ -514,6 +529,13 @@ export function useGradingWorkflow() {
                       contentPreview: submissionText
                     });
                   } else {
+                    console.log(`Grading submission for ${studentName} with OpenAI`);
+                    
+                    // Special note if this is an image file
+                    if (isImageFile(submissionFile)) {
+                      console.log(`Using Vision API for image submission from ${studentName}`);
+                    }
+                    
                     const gradingResult = await gradeWithOpenAI(
                       submissionText, 
                       assignmentData, 
