@@ -30,7 +30,7 @@ export async function gradeWithOpenAI(submissionText: string, assignmentData: an
     // Save the prompt to localStorage for later inspection
     saveGradingPrompt(prompt, submissionText.substring(0, 200));
     
-    // Always use GPT-4 for grading
+    // Always use GPT-4o mini for grading
     const modelToUse = "gpt-4o-mini";
     console.log(`Using OpenAI model: ${modelToUse} for grading`);
     
@@ -227,21 +227,76 @@ export async function gradeWithOpenAI(submissionText: string, assignmentData: an
 function constructPrompt(submissionText: string, assignmentData: any): string {
   const { assignmentName, courseName, assignmentInstructions, rubric, academicLevel, gradingScale, gradingStrictness, feedbackLength, feedbackFormality, instructorTone, additionalInstructions } = assignmentData;
   
-  let prompt = `You are an AI grading assistant for ${courseName} at the ${academicLevel} level. \
+  let prompt = `You are acting as the instructor for ${courseName} at the ${academicLevel} level. \
+  You are an expert teacher, and you think carefully about how best to assess assignments and provide helpful and friendly feedback. \
+  You always pay very close attention to the requirements of the assignment and make sure to structure your feedback in a way that takes into account all the components of the assignment, \
+  while carefully weighing them against any grading instructions or rubric you receive. You write in a way that would be indistinguishable from a human instructor. \
   Your task is to grade student submissions for the assignment "${assignmentName}" out of ${gradingScale} points. \
-  Follow these instructions: ${assignmentInstructions}. `;
+  Follow these instructions from the assignment description: ${assignmentInstructions}. `;
   
   if (rubric) {
     prompt += `Use this rubric to guide your grading: ${rubric}. `;
   }
   
-  prompt += `Be ${gradingStrictness <= 3 ? "lenient" : gradingStrictness <= 7 ? "moderately strict" : "very strict"} in your grading. \
-  Provide feedback that is ${feedbackLength <= 3 ? "concise" : feedbackLength <= 7 ? "moderately detailed" : "very detailed"}. \
-  The tone of your feedback should be ${feedbackFormality <= 3 ? "casual" : feedbackFormality <= 7 ? "moderately formal" : "very formal"}. \
+  // Create a fine-grained scale mapping for strictness (1-10)
+  const strictnessDescriptions = [
+    "extremely lenient", // 1
+    "very lenient",      // 2
+    "lenient",           // 3
+    "somewhat lenient",  // 4
+    "balanced",          // 5 
+    "slightly firm",     // 6
+    "moderately strict", // 7
+    "firm",              // 8
+    "very strict",       // 9
+    "extremely strict"   // 10
+  ];
+  
+  // Create a fine-grained scale mapping for feedback length (1-10)
+  const feedbackLengthDescriptions = [
+    "very brief",           // 1
+    "brief",                // 2
+    "concise",              // 3
+    "somewhat detailed",    // 4
+    "moderately detailed",  // 5
+    "detailed",             // 6
+    "quite detailed",       // 7
+    "thorough",             // 8
+    "very thorough",        // 9
+    "extremely detailed"    // 10
+  ];
+  
+  // Create a fine-grained scale mapping for formality (1-10)
+  const formalityDescriptions = [
+    "very casual and conversational", // 1
+    "casual and friendly",           // 2
+    "informal",                      // 3
+    "somewhat informal",             // 4
+    "balanced",                      // 5
+    "somewhat formal",               // 6
+    "professional",                  // 7
+    "formal",                        // 8
+    "quite formal",                  // 9
+    "highly formal and academic"     // 10
+  ];
+  
+  // Get the appropriate description for each scale (handling values outside 1-10 range)
+  // Convert to number if needed, default to 5 (middle of scale) if undefined
+  const strictnessValue = typeof gradingStrictness === 'string' ? parseInt(gradingStrictness, 10) : gradingStrictness;
+  const lengthValue = typeof feedbackLength === 'string' ? parseInt(feedbackLength, 10) : feedbackLength;
+  const formalityValue = typeof feedbackFormality === 'string' ? parseInt(feedbackFormality, 10) : feedbackFormality;
+  
+  const strictnessLevel = Math.min(Math.max(1, Math.round(strictnessValue || 5)), 10);
+  const lengthLevel = Math.min(Math.max(1, Math.round(lengthValue || 5)), 10);
+  const formalityLevel = Math.min(Math.max(1, Math.round(formalityValue || 5)), 10);
+  
+  prompt += `Be ${strictnessDescriptions[strictnessLevel - 1]} in your grading (${strictnessLevel}/10 on strictness scale). \
+  Provide feedback that is ${feedbackLengthDescriptions[lengthLevel - 1]} (${lengthLevel}/10 on detail scale). \
+  The tone of your feedback should be ${formalityDescriptions[formalityLevel - 1]} (${formalityLevel}/10 on formality scale). \
   DO NOT begin your feedback with a grade or score like "/30" - just provide the actual feedback directly. `;
   
   if (instructorTone) {
-    prompt += `Adopt this tone as if you were the instructor: ${instructorTone}. `;
+    prompt += `This is a sample of the tone to adopt in your feedback. Remember, this is tone only, the actual example provided may be for an entirely different assignment: ${instructorTone}. `;
   }
   
   if (additionalInstructions) {
