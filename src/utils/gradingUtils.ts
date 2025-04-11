@@ -123,13 +123,14 @@ export async function gradeWithOpenAI(submissionText: string, assignmentData: an
     // Save the actual API request data to localStorage for accurate debugging
     // This shows exactly what we're sending to the OpenAI API
     const apiRequestSummary = {
-      systemMessage: gradingCache.systemMessage ? gradingCache.systemMessage.substring(0, 100) + "... [truncated]" : "None",
-      userMessage: `Grade this submission: ${submissionText.substring(0, 100)}... [truncated]`,
+      systemMessage: gradingCache.systemMessage || "None",
+      userMessage: `Grade this submission: ${submissionText}`,
       function: gradingCache.functionDefinition ? gradingCache.functionDefinition.name : "None",
       cached: !!gradingCache.assignmentId,
       assignmentId: gradingCache.assignmentId || "None"
     };
-    saveApiRequest(apiRequestSummary, submissionText.substring(0, 200));
+    // Save a preview of the submission for quick reference
+    saveApiRequest(apiRequestSummary, submissionText);
     
     // Always use GPT-4 for grading
     const modelToUse = "gpt-4o-mini";
@@ -170,8 +171,10 @@ export async function gradeWithOpenAI(submissionText: string, assignmentData: an
         const requestBody = {
           model: modelToUse,
           messages: [
-            { role: "system", content: gradingCache.systemMessage ? gradingCache.systemMessage.substring(0, 50) + "..." : undefined },
-            { role: "user", content: `Grade this submission: ${submissionText.substring(0, 50)}...` }
+            // Use the full system message - this is the actual message sent to OpenAI
+            { role: "system", content: gradingCache.systemMessage },
+            // Use the full submission text - this is critical for proper grading
+            { role: "user", content: `Grade this submission: ${submissionText}` }
           ],
           functions: [gradingCache.functionDefinition],
           function_call: { name: "gradeSubmission" },

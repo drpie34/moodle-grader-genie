@@ -89,7 +89,17 @@ const GradingApiDebug: React.FC<GradingApiDebugProps> = ({ open, onClose }) => {
     
     // Build the full prompt
     prompt = `# System Message:\n\n${fullSystemMessage}\n\n`;
-    prompt += `# User Message:\n\n${currentRequest.apiRequest.userMessage.replace('Grade this submission: ', '')}\n\n`;
+    
+    // Get user message (submission text) - limit display for very large submissions
+    let userMessage = currentRequest.apiRequest.userMessage.replace('Grade this submission: ', '');
+    const isLongSubmission = userMessage.length > 15000;
+    
+    // For very long submissions, truncate for display but note the full length
+    if (isLongSubmission) {
+      userMessage = userMessage.substring(0, 15000) + `\n\n[...truncated for display only. Full submission is ${userMessage.length} characters...]`;
+    }
+    
+    prompt += `# User Message:\n\n${userMessage}\n\n`;
     
     // Add function definition if available
     if (window.gradingCache && window.gradingCache.functionDefinition) {
@@ -217,8 +227,10 @@ const GradingApiDebug: React.FC<GradingApiDebugProps> = ({ open, onClose }) => {
                     </div>
                     <div>
                       <dt className="font-medium text-muted-foreground">Submission Preview</dt>
-                      <dd className="whitespace-pre-wrap text-xs border rounded p-2 mt-1 bg-muted/30">
-                        {currentRequest.submissionPreview}
+                      <dd className="whitespace-pre-wrap text-xs border rounded p-2 mt-1 bg-muted/30 max-h-60 overflow-y-auto">
+                        {currentRequest.submissionPreview?.length > 1000 
+                          ? currentRequest.submissionPreview.substring(0, 1000) + "...\n[truncated for display - see Complete Prompt tab for full submission]" 
+                          : currentRequest.submissionPreview}
                       </dd>
                     </div>
                   </dl>
