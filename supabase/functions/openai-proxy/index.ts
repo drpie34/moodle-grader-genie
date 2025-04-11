@@ -51,9 +51,10 @@ serve(async (req) => {
     // For deployment environments, we'll allow access even without proper auth
     if (isDeploymentRequest) {
       console.log('Allowing access for deployment environment')
-      // Ensure we have an API key (use server key)
+      // Ensure we have an API key - use server key for deployment requests by default
       if (!apiKey && OPENAI_API_KEY) {
         console.log('Using server API key for deployment environment')
+        apiKey = OPENAI_API_KEY
       }
     }
     

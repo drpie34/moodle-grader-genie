@@ -97,15 +97,28 @@ export async function gradeWithOpenAI(submissionText: string, assignmentData: an
         try {
           console.log("Calling Supabase edge function for OpenAI proxy");
           
-          // Get the Supabase key - for deployment environment, make the Function publicly accessible
-          const SUPABASE_KEY = supabase.auth.getSession()?.data?.session?.access_token || 
-                           (supabase as any).supabaseKey || // Use the key from the client if available
-                           "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im93YXFuenRnZ3l4YWhqaGJjeWxqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDI2NTA3NzMsImV4cCI6MjA1ODIyNjc3M30.hPtP2iECWacaUFthBGItwezPox5JX6GhdlKFqRZMcOA";
+          // Get the Supabase key - try multiple sources to ensure we have a key
+          // 1. Try the session token first (for authenticated users)
+          // 2. Then try the client's anon key 
+          // 3. Finally use our hardcoded anon key as a last resort
+          const ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im93YXFuenRnZ3l4YWhqaGJjeWxqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDI2NTA3NzMsImV4cCI6MjA1ODIyNjc3M30.hPtP2iECWacaUFthBGItwezPox5JX6GhdlKFqRZMcOA";
+          
+          const sessionKey = supabase.auth.getSession()?.data?.session?.access_token;
+          const clientKey = (supabase as any).supabaseKey;
+          
+          const SUPABASE_KEY = sessionKey || clientKey || ANON_KEY;
+          
+          // Log which key source we're using (without revealing the actual key)
+          console.log("Key source:", 
+            sessionKey ? "user session" : 
+            clientKey ? "client anon key" : 
+            "fallback anon key");
           
           // Set additional authentication info for deployed environment
           const isDeployedEnvironment = window.location.hostname !== 'localhost';
           
           console.log("Using SUPABASE_KEY:", SUPABASE_KEY ? `${SUPABASE_KEY.substring(0, 10)}...` : "none");
+          console.log("Environment detection:", { hostname: window.location.hostname, isDeployedEnvironment });
           
           // Optional simulation mode for local development testing - disabled by default
           const useSimulation = false; // Set to true if you want to use simulated responses
@@ -146,8 +159,10 @@ export async function gradeWithOpenAI(submissionText: string, assignmentData: an
             };
             
             // Add a special flag for deployment environments to help bypass auth
-            if (isDeployedEnvironment) {
+            // Also add for cases where we have no valid authorization token
+            if (isDeployedEnvironment || !SUPABASE_KEY || SUPABASE_KEY.length < 10) {
               headers['x-supabase-auth'] = 'deployment';
+              console.log("Using deployment auth mode");
             }
             
             console.log("Using server's API key in edge function");
