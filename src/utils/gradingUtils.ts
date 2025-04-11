@@ -48,36 +48,13 @@ export async function gradeWithOpenAI(submissionText: string, assignmentData: an
       try {
         let response;
         
-        // Always try the Supabase Edge Function first (now with CORS support)
-        try {
-          console.log("Calling Supabase edge function for OpenAI proxy");
-          console.log("API key provided:", apiKey ? "Yes" : "No");
-          console.log("Using server OpenAI key:", apiKey ? "No" : "Yes");
-          // Import the SUPABASE_PUBLISHABLE_KEY directly to avoid circular dependencies
-          const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im93YXFuenRnZ3l4YWhqaGJjeWxqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDI2NTA3NzMsImV4cCI6MjA1ODIyNjc3M30.hPtP2iECWacaUFthBGItwezPox5JX6GhdlKFqRZMcOA";
-          
-          response = await fetch(`${supabaseUrl}/functions/v1/openai-proxy`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              // Add authorization for Supabase function
-              'Authorization': `Bearer ${SUPABASE_KEY}`,
-              // Pass the API key explicitly if provided
-              'x-openai-key': apiKey || '',
-            },
-            body: JSON.stringify({
-              model: modelToUse,
-              messages: [{ role: "user", content: prompt }],
-              temperature: 0.7,
-            }),
-          });
-          console.log("Edge function response status:", response.status);
-        } catch (edgeFunctionError) {
-          console.error("Edge function error:", edgeFunctionError);
-          
-          // Fallback to direct OpenAI API if edge function fails and we have an API key
-          if (apiKey) {
-            console.log("Falling back to direct OpenAI API call");
+        // Check if we're in local development
+        const isLocalDevelopment = window.location.hostname === 'localhost';
+        
+        // For local development with a key, just use OpenAI directly
+        if (isLocalDevelopment && apiKey) {
+          console.log("Local development: Using OpenAI API directly");
+          try {
             response = await fetch('https://api.openai.com/v1/chat/completions', {
               method: 'POST',
               headers: {
@@ -90,8 +67,81 @@ export async function gradeWithOpenAI(submissionText: string, assignmentData: an
                 temperature: 0.7,
               }),
             });
-          } else {
-            throw edgeFunctionError;
+          } catch (error) {
+            console.error("Direct OpenAI API error:", error);
+            throw error;
+          }
+        } 
+        // For production or when using server key, use Supabase Edge Function
+        else {
+          try {
+            console.log("Calling Supabase edge function for OpenAI proxy");
+            console.log("API key provided:", apiKey ? "Yes" : "No");
+            console.log("Using server OpenAI key:", apiKey ? "No" : "Yes");
+            
+            // Get the Supabase key from the supabase client to keep it in sync
+            const SUPABASE_KEY = supabase.auth.getSession()?.data?.session?.access_token || 
+                                "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im93YXFuenRnZ3l4YWhqaGJjeWxqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDI2NTA3NzMsImV4cCI6MjA1ODIyNjc3M30.hPtP2iECWacaUFthBGItwezPox5JX6GhdlKFqRZMcOA";
+            
+            // In local development without API key, use simulated response
+            if (isLocalDevelopment && !apiKey) {
+              console.log("Local development with no API key: Using simulated response");
+              
+              // Create a simulated response
+              const simulatedGrade = Math.min(95, Math.max(60, Math.round(75 + submissionText.length / 1000)));
+              
+              response = {
+                status: 200,
+                ok: true,
+                headers: new Headers(),
+                json: async () => ({
+                  choices: [{
+                    message: {
+                      content: `Grade: ${simulatedGrade}\n\nFeedback: This is simulated feedback for local development. The submission demonstrates a good understanding of the material. There are several strong points as well as areas that could be improved.`
+                    }
+                  }]
+                })
+              } as Response;
+            } else {
+              // Production or testing with Edge Function
+              response = await fetch(`${supabaseUrl}/functions/v1/openai-proxy`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  // Add authorization for Supabase function
+                  'Authorization': `Bearer ${SUPABASE_KEY}`,
+                  // Pass the API key explicitly if provided
+                  'x-openai-key': apiKey || '',
+                },
+                body: JSON.stringify({
+                  model: modelToUse,
+                  messages: [{ role: "user", content: prompt }],
+                  temperature: 0.7,
+                }),
+              });
+              console.log("Edge function response status:", response.status);
+            }
+          } catch (edgeFunctionError) {
+            console.error("Edge function error:", edgeFunctionError);
+            
+            // Fallback to direct OpenAI API if edge function fails and we have an API key
+            if (apiKey) {
+              console.log("Falling back to direct OpenAI API call");
+              response = await fetch('https://api.openai.com/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${apiKey}`,
+                },
+                body: JSON.stringify({
+                  model: modelToUse,
+                  messages: [{ role: "user", content: prompt }],
+                  temperature: 0.7,
+                }),
+              });
+            } else {
+              throw edgeFunctionError;
+            }
           }
         }
         
