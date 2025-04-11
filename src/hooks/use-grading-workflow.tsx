@@ -128,6 +128,35 @@ export function useGradingWorkflow() {
   
   const textExtractionCache = new Map<string, string>();
   
+  // Check if file is a supported type
+  const isSupportedFileType = (file: File): boolean => {
+    const supportedTypes = [
+      // Document formats
+      '.pdf', '.docx', '.doc', '.txt', '.html', '.htm', 
+      'application/pdf', 'text/plain', 'text/html', 
+      'application/vnd.openxmlformats-officedocument', 'application/msword',
+      // Special case for Moodle online text
+      'onlinetext'
+    ];
+    
+    // Check if file name or type contains any of the supported types
+    return supportedTypes.some(type => 
+      file.name.toLowerCase().includes(type) || (file.type && file.type.toLowerCase().includes(type))
+    );
+  };
+  
+  // Check if file is likely an image
+  const isImageFile = (file: File): boolean => {
+    const imageTypes = [
+      '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff', '.tif',
+      'image/'
+    ];
+    
+    return imageTypes.some(type => 
+      file.name.toLowerCase().includes(type) || (file.type && file.type.toLowerCase().includes(type))
+    );
+  };
+
   const extractTextWithCache = async (file: File): Promise<string> => {
     const cacheKey = `${file.name}-${file.size}-${file.lastModified}`;
     
@@ -136,6 +165,19 @@ export function useGradingWorkflow() {
     }
     
     try {
+      // Check if this is an unsupported file type
+      if (!isSupportedFileType(file)) {
+        // Special handling for image files
+        if (isImageFile(file)) {
+          console.warn(`Image file detected: ${file.name}. These need manual review.`);
+          return `[UNSUPPORTED_FILE_TYPE: This appears to be an image (${file.name}). Images cannot be automatically graded and require manual review.]`;
+        }
+        
+        // Handle other unsupported types
+        console.warn(`Unsupported file type: ${file.name} (${file.type || "unknown type"})`);
+        return `[UNSUPPORTED_FILE_TYPE: The file "${file.name}" cannot be processed automatically. Please review this submission manually.]`;
+      }
+      
       let text: string;
       
       if (file.name.endsWith('.pdf') || file.type.includes('pdf')) {
@@ -168,7 +210,7 @@ export function useGradingWorkflow() {
       return text;
     } catch (error) {
       console.error(`Error extracting text from ${file.name}:`, error);
-      return "";
+      return `[ERROR: Failed to extract text from ${file.name}. This submission may require manual review.]`;
     }
   };
   
@@ -427,29 +469,53 @@ export function useGradingWorkflow() {
                   
                   console.log(`Submission preview for ${studentName}: "${submissionText.substring(0, 200)}..."`);
                   
-                  const gradingResult = await gradeWithOpenAI(
-                    submissionText, 
-                    assignmentData, 
-                    getApiKey() || "",
-                    assignmentData.gradingScale
-                  );
+                  // Check if the submission contains an unsupported file type warning
+                  const isUnsupportedFile = submissionText.includes('[UNSUPPORTED_FILE_TYPE:');
                   
-                  console.log(`Grading result for ${studentName}: Grade ${gradingResult.grade}, Feedback length: ${gradingResult.feedback.length} chars`);
-                  
-                  processedGrades.push({
-                    identifier: studentIdentifier,
-                    fullName: studentName,
-                    firstName: firstName,
-                    lastName: lastName,
-                    email: studentEmail,
-                    status: "Graded",
-                    grade: gradingResult.grade,
-                    feedback: gradingResult.feedback,
-                    file: submissionFile,
-                    edited: false,
-                    originalRow: originalRow,
-                    contentPreview: submissionText.slice(0, 200) + (submissionText.length > 200 ? '...' : '')
-                  });
+                  if (isUnsupportedFile) {
+                    console.warn(`Unsupported file detected for ${studentName}`);
+                    // Extract the warning message
+                    const fileTypeWarning = submissionText.match(/\[UNSUPPORTED_FILE_TYPE:.*?\]/)?.[0] || 'Unsupported file type detected';
+                    
+                    processedGrades.push({
+                      identifier: studentIdentifier,
+                      fullName: studentName,
+                      firstName: firstName,
+                      lastName: lastName,
+                      email: studentEmail,
+                      status: "Manual Review Required",
+                      grade: null as any, // Use null to prevent displaying a 0
+                      feedback: `${fileTypeWarning} Please review this submission manually. This automated message was generated because the submission contains a file type that cannot be automatically processed.`,
+                      file: submissionFile,
+                      edited: false, // Needs review
+                      originalRow: originalRow,
+                      contentPreview: submissionText
+                    });
+                  } else {
+                    const gradingResult = await gradeWithOpenAI(
+                      submissionText, 
+                      assignmentData, 
+                      getApiKey() || "",
+                      assignmentData.gradingScale
+                    );
+                    
+                    console.log(`Grading result for ${studentName}: Grade ${gradingResult.grade}, Feedback length: ${gradingResult.feedback.length} chars`);
+                    
+                    processedGrades.push({
+                      identifier: studentIdentifier,
+                      fullName: studentName,
+                      firstName: firstName,
+                      lastName: lastName,
+                      email: studentEmail,
+                      status: "Graded",
+                      grade: gradingResult.grade,
+                      feedback: gradingResult.feedback,
+                      file: submissionFile,
+                      edited: false,
+                      originalRow: originalRow,
+                      contentPreview: submissionText.slice(0, 200) + (submissionText.length > 200 ? '...' : '')
+                    });
+                  }
                 } catch (error) {
                   console.error(`Error grading submission for ${studentName}:`, error);
                   processedGrades.push({
@@ -459,7 +525,7 @@ export function useGradingWorkflow() {
                     lastName: lastName,
                     email: studentEmail,
                     status: "Error",
-                    grade: 0,
+                    grade: null as any, // Use null instead of 0 to prevent displaying a grade
                     feedback: "Error grading submission. Please grade manually.",
                     file: submissionFile,
                     edited: false,
@@ -532,6 +598,8 @@ export function useGradingWorkflow() {
                   mergedGrades[moodleIndex] = {
                     ...mergedGrades[moodleIndex],
                     status: "No Submission",
+                    grade: null as any, // Use null instead of 0 for empty submissions
+                    feedback: "", // Clear any feedback
                     file: aiGrade.file,
                     contentPreview: aiGrade.contentPreview,
                     edited: true // Mark as edited to prevent further prompts
