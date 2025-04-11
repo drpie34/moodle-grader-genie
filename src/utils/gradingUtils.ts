@@ -44,10 +44,16 @@ export async function gradeWithOpenAI(submissionText: string, assignmentData: an
       console.log("Using cached grading function and system message");
     }
     
-    // Save optimized data to localStorage instead of the full prompt
-    // We'll only use the old constructPrompt function for debugging purposes
-    const promptSummary = `Assignment: ${assignmentData.assignmentName}, Submission length: ${submissionText.length} chars`;
-    saveGradingPrompt(promptSummary, submissionText.substring(0, 200));
+    // Save the actual API request data to localStorage for accurate debugging
+    // This shows exactly what we're sending to the OpenAI API
+    const apiRequestSummary = {
+      systemMessage: gradingCache.systemMessage ? gradingCache.systemMessage.substring(0, 100) + "... [truncated]" : "None",
+      userMessage: `Grade this submission: ${submissionText.substring(0, 100)}... [truncated]`,
+      function: gradingCache.functionDefinition ? gradingCache.functionDefinition.name : "None",
+      cached: !!gradingCache.assignmentId,
+      assignmentId: gradingCache.assignmentId || "None"
+    };
+    saveApiRequest(apiRequestSummary, submissionText.substring(0, 200));
     
     // Always use GPT-4 for grading
     const modelToUse = "gpt-4o-mini";
@@ -430,40 +436,79 @@ function constructPrompt(submissionText: string, assignmentData: any): string {
   return prompt;
 }
 
-function saveGradingPrompt(prompt: string, submissionPreview: string) {
+// Save actual API request details to show what's really being sent to OpenAI
+function saveApiRequest(apiRequest: any, submissionPreview: string) {
   // Get existing prompts from localStorage
-  const existingPrompts = localStorage.getItem('grading_prompts');
-  let prompts = [];
+  const existingPrompts = localStorage.getItem('api_requests');
+  let requests = [];
   
   if (existingPrompts) {
     try {
-      prompts = JSON.parse(existingPrompts);
+      requests = JSON.parse(existingPrompts);
     } catch (e) {
-      console.error("Error parsing existing prompts:", e);
-      prompts = [];
+      console.error("Error parsing existing API requests:", e);
+      requests = [];
     }
   }
   
-  // In the optimized version, only save a minimal record without duplicating large amounts of text
-  // This prevents storing the full instructions repeatedly for each submission
-  const optimizedData = {
+  // Create a record showing the exact API request structure
+  const requestRecord = {
     timestamp: new Date().toISOString(),
-    usingCache: !!gradingCache.systemMessage,
     submissionPreview: submissionPreview,
-    // Just store the summary, not the full prompt
-    prompt: prompt
+    // Include details of what's sent to the API
+    apiRequest: apiRequest,
+    // Add useful metadata
+    tokenOptimization: {
+      description: "Using OpenAI function calling for token optimization",
+      details: "System message and function definition are cached and reused between requests",
+      benefit: "Only sends the submission text for each new request, avoiding redundant instruction tokens"
+    }
   };
   
-  // Add the optimized data
-  prompts.push(optimizedData);
+  // Add the new request record
+  requests.push(requestRecord);
   
-  // Store back in localStorage (limit to last 50 prompts to avoid storage limits)
-  if (prompts.length > 50) {
-    prompts = prompts.slice(-50);
+  // Store back in localStorage (limit to last 50 requests to avoid storage limits)
+  if (requests.length > 50) {
+    requests = requests.slice(-50);
   }
   
-  localStorage.setItem('grading_prompts', JSON.stringify(prompts, null, 2));
-  console.log(`Saved optimized grading prompt to localStorage (${prompts.length} prompts total)`);
+  localStorage.setItem('api_requests', JSON.stringify(requests, null, 2));
+  console.log(`Saved API request to localStorage (${requests.length} requests total)`);
+  
+  // For backward compatibility, also update the old grading_prompts
+  updateLegacyPrompts(apiRequest, submissionPreview);
+}
+
+// Maintain the old format for backward compatibility
+function updateLegacyPrompts(apiRequest: any, submissionPreview: string) {
+  try {
+    const existingPrompts = localStorage.getItem('grading_prompts');
+    let prompts = [];
+    
+    if (existingPrompts) {
+      try {
+        prompts = JSON.parse(existingPrompts);
+      } catch (e) {
+        prompts = [];
+      }
+    }
+    
+    prompts.push({
+      timestamp: new Date().toISOString(),
+      apiRequest: apiRequest,
+      submissionPreview: submissionPreview,
+      note: "This is a summary of the actual API call. The full instructions are only sent once and cached."
+    });
+    
+    if (prompts.length > 50) {
+      prompts = prompts.slice(-50);
+    }
+    
+    localStorage.setItem('grading_prompts', JSON.stringify(prompts, null, 2));
+  } catch (error) {
+    console.error("Error updating legacy prompts:", error);
+  }
 }
 
 function extractGradeAndFeedback(content: string, gradingScale: number): { grade: number; feedback: string } {
