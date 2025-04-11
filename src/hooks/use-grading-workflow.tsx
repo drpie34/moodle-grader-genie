@@ -537,9 +537,13 @@ export function useGradingWorkflow() {
     // Check if user opted to use server API key
     const useServerKey = localStorage.getItem("use_server_api_key");
     if (useServerKey === "true") {
-      return "server"; // Return a non-empty value to indicate a valid API key is available
+      console.log("Using server API key mode");
+      return "server"; // Special marker to indicate we should use the server API key
     }
-    return localStorage.getItem("openai_api_key");
+    
+    const personalKey = localStorage.getItem("openai_api_key");
+    console.log("Using personal API key:", personalKey ? "Yes (key found)" : "No (no key found)");
+    return personalKey;
   };
 
   const fetchSampleData = () => {

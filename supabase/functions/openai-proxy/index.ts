@@ -39,20 +39,28 @@ serve(async (req) => {
     const clientApiKey = req.headers.get('x-openai-key')
     const apiKey = clientApiKey || OPENAI_API_KEY
     
+    // Log detailed authentication information
+    console.log('Client provided API key:', !!clientApiKey)
+    console.log('Server has API key:', !!OPENAI_API_KEY)
+    console.log('Authorization header present:', !!req.headers.get('authorization'))
+    
     // Check if we have a valid API key
     if (!apiKey) {
       console.error('No API key available')
       return new Response(JSON.stringify({ 
         error: 'No API key available',
         hasServerKey: !!OPENAI_API_KEY,
-        hasClientKey: !!clientApiKey
+        hasClientKey: !!clientApiKey,
+        authHeader: !!req.headers.get('authorization')
       }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     }
     
+    // Log which API key we're using without revealing full key
     console.log('Using API key:', apiKey ? `${apiKey.substring(0, 3)}...${apiKey.substring(apiKey.length - 4)}` : 'none')
+    console.log('Using server key:', apiKey === OPENAI_API_KEY)
 
     // Forward request to OpenAI
     const response = await fetch('https://api.openai.com/v1/chat/completions', {

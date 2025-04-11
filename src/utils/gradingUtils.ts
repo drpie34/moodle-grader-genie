@@ -48,67 +48,54 @@ export async function gradeWithOpenAI(submissionText: string, assignmentData: an
       try {
         let response;
         
-        // Check if we're in local development
+        // Check if we're in local development and determine proper API handling
         const isLocalDevelopment = window.location.hostname === 'localhost';
+        const isUsingServerKey = apiKey === "server";
+        const hasPersonalKey = apiKey && !isUsingServerKey;
         
-        // For local development with a key, just use OpenAI directly
-        if (isLocalDevelopment && apiKey) {
-          console.log("Local development: Using OpenAI API directly");
-          console.log("API key type:", typeof apiKey, "length:", apiKey.length);
-          console.log("API key starts with:", apiKey.substring(0, 3));
-          console.log("Is using server key?", apiKey === "server");
-          
-          // If "server" placeholder is being used, use simulated response instead
-          if (apiKey === "server") {
-            console.log("Using server key placeholder in local dev - switching to simulation");
-            const simulatedGrade = Math.min(95, Math.max(60, Math.round(75 + submissionText.length / 1000)));
-            
-            response = {
-              status: 200,
-              ok: true,
-              headers: new Headers(),
-              json: async () => ({
-                choices: [{
-                  message: {
-                    content: `Grade: ${simulatedGrade}\n\nFeedback: This is simulated feedback for local development. The submission demonstrates a good understanding of the material. There are several strong points as well as areas that could be improved.`
-                  }
-                }]
-              })
-            } as Response;
-          } else {
-            try {
-              // Only use direct API call if we have a real API key (not the "server" placeholder)
-              response = await fetch('https://api.openai.com/v1/chat/completions', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${apiKey}`,
-                },
-                body: JSON.stringify({
-                  model: modelToUse,
-                  messages: [{ role: "user", content: prompt }],
-                  temperature: 0.7,
-                }),
-              });
-            } catch (error) {
-              console.error("Direct OpenAI API error:", error);
-              throw error;
-            }
+        console.log("Environment check:", { 
+          isLocalDevelopment, 
+          isUsingServerKey, 
+          hasPersonalKey,
+          apiKeyLength: apiKey ? apiKey.length : 0 
+        });
+        
+        // For local development with personal API key (not server key), use OpenAI directly
+        if (isLocalDevelopment && hasPersonalKey) {
+          console.log("Local development with personal API key: Using OpenAI API directly");
+          try {
+            response = await fetch('https://api.openai.com/v1/chat/completions', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`,
+              },
+              body: JSON.stringify({
+                model: modelToUse,
+                messages: [{ role: "user", content: prompt }],
+                temperature: 0.7,
+              }),
+            });
+          } catch (error) {
+            console.error("Direct OpenAI API error:", error);
+            throw error;
           }
         } 
-        // For production or when using server key, use Supabase Edge Function
+        // For production OR when using server key, use Supabase Edge Function
         else {
           try {
             console.log("Calling Supabase edge function for OpenAI proxy");
-            console.log("API key provided:", apiKey ? "Yes" : "No");
-            console.log("Using server OpenAI key:", apiKey ? "No" : "Yes");
+            console.log("Is using server key:", isUsingServerKey);
+            console.log("Has personal API key:", hasPersonalKey);
             
             // Get the Supabase key from the supabase client to keep it in sync
             const SUPABASE_KEY = supabase.auth.getSession()?.data?.session?.access_token || 
                                 "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im93YXFuenRnZ3l4YWhqaGJjeWxqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDI2NTA3NzMsImV4cCI6MjA1ODIyNjc3M30.hPtP2iECWacaUFthBGItwezPox5JX6GhdlKFqRZMcOA";
             
-            // In local development without API key, use simulated response
-            if (isLocalDevelopment && !apiKey) {
+            console.log("Using SUPABASE_KEY:", SUPABASE_KEY ? `${SUPABASE_KEY.substring(0, 10)}...` : "none");
+            
+            // In local development with no personal API key, use simulated response
+            if (isLocalDevelopment && !hasPersonalKey) {
               console.log("Local development with no API key: Using simulated response");
               
               // Create a simulated response
@@ -128,21 +115,34 @@ export async function gradeWithOpenAI(submissionText: string, assignmentData: an
               } as Response;
             } else {
               // Production or testing with Edge Function
+              console.log("Calling Supabase Edge Function from:", isLocalDevelopment ? "local development" : "production");
+              
+              // For server key mode, don't pass any API key to the edge function
+              const headers: Record<string, string> = {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${SUPABASE_KEY}`
+              };
+              
+              // Only pass personal API key if we have one and aren't using server key
+              if (hasPersonalKey) {
+                headers['x-openai-key'] = apiKey;
+                console.log("Passing personal API key to edge function");
+              } else {
+                console.log("Using server's API key in edge function");
+              }
+              
+              console.log("Edge function request headers:", Object.keys(headers));
+              
               response = await fetch(`${supabaseUrl}/functions/v1/openai-proxy`, {
                 method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  // Add authorization for Supabase function
-                  'Authorization': `Bearer ${SUPABASE_KEY}`,
-                  // Pass the API key explicitly if provided
-                  'x-openai-key': apiKey || '',
-                },
+                headers,
                 body: JSON.stringify({
                   model: modelToUse,
                   messages: [{ role: "user", content: prompt }],
                   temperature: 0.7,
                 }),
               });
+              
               console.log("Edge function response status:", response.status);
             }
           } catch (edgeFunctionError) {
