@@ -51,10 +51,15 @@ export async function gradeWithOpenAI(submissionText: string, assignmentData: an
         // Always try the Supabase Edge Function first (now with CORS support)
         try {
           console.log("Calling Supabase edge function for OpenAI proxy");
+          // Import the SUPABASE_PUBLISHABLE_KEY directly to avoid circular dependencies
+          const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im93YXFuenRnZ3l4YWhqaGJjeWxqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDI2NTA3NzMsImV4cCI6MjA1ODIyNjc3M30.hPtP2iECWacaUFthBGItwezPox5JX6GhdlKFqRZMcOA";
+          
           response = await fetch(`${supabaseUrl}/functions/v1/openai-proxy`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
+              // Add authorization for Supabase function
+              'Authorization': `Bearer ${SUPABASE_KEY}`,
               // Include original API key for backwards compatibility
               ...(apiKey && { 'x-openai-key': apiKey }),
             },
