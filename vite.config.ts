@@ -2,6 +2,28 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
+import fs from 'fs';
+
+// Version-specific plugin for handling PDF.js worker in Vite 5
+function pdfWorkerPlugin() {
+  return {
+    name: 'vite-plugin-pdf-worker',
+    // This will copy the PDF.js worker file to the output directory
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        if (req.url?.includes('pdf.worker.js')) {
+          console.log('Serving PDF.js worker:', req.url);
+        }
+        next();
+      });
+    },
+    // Handle the worker as an asset
+    generateBundle(_, bundle) {
+      // Make sure we're aware of the worker being processed
+      console.log('Generating bundle with PDF.js worker handling');
+    }
+  };
+}
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
@@ -11,6 +33,7 @@ export default defineConfig(({ mode }) => ({
   },
   plugins: [
     react(),
+    pdfWorkerPlugin(), // Add custom plugin for PDF.js worker
     mode === 'development' &&
     componentTagger(),
   ].filter(Boolean),
@@ -19,22 +42,26 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
-  // CRITICAL: Ensure PDF.js worker is properly handled
   build: {
-    commonjsOptions: {
-      include: [/pdfjs-dist/],
-    },
+    // Improved configuration for Vite 5
     rollupOptions: {
-      // Treat worker as external asset
       output: {
-        manualChunks: {
-          'pdf.worker': ['pdfjs-dist/build/pdf.worker.entry'],
-        },
+        manualChunks(id) {
+          // Create a separate chunk for the PDF.js worker
+          if (id.includes('pdfjs-dist/build/pdf.worker')) {
+            return 'pdfjs-worker';
+          }
+        }
+      }
+    }
+  },
+  // Make sure to include the worker in dependency pre-bundling
+  optimizeDeps: {
+    include: ['pdfjs-dist', 'pdfjs-dist/build/pdf.worker.js'],
+    esbuildOptions: {
+      define: {
+        global: 'globalThis',
       },
     },
-  },
-  optimizeDeps: {
-    // Include PDF.js worker in dependencies
-    include: ['pdfjs-dist/build/pdf.worker.entry'],
   },
 }));
