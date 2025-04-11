@@ -79,27 +79,30 @@ const StudentPreviewDialog: React.FC<StudentPreviewDialogProps> = ({
         // For HTML files, keep the HTML to preserve formatting
         content = await extractTextFromHTML(file);
         isHtml = true;
-      } else if (fileExt === 'docx') {
-        // For DOCX files, try to convert to HTML to preserve formatting
+      } else if (fileExt === 'docx' || fileExt === 'doc') {
+        // For DOCX/DOC files, try to convert to HTML to preserve formatting
         try {
           const htmlContent = await extractHTMLFromDOCX(file);
           content = htmlContent;
           isHtml = true;
+          
+          // Store the original html for viewing in the iframe
+          if (file.type.includes('docx') || file.name.endsWith('.docx') || file.name.endsWith('.doc')) {
+            // This is a trick to store docx html using a property
+            Object.defineProperty(file, 'docxHtml', {
+              value: htmlContent,
+              writable: false
+            });
+          }
         } catch (error) {
-          console.error("Error extracting HTML from DOCX, falling back to text:", error);
+          console.error("Error extracting HTML from DOCX/DOC, falling back to text:", error);
           content = await extractTextFromFile(file);
           isHtml = false;
         }
       } else {
-        // For other files, extract as text but preserve whitespace
+        // For other files, extract as plain text
         content = await extractTextFromFile(file);
-        // Convert newlines to <br> tags and preserve spacing
-        if (content) {
-          content = content
-            .replace(/\n/g, '<br>')
-            .replace(/\s{2,}/g, match => '&nbsp;'.repeat(match.length));
-          isHtml = true;
-        }
+        isHtml = false;
       }
       
       setSubmissionContent(content || "Failed to extract content from this file type.");
@@ -235,8 +238,25 @@ const StudentPreviewDialog: React.FC<StudentPreviewDialogProps> = ({
                               <div className="mt-2">
                                 <h4 className="text-sm font-medium mb-1">Extracted Text:</h4>
                                 <pre className="whitespace-pre-wrap text-sm font-mono bg-gray-50 dark:bg-gray-800 p-3 rounded-md overflow-auto max-h-[200px]">
-                                  {submissionContent || "No text extracted from PDF"}
+                                  {submissionContent ? submissionContent.replace(/<br\s*\/?>/g, '\n').replace(/&nbsp;/g, ' ') : "No text extracted from PDF"}
                                 </pre>
+                              </div>
+                            </div>
+                          ) : (student.file.name.toLowerCase().endsWith('.docx') || student.file.name.toLowerCase().endsWith('.doc')) ? (
+                            // DOCX files
+                            <div className="flex flex-col space-y-2">
+                              <div className="text-sm text-muted-foreground mb-1">
+                                Document: {student.file.name} ({Math.round(student.file.size/1024)} KB)
+                              </div>
+                              <div 
+                                className="w-full h-[550px] rounded border border-gray-200 bg-white"
+                              >
+                                <iframe
+                                  srcDoc={`<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body{font-family:Arial,sans-serif;margin:20px;line-height:1.5}</style></head><body>${(student.file as any).docxHtml || submissionContent}</body></html>`}
+                                  title={`${student.fullName}'s DOCX submission`}
+                                  className="w-full h-full rounded"
+                                  sandbox="allow-same-origin"
+                                ></iframe>
                               </div>
                             </div>
                           ) : isHtmlContent ? (

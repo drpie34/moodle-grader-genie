@@ -187,10 +187,10 @@ export function isEmptySubmission(content: string | null | undefined): boolean {
   if (!content) return true;
   
   const trimmed = content.trim();
-  if (trimmed.length < 10) return true;
   
-  // Check for our special markers
-  if (trimmed === CONTENT_MARKERS.EMPTY_SUBMISSION || 
+  // Only consider it empty if it's literally empty or just contains special markers
+  if (trimmed.length === 0 || 
+      trimmed === CONTENT_MARKERS.EMPTY_SUBMISSION || 
       trimmed === CONTENT_MARKERS.NO_SUBMISSION) {
     return true;
   }
@@ -210,14 +210,14 @@ export async function extractTextFromHTML(file: File): Promise<string> {
         const html = e.target?.result as string;
         
         if (html) {
-          // Check if the HTML contains mostly empty content
+          // Check if the HTML contains empty content
           const tempDiv = document.createElement('div');
           tempDiv.innerHTML = html;
           const textContent = tempDiv.textContent || '';
           const cleanText = textContent.trim();
           
-          if (cleanText.length < 10) {
-            console.log('HTML file contains minimal/empty content:', cleanText);
+          if (cleanText.length === 0) {
+            console.log('HTML file contains empty content');
             resolve(CONTENT_MARKERS.EMPTY_SUBMISSION);
           } else {
             // Return the raw HTML to preserve formatting

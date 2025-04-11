@@ -20,7 +20,7 @@ interface InputElementAttributes extends React.InputHTMLAttributes<HTMLInputElem
 
 const FileUploader: React.FC<FileUploaderProps> = ({
   onFilesSelected,
-  acceptedFileTypes = [".pdf", ".docx", ".doc", ".txt", ".zip", ".html", ".htm"],
+  acceptedFileTypes = [".pdf", ".docx", ".doc", ".txt", ".zip", ".html", ".htm", ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".tiff", ".tif"],
   maxFileSize = 10 * 1024 * 1024, // 10MB default
   maxFiles = 100,
   onFolderStructureDetected,
@@ -329,7 +329,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({
               <button type="button" onClick={handleBrowseFolderClick} className="text-primary hover:underline font-medium">upload folder</button>
             </p>
             <p className="text-xs text-muted-foreground">
-              Accepted files: PDF, DOCX, DOC, TXT, HTML or ZIP
+              Accepted files: PDF, DOCX, DOC, TXT, HTML, ZIP, and IMAGE files (JPG, PNG, etc.)
             </p>
           </div>
         </div>

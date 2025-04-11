@@ -391,15 +391,15 @@ export function useGradingWorkflow() {
       debugInfo.extractedTextLength = text.length;
       debugInfo.textPreview = text.substring(0, 150) + (text.length > 150 ? '...' : '');
       
-      // Only consider VERY short content (< 5 chars) as truly empty 
-      // This allows short submissions like "freeloader" to still be graded
-      const isTrulyEmpty = !text || text.trim().length < 5 || 
+      // Only consider completely empty content as truly empty
+      // Even 1 character submissions should be graded
+      const isTrulyEmpty = !text || text.trim().length === 0 || 
         text === CONTENT_MARKERS.EMPTY_SUBMISSION || text === CONTENT_MARKERS.NO_SUBMISSION;
       
       // Update debug
       debugInfo.isEmpty = isTrulyEmpty;
       debugInfo.emptyReason = isTrulyEmpty ? 
-        ((!text || text.trim().length < 5) ? "Content too short (< 5 chars)" : "Empty submission marker") : 
+        ((!text || text.trim().length === 0) ? "Empty content" : "Empty submission marker") : 
         "Not empty";
       
       if (isTrulyEmpty) {
@@ -675,42 +675,22 @@ export function useGradingWorkflow() {
                   if (hasEmptySubmission || submissionText === CONTENT_MARKERS.EMPTY_SUBMISSION || submissionText === CONTENT_MARKERS.NO_SUBMISSION) {
                     console.log(`Empty submission detected for ${studentName} - not sending to OpenAI`);
                     
-                    // Check if we should mark empty submissions as "No Submission" or grade them
-                    const shouldSkipGrading = assignmentData?.skipEmptySubmissions === true;
-                    
-                    if (shouldSkipGrading) {
-                      console.log(`Marking empty submission as "No Submission" for ${studentName}`);
-                      processedGrades.push({
-                        identifier: studentIdentifier,
-                        fullName: studentName,
-                        firstName: firstName,
-                        lastName: lastName,
-                        email: studentEmail,
-                        status: "No Submission",
-                        grade: null as any, // Use null to prevent displaying a 0
-                        feedback: "", // No feedback for empty submissions
-                        file: submissionFile,
-                        edited: true, // Mark as edited to prevent prompts
-                        originalRow: originalRow,
-                        contentPreview: submissionText
-                      });
-                    } else {
-                      console.log(`Marking empty submission as "Empty Submission" for ${studentName} - will be graded later`);
-                      processedGrades.push({
-                        identifier: studentIdentifier,
-                        fullName: studentName,
-                        firstName: firstName,
-                        lastName: lastName,
-                        email: studentEmail,
-                        status: "Empty Submission",
-                        grade: 0, // Default grade for empty submissions
-                        feedback: "This submission appears to be empty or contains insufficient content to grade.",
-                        file: submissionFile,
-                        edited: false,
-                        originalRow: originalRow,
-                        contentPreview: submissionText
-                      });
-                    }
+                    // Always mark truly empty submissions as "No Submission" with no grade
+                    console.log(`Marking empty submission as "No Submission" for ${studentName}`);
+                    processedGrades.push({
+                      identifier: studentIdentifier,
+                      fullName: studentName,
+                      firstName: firstName,
+                      lastName: lastName,
+                      email: studentEmail,
+                      status: "No Submission",
+                      grade: null as any, // Use null to prevent displaying a 0
+                      feedback: "", // No feedback for empty submissions
+                      file: submissionFile,
+                      edited: true, // Mark as edited to prevent prompts
+                      originalRow: originalRow,
+                      contentPreview: "No submission content available for this student."
+                    });
                     return; // Skip the rest of the processing
                   }
                   
