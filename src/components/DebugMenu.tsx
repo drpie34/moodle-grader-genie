@@ -187,14 +187,26 @@ const DebugMenu: React.FC<DebugMenuProps> = ({ open, onClose }) => {
                                 <dd>{typeof data.processingMethod === 'string' ? data.processingMethod : 'Standard'}</dd>
                                 
                                 <dt className="text-muted-foreground">Selected File:</dt>
-                                <dd>{typeof data.selectedFile === 'string' ? data.selectedFile : 
-                                    (data.selectedFile ? '[File Object]' : 'None')}</dd>
+                                <dd>{data.selectedFile && typeof data.selectedFile === 'object' && data.selectedFile.name ? 
+                                    data.selectedFile.name : 
+                                    (typeof data.selectedFile === 'string' ? data.selectedFile : 'None')}</dd>
+                                
+                                <dt className="text-muted-foreground">File Type:</dt>
+                                <dd>{data.selectedFile && typeof data.selectedFile === 'object' && data.selectedFile.type ? 
+                                    data.selectedFile.type : 'Unknown'}</dd>
                                 
                                 <dt className="text-muted-foreground">File Size:</dt>
-                                <dd>{data.fileSize ? `${Math.round(data.fileSize / 1024)} KB` : 'Unknown'}</dd>
+                                <dd>{data.selectedFile && typeof data.selectedFile === 'object' && data.selectedFile.size ? 
+                                    `${Math.round(data.selectedFile.size / 1024)} KB` : 'Unknown'}</dd>
+                                
+                                <dt className="text-muted-foreground">Is Image:</dt>
+                                <dd>{data.isImageFile ? 'Yes' : 'No'}</dd>
                                 
                                 <dt className="text-muted-foreground">Is Empty:</dt>
                                 <dd>{data.isEmpty === true ? 'Yes' : 'No'}</dd>
+                                
+                                <dt className="text-muted-foreground">Processing Decision:</dt>
+                                <dd>{typeof data.processingDecision === 'string' ? data.processingDecision : 'Standard processing'}</dd>
                               </dl>
                             </div>
                           ))}

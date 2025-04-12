@@ -48,9 +48,12 @@ export function generateMoodleCSV(grades: StudentGrade[], format: MoodleGradeboo
     const rowData: Record<string, string> = { ...grade.originalRow };
     
     // Update only the assignment grade column if it exists and grade is provided
-    if (assignmentColumn && grade.grade !== undefined) {
+    if (assignmentColumn && grade.grade !== undefined && grade.grade !== null) {
       console.log(`CSV Export: Setting grade "${grade.grade}" for student "${grade.fullName}" in column "${assignmentColumn}"`);
       rowData[assignmentColumn] = grade.grade.toString();
+    } else if (assignmentColumn && grade.grade === null && grade.status === "No Submission") {
+      console.log(`CSV Export: Clearing grade for student "${grade.fullName}" with no submission`);
+      rowData[assignmentColumn] = ''; // Empty string for no submission
     }
     
     // Update only the feedback column if it exists and feedback is provided

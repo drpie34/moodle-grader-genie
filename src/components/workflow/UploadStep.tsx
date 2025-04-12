@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import FileUploader from "@/components/FileUploader";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -328,6 +328,65 @@ const UploadStep: React.FC<UploadStepProps> = ({
   const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
   const [showManualColumnSelect, setShowManualColumnSelect] = useState(false);
   const [parsedGradebookData, setParsedGradebookData] = useState<any>(null);
+  
+  // Load previous file data from sessionStorage or localStorage
+  const [previousFileInfo, setPreviousFileInfo] = useState<{
+    fileCount: number;
+    filePaths: string[];
+  }>(() => {
+    try {
+      // Get file count from sessionStorage
+      const fileCount = parseInt(sessionStorage.getItem('moodle_grader_file_count') || '0', 10);
+      
+      // Get file paths if available
+      let filePaths: string[] = [];
+      const pathsJson = sessionStorage.getItem('moodle_grader_file_paths');
+      if (pathsJson) {
+        filePaths = JSON.parse(pathsJson);
+      }
+      
+      // Log the detected previous file information
+      console.log("Previous file information detected:", {
+        fileCount, 
+        pathsCount: filePaths.length,
+        firstFewPaths: filePaths.slice(0, 3)
+      });
+      
+      return { fileCount, filePaths };
+    } catch (error) {
+      console.error("Error loading previous file info:", error);
+      return { fileCount: 0, filePaths: [] };
+    }
+  });
+  
+  // Check if this is a navigation back to this step but we have files in memory
+  const hasFilesInMemory = files.length > 0;
+  
+  // Check if we have previous files info but no actual files (navigation case)
+  // IMPORTANT: We always want to show this info when we've moved backward from a later step
+  const hasPreviousFilesInfo = previousFileInfo.fileCount > 0;
+  
+  // Make sure to display a notification about missing files but not after reset
+  useEffect(() => {
+    // Check if sessionStorage was just cleared (indicates we're in a fresh start after reset)
+    const wasReset = sessionStorage.getItem('moodle_grader_reset_timestamp');
+    const currentTimestamp = Date.now();
+    
+    // Only show the message if we're not starting fresh
+    if (hasPreviousFilesInfo && !hasFilesInMemory && !wasReset) {
+      console.log("Previous file info found but actual files missing - notifying user");
+      toast.info(`You previously uploaded ${previousFileInfo.fileCount} files. Please re-upload them to continue.`);
+    }
+    
+    // Clear the reset timestamp marker after a short delay
+    if (wasReset) {
+      console.log("Reset marker found, clearing previous file info from state");
+      setPreviousFileInfo({ fileCount: 0, filePaths: [] });
+      setTimeout(() => {
+        sessionStorage.removeItem('moodle_grader_reset_timestamp');
+      }, 1000);
+    }
+  }, [hasPreviousFilesInfo, hasFilesInMemory, previousFileInfo.fileCount]);
 
   const handleMoodleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -542,13 +601,53 @@ const UploadStep: React.FC<UploadStepProps> = ({
             onManualColumnSelect={() => setShowManualColumnSelect(true)}
           />
           
-          <FileUploaderSection
-            files={files}
-            onFilesSelected={handleFilesSelected}
-            onFolderStructureDetected={handleFolderStructureDetected}
-            detectedStudents={detectedStudents}
-            folderStructure={folderStructure}
-          />
+          {hasPreviousFilesInfo ? (
+            <Card className="p-4">
+              <div className="space-y-4">
+                <div className="flex items-center space-x-2">
+                  <h3 className="text-sm font-medium">Step 2: Re-upload Student Submissions</h3>
+                </div>
+                
+                <div className="rounded-md bg-blue-50 p-3 mb-2">
+                  <div className="flex items-start">
+                    <Info className="h-4 w-4 text-blue-500 mt-0.5 mr-2" />
+                    <div className="text-sm text-blue-800">
+                      <p className="font-medium">Previous files detected</p>
+                      <p>You previously uploaded {previousFileInfo.fileCount} files, but due to browser limitations, 
+                         you need to re-upload them to continue.</p>
+                      
+                      {previousFileInfo.filePaths.length > 0 && (
+                        <>
+                          <p className="font-medium mt-2">Previously uploaded:</p>
+                          <ul className="list-disc ml-5 mt-1 text-xs">
+                            {previousFileInfo.filePaths.slice(0, 5).map((path, idx) => (
+                              <li key={idx}>{path}</li>
+                            ))}
+                            {previousFileInfo.filePaths.length > 5 && 
+                              <li>...and {previousFileInfo.filePaths.length - 5} more files</li>
+                            }
+                          </ul>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                
+                <FileUploader 
+                  onFilesSelected={handleFilesSelected} 
+                  onFolderStructureDetected={handleFolderStructureDetected}
+                />
+              </div>
+            </Card>
+          ) : (
+            <FileUploaderSection
+              files={files}
+              onFilesSelected={handleFilesSelected}
+              onFolderStructureDetected={handleFolderStructureDetected}
+              detectedStudents={detectedStudents}
+              folderStructure={folderStructure}
+            />
+          )}
         </div>
       ) : (
         <SubmissionPreview 

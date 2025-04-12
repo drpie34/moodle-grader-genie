@@ -56,7 +56,7 @@ const ReviewStep: React.FC<ReviewStepProps> = ({
           <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-primary mb-4"></div>
           <h3 className="text-xl font-semibold mb-2">Processing Files</h3>
           <p className="text-muted-foreground">
-            Processing your files with the OpenAI API. This may take a few moments...
+            Processing your files with AI... This may take a few moments...
           </p>
         </div>
       ) : grades.length === 0 ? (

@@ -11,12 +11,14 @@ interface StepIndicatorProps {
     icon: React.ReactNode;
   }[];
   onStepClick?: (step: number) => void;
+  highestStepReached?: number; // Add this new prop
 }
 
 const StepIndicator: React.FC<StepIndicatorProps> = ({ 
   currentStep, 
   steps,
-  onStepClick
+  onStepClick,
+  highestStepReached = 1 // Default to 1 if not provided
 }) => {
   return (
     <div className="mx-auto mb-8 w-full max-w-3xl">
@@ -26,9 +28,9 @@ const StepIndicator: React.FC<StepIndicatorProps> = ({
             <div 
               className={cn(
                 "flex flex-col items-center transition-all duration-300",
-                onStepClick && step.id < currentStep ? "cursor-pointer" : ""
+                onStepClick && step.id <= highestStepReached ? "cursor-pointer" : ""
               )}
-              onClick={() => onStepClick && step.id < currentStep ? onStepClick(step.id) : null}
+              onClick={() => onStepClick && step.id <= highestStepReached ? onStepClick(step.id) : null}
             >
               <div 
                 className={cn(

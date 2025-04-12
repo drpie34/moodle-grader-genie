@@ -1,21 +1,29 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Header from "@/components/Header";
 import StepIndicator from "@/components/StepIndicator";
-import ApiKeyForm from "@/components/ApiKeyForm";
 import UploadStep from "@/components/workflow/UploadStep";
 import AssignmentForm from "@/components/assignment/AssignmentForm";
 import ReviewStep from "@/components/workflow/ReviewStep";
 import ProcessFiles from "@/components/ProcessFiles";
 import { WORKFLOW_STEPS } from "@/components/workflow/steps";
 import { useGradingWorkflow } from "@/hooks/use-grading-workflow";
-import { useApiKey } from "@/hooks/use-api-key";
 import { downloadCSV, generateMoodleCSV } from "@/utils/csv";
 import { toast } from "sonner";
 
 const Index = () => {
   const [moodleFile, setMoodleFile] = useState<File | null>(null);
   
+  // Add console logs to debug current state
+  console.log("Index component rendering - Checking local storage:");
+  console.log("- Current step from localStorage:", localStorage.getItem('moodle_grader_current_step'));
+  console.log("- Assignment data size:", 
+    localStorage.getItem('moodle_grader_assignment_data')?.length || 0, "bytes");
+  console.log("- Grades data size:", 
+    localStorage.getItem('moodle_grader_grades')?.length || 0, "bytes");
+  console.log("- File count from sessionStorage:", 
+    sessionStorage.getItem('moodle_grader_file_count') || "none");
+    
   const {
     currentStep,
     files,
@@ -31,15 +39,23 @@ const Index = () => {
     handleContinueToDownload,
     handleReset,
     handleStepClick,
-    preloadedGrades
+    preloadedGrades,
+    highestStepReached
   } = useGradingWorkflow();
+  
+  console.log("Current workflow state:", {
+    currentStep,
+    highestStepReached,
+    filesCount: files.length,
+    hasAssignmentData: !!assignmentData,
+    gradesCount: grades.length
+  });
 
-  const {
-    showApiKeyForm,
-    setShowApiKeyForm,
-    handleApiKeySubmit,
-    useServerKey
-  } = useApiKey();
+  // Set up server API key automatically on component mount
+  useEffect(() => {
+    localStorage.removeItem("openai_api_key");
+    localStorage.setItem("use_server_api_key", "true");
+  }, []);
 
   const handleMoodleGradebookUploaded = (gradebookData: any) => {
     preloadedGrades(gradebookData);
@@ -102,29 +118,11 @@ const Index = () => {
             Upload assignments, process them, and download Moodle-compatible grades
           </p>
           
-          <div className="flex justify-center mb-6">
-            <button 
-              onClick={() => setShowApiKeyForm(!showApiKeyForm)}
-              className="text-sm px-3 py-1 rounded bg-secondary hover:bg-secondary/80 text-secondary-foreground flex items-center gap-1"
-            >
-              <span>{useServerKey ? "Using server API key" : "Configure API key"}</span>
-              <span className="text-xs">⚙️</span>
-            </button>
-          </div>
-          
-          {showApiKeyForm && (
-            <div className="mb-8 animate-scale-in">
-              <ApiKeyForm onApiKeySubmit={(key) => {
-                handleApiKeySubmit(key);
-                setShowApiKeyForm(false);
-              }} />
-            </div>
-          )}
-          
           <StepIndicator 
             currentStep={currentStep} 
             steps={WORKFLOW_STEPS} 
             onStepClick={handleStepClick}
+            highestStepReached={highestStepReached}
           />
           
           {currentStep === 1 && (
@@ -163,7 +161,6 @@ const Index = () => {
                 assignmentColumn={moodleGradebook?.assignmentColumn}
                 feedbackColumn={moodleGradebook?.feedbackColumn} 
                 onDownload={handleDownload}
-                onDownloadPrompts={handleDownloadPrompts}
                 onReset={handleReset}
               />
             </div>

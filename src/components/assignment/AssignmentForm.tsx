@@ -19,7 +19,24 @@ interface AssignmentFormProps {
 }
 
 const AssignmentForm: React.FC<AssignmentFormProps> = ({ onSubmit }) => {
-  const [formData, setFormData] = useState<AssignmentFormData>({
+  // Try to load saved form data from localStorage first
+  const getSavedFormData = (): AssignmentFormData | null => {
+    try {
+      const savedData = localStorage.getItem('moodle_grader_assignment_data');
+      if (savedData) {
+        const parsedData = JSON.parse(savedData);
+        console.log("Loaded assignment form data from localStorage:", parsedData);
+        return parsedData;
+      }
+    } catch (error) {
+      console.error("Error loading saved assignment data:", error);
+    }
+    return null;
+  };
+
+  // Default form state or restored state
+  const savedData = getSavedFormData();
+  const [formData, setFormData] = useState<AssignmentFormData>(savedData || {
     assignmentName: "",
     courseName: "",
     assignmentInstructions: "",
@@ -33,6 +50,14 @@ const AssignmentForm: React.FC<AssignmentFormProps> = ({ onSubmit }) => {
     instructorTone: "",
     additionalInstructions: "",
     skipEmptySubmissions: true // Default to skipping empty submissions
+  });
+  
+  // Log form state on render
+  console.log("AssignmentForm rendering with data:", {
+    isEmpty: !formData.assignmentName && !formData.courseName,
+    hasAssignmentName: !!formData.assignmentName,
+    hasCourseName: !!formData.courseName,
+    assignmentNamePreview: formData.assignmentName?.substring(0, 20)
   });
 
   const handleChange = (field: keyof AssignmentFormData, value: string | number) => {

@@ -7,6 +7,135 @@ import { extractHTMLFromDOCX } from './docxUtils';
 import './pdfUtils';
 import { isImageFile, processImageWithOpenAI, extractTextFromImage } from './imageUtils';
 
+// Database name for file caching
+const DB_NAME = 'moodle_grader_file_cache';
+const STORE_NAME = 'file_metadata';
+
+// Initialize the IndexedDB for file caching
+export async function initFileDatabase(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, 1);
+    
+    request.onerror = (event) => {
+      console.error('Error opening IndexedDB', event);
+      reject('Could not open IndexedDB');
+    };
+    
+    request.onsuccess = (event) => {
+      const db = (event.target as IDBOpenDBRequest).result;
+      resolve(db);
+    };
+    
+    request.onupgradeneeded = (event) => {
+      const db = (event.target as IDBOpenDBRequest).result;
+      
+      // Create object store for file metadata
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        const store = db.createObjectStore(STORE_NAME, { keyPath: 'id' });
+        store.createIndex('name', 'name', { unique: false });
+        store.createIndex('path', 'path', { unique: false });
+      }
+    };
+  });
+}
+
+// Cache file metadata (not the file content itself)
+export async function cacheFileMetadata(files: File[]): Promise<void> {
+  try {
+    const db = await initFileDatabase();
+    const transaction = db.transaction([STORE_NAME], 'readwrite');
+    const store = transaction.objectStore(STORE_NAME);
+    
+    // Clear previous cache
+    store.clear();
+    
+    // Add file metadata to cache
+    for (const file of files) {
+      // Create a serializable object (without the actual file data)
+      const fileMetadata = {
+        id: `${file.name}_${file.size}_${file.lastModified}`,
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        lastModified: file.lastModified,
+        path: file.webkitRelativePath || file.name,
+        timestamp: Date.now()
+      };
+      
+      store.add(fileMetadata);
+    }
+    
+    console.log(`Cached metadata for ${files.length} files in IndexedDB`);
+    
+    // Also store information in sessionStorage for faster access
+    sessionStorage.setItem('moodle_grader_file_count', files.length.toString());
+    
+    // Store file paths for debugging
+    const filePaths = files.map(f => f.webkitRelativePath || f.name);
+    sessionStorage.setItem('moodle_grader_file_paths', JSON.stringify(filePaths.slice(0, 100)));
+    
+    return new Promise((resolve, reject) => {
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = (event) => {
+        console.error('Error caching file metadata', event);
+        reject('Failed to cache file metadata');
+      };
+    });
+  } catch (error) {
+    console.error('Error in cacheFileMetadata:', error);
+  }
+}
+
+// Retrieve cached file metadata
+export async function getCachedFileMetadata(): Promise<any[]> {
+  try {
+    const db = await initFileDatabase();
+    const transaction = db.transaction([STORE_NAME], 'readonly');
+    const store = transaction.objectStore(STORE_NAME);
+    const request = store.getAll();
+    
+    return new Promise((resolve, reject) => {
+      request.onsuccess = () => {
+        resolve(request.result || []);
+      };
+      
+      request.onerror = (event) => {
+        console.error('Error retrieving cached file metadata', event);
+        reject('Failed to retrieve file metadata');
+      };
+    });
+  } catch (error) {
+    console.error('Error in getCachedFileMetadata:', error);
+    return [];
+  }
+}
+
+// Clear the file cache
+export async function clearFileCache(): Promise<void> {
+  try {
+    const db = await initFileDatabase();
+    const transaction = db.transaction([STORE_NAME], 'readwrite');
+    const store = transaction.objectStore(STORE_NAME);
+    
+    store.clear();
+    console.log('File metadata cache cleared');
+    
+    // Also clear from sessionStorage
+    sessionStorage.removeItem('moodle_grader_file_count');
+    sessionStorage.removeItem('moodle_grader_file_paths');
+    
+    return new Promise((resolve, reject) => {
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = (event) => {
+        console.error('Error clearing file cache', event);
+        reject('Failed to clear file cache');
+      };
+    });
+  } catch (error) {
+    console.error('Error in clearFileCache:', error);
+  }
+}
+
 // Log PDF.js status, but don't override worker setup from pdfUtils.ts
 console.log(`[fileUtils] PDF.js version: ${pdfjs.version}`);
 console.log(`[fileUtils] PDF.js worker status:`, {

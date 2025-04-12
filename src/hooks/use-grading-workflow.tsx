@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { extractTextFromFile, extractTextFromHTML, findBestSubmissionFile, extractStudentInfoFromFilename, isEmptySubmission, CONTENT_MARKERS } from "@/utils/fileUtils";
+import { extractTextFromFile, extractTextFromHTML, findBestSubmissionFile, extractStudentInfoFromFilename, isEmptySubmission, CONTENT_MARKERS, cacheFileMetadata, getCachedFileMetadata, clearFileCache } from "@/utils/fileUtils";
 import { uploadMoodleGradebook, generateMoodleCSV } from "@/utils/csv";
 import { gradeWithOpenAI } from "@/utils/gradingUtils";
 import { isImageFile } from "@/utils/imageUtils";
@@ -329,14 +329,29 @@ export function useGradingWorkflow() {
       processedAt: Date.now()
     };
     
-    // Add to window debug object
-    // @ts-ignore
-    if (!window._fileProcessingDebug.perStudentFiles) {
-      // @ts-ignore
-      window._fileProcessingDebug.perStudentFiles = {};
+    // Add to window debug object if debugging is enabled
+    if (localStorage.getItem("enable_file_debug") === "true") {
+      // Initialize debug object if needed
+      if (!window._fileProcessingDebug) {
+        window._fileProcessingDebug = {
+          timestamp: new Date().toISOString(),
+          summary: "File processing debug information",
+          perStudentFiles: {}
+        };
+      }
+      
+      // Make sure perStudentFiles exists
+      if (!window._fileProcessingDebug.perStudentFiles) {
+        window._fileProcessingDebug.perStudentFiles = {};
+      }
+      
+      // Add this student's debug info with key properties for UI display
+      window._fileProcessingDebug.perStudentFiles[studentInfo.fullName] = {
+        filesFound: fileDetails.length,
+        processedAt: Date.now(),
+        ...debugInfo
+      };
     }
-    // @ts-ignore
-    window._fileProcessingDebug.perStudentFiles[studentInfo.fullName] = debugInfo;
     
     // Find the best file to use - this prioritizes non-HTML files using our improved function
     const bestFile = findBestSubmissionFile(folderFiles);
@@ -470,10 +485,35 @@ export function useGradingWorkflow() {
       const fileCount = sessionStorage.getItem('moodle_grader_file_count');
       if (currentStep >= 2 && fileCount && files.length === 0) {
         console.log(`Session storage shows ${fileCount} files were uploaded but none are loaded`);
-        // We can't restore the actual files, but we can inform the user
-        if (parseInt(fileCount) > 0) {
-          toast.info(`You had ${fileCount} files uploaded previously. Please re-upload them to continue.`);
-        }
+        
+        // Try to load file metadata from IndexedDB
+        getCachedFileMetadata().then(metadata => {
+          if (metadata && metadata.length > 0) {
+            console.log(`Found ${metadata.length} cached file metadata entries`);
+            
+            // We can't restore actual File objects, but we can show useful information
+            const fileInfo = metadata.map(meta => `${meta.name} (${Math.round(meta.size/1024)} KB)`).slice(0, 3);
+            const moreFiles = metadata.length > 3 ? ` and ${metadata.length - 3} more` : '';
+            
+            // Show toast with detailed information
+            toast.info(
+              <div className="space-y-1">
+                <p>Previous files found: {fileInfo.join(', ')}{moreFiles}</p>
+                <p className="text-xs">Please re-upload your files to continue.</p>
+              </div>
+            );
+          } else if (parseInt(fileCount) > 0) {
+            // Fallback message if no metadata but we know there were files
+            toast.info(`You had ${fileCount} files uploaded previously. Please re-upload them to continue.`);
+          }
+        }).catch(error => {
+          console.error("Error retrieving file metadata:", error);
+          
+          // Fallback message
+          if (parseInt(fileCount) > 0) {
+            toast.info(`You had ${fileCount} files uploaded previously. Please re-upload them to continue.`);
+          }
+        });
       }
     } catch (error) {
       console.error("Error restoring data from localStorage:", error);
@@ -823,7 +863,31 @@ export function useGradingWorkflow() {
           
           if (moodleGradebook && moodleGradebook.grades.length > 0) {
             const mergedGrades = [...moodleGradebook.grades];
+            console.log("Initial gradebook students before merging:", mergedGrades.map(g => g.fullName));
             
+            // First, create a set of all student names that were processed (had submissions)
+            const processedStudentNames = new Set(deduplicatedGrades.map(g => g.fullName.toLowerCase()));
+            console.log("Students with processed submissions:", Array.from(processedStudentNames));
+            
+            // Mark students with no submissions at all
+            mergedGrades.forEach((gradebookStudent, index) => {
+              const hasSubmission = processedStudentNames.has(gradebookStudent.fullName.toLowerCase());
+              
+              if (!hasSubmission) {
+                console.log(`No submission found for student: ${gradebookStudent.fullName} - marking as "No Submission" with null grade`);
+                mergedGrades[index] = {
+                  ...mergedGrades[index],
+                  status: "No Submission",
+                  grade: null, // Important: Use null, not 0, for no submissions
+                  feedback: "",
+                  file: null as any,
+                  contentPreview: "No submission found for this student",
+                  edited: true // Mark as edited to prevent further prompts
+                };
+              }
+            });
+            
+            // Now merge in the processed grades for students with submissions
             deduplicatedGrades.forEach(aiGrade => {
               console.log(`Merging grade for ${aiGrade.fullName}`);
               
@@ -847,7 +911,7 @@ export function useGradingWorkflow() {
                     mergedGrades[moodleIndex] = {
                       ...mergedGrades[moodleIndex],
                       status: "No Submission",
-                      grade: null as any, // Use null instead of 0 for empty submissions
+                      grade: null, // Use null instead of 0 for empty submissions
                       feedback: "", // Clear any feedback
                       file: aiGrade.file,
                       contentPreview: aiGrade.contentPreview,
@@ -881,6 +945,12 @@ export function useGradingWorkflow() {
                 console.log(`No matching student found in merged grades for ${aiGrade.fullName}, adding new entry`);
                 mergedGrades.push(aiGrade);
               }
+            });
+            
+            // Add debug info about all student grades
+            console.log("FINAL STUDENT GRADES:");
+            mergedGrades.forEach(g => {
+              console.log(`- ${g.fullName}: ${g.status}, grade=${g.grade === null ? 'null' : g.grade}, hasFile=${!!g.file}`);
             });
             
             setGrades(mergedGrades);
@@ -954,7 +1024,7 @@ export function useGradingWorkflow() {
               fullName: values[1] || `Student ${idx + 1}`,
               email: values[2] || `student${idx + 1}@example.com`,
               status: 'Needs Grading',
-              grade: 0,
+              grade: null, // Use null instead of 0 for initial state
               feedback: '',
               edited: false,
               originalRow
@@ -1006,9 +1076,18 @@ export function useGradingWorkflow() {
     }
   };
 
-  const handleFilesSelected = (selectedFiles: File[]) => {
+  const handleFilesSelected = async (selectedFiles: File[]) => {
+    // Set files immediately for UI responsiveness
     setFiles(selectedFiles);
     setSampleDataLoaded(false);
+    
+    // Cache file metadata for state restoration
+    try {
+      await cacheFileMetadata(selectedFiles);
+      console.log(`Cached metadata for ${selectedFiles.length} files`);
+    } catch (error) {
+      console.error("Error caching file metadata:", error);
+    }
   };
 
   const handleStepOneComplete = () => {
@@ -1069,45 +1148,145 @@ export function useGradingWorkflow() {
 
   const handleReset = () => {
     setCurrentStep(1);
+    setHighestStepReached(1); // Reset this too
     setFiles([]);
     setAssignmentData(null);
     setGrades([]);
     setMoodleGradebook(null);
     setSampleDataLoaded(false);
+    
+    // Clear all localStorage and sessionStorage data
+    localStorage.removeItem('moodle_grader_assignment_data');
+    localStorage.removeItem('moodle_grader_grades');
+    localStorage.removeItem('moodle_grader_current_step');
+    localStorage.removeItem('moodle_grader_highest_step');
+    
+    // Clear file cache from IndexedDB
+    clearFileCache().then(() => {
+      console.log("File cache cleared");
+      
+      // Also clear the sessionStorage immediately so we don't see the "previously uploaded" message
+      sessionStorage.removeItem('moodle_grader_file_count');
+      sessionStorage.removeItem('moodle_grader_file_paths');
+      // Set a reset timestamp to help components know we just reset
+      sessionStorage.setItem('moodle_grader_reset_timestamp', Date.now().toString());
+    }).catch(error => {
+      console.error("Error clearing file cache:", error);
+      
+      // Even if the IndexedDB clear fails, still clear sessionStorage
+      sessionStorage.removeItem('moodle_grader_file_count');
+      sessionStorage.removeItem('moodle_grader_file_paths');
+      // Set a reset timestamp to help components know we just reset
+      sessionStorage.setItem('moodle_grader_reset_timestamp', Date.now().toString());
+    });
+    
     toast.info("Started a new grading session");
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
+  // Track the highest step the user has reached
+  const [highestStepReached, setHighestStepReached] = useState<number>(() => {
+    // Try to load highest step from localStorage
+    const saved = localStorage.getItem('moodle_grader_highest_step');
+    return saved ? parseInt(saved, 10) : 1;
+  });
+
+  // Update highestStepReached whenever currentStep increases
+  useEffect(() => {
+    if (currentStep > highestStepReached) {
+      setHighestStepReached(currentStep);
+      localStorage.setItem('moodle_grader_highest_step', currentStep.toString());
+      console.log(`Updated highest step reached to ${currentStep}`);
+    }
+  }, [currentStep, highestStepReached]);
+
   const handleStepClick = (step: number) => {
-    // Allow navigation to any previously accessed step or forward if we have the necessary data
-    const canGoForward = (step === 2 && files.length > 0) || 
-                         (step === 3 && assignmentData) ||
-                         (step === 4 && grades.length > 0);
-                         
-    if (step < currentStep || canGoForward) {
-      // Store all current state in localStorage before navigating
+    console.group("Step Navigation");
+    console.log("Current state:", {
+      currentStep,
+      targetStep: step,
+      highestStepReached,
+      filesCount: files.length,
+      hasAssignmentData: !!assignmentData,
+      gradesCount: grades.length
+    });
+    
+    // Always save current state regardless of whether navigation succeeds
+    try {
+      // Store all current state in localStorage
       if (assignmentData) {
-        localStorage.setItem('moodle_grader_assignment_data', JSON.stringify(assignmentData));
-        console.log("Saved assignment data to localStorage");
+        const assignmentJson = JSON.stringify(assignmentData);
+        localStorage.setItem('moodle_grader_assignment_data', assignmentJson);
+        console.log("Saved assignment data to localStorage", 
+          {size: assignmentJson.length, sample: assignmentJson.substring(0, 100) + "..."});
+      } else {
+        console.warn("No assignment data to save");
       }
       
       if (grades.length > 0) {
-        localStorage.setItem('moodle_grader_grades', JSON.stringify(grades));
-        console.log("Saved grades to localStorage");
+        const gradesJson = JSON.stringify(grades);
+        localStorage.setItem('moodle_grader_grades', gradesJson);
+        console.log("Saved grades to localStorage", 
+          {count: grades.length, size: gradesJson.length});
+      } else {
+        console.warn("No grades to save");
       }
       
       if (files.length > 0) {
         sessionStorage.setItem('moodle_grader_file_count', files.length.toString());
-        console.log("Saved file count to sessionStorage");
+        console.log("Saved file count to sessionStorage", {count: files.length});
+        
+        // Cache file metadata for better state recovery
+        cacheFileMetadata(files).catch(err => console.error("Failed to cache file metadata:", err));
+      } else {
+        console.warn("No files to save");
       }
       
+      // Save highest step reached
+      localStorage.setItem('moodle_grader_highest_step', highestStepReached.toString());
+      
       // Update localStorage with current step for potential refresh recovery
+      localStorage.setItem('moodle_grader_current_step', currentStep.toString());
+    } catch (error) {
+      console.error("Error saving state:", error);
+    }
+    
+    // IMPROVED NAVIGATION LOGIC: Allow going to any step up to the highest previously reached step
+    // This means if you've completed step 3 before, you can navigate between steps 1-3 freely
+    const isStepAvailable = step <= highestStepReached;
+    
+    // Only enforce file and assignment data requirements for first-time navigation
+    // IMPORTANT: Any step up to and including the highest step reached should be available
+    const isGoingBack = step <= currentStep;
+    const canGoForward = 
+      isGoingBack || // Always allow going backwards or to current step
+      step <= highestStepReached || // Already reached this step before
+      (step === 2 && files.length > 0) || // First time to step 2, require files
+      (step === 3 && assignmentData) ||   // First time to step 3, require assignment data
+      (step === 4 && grades.length > 0);  // First time to step 4, require grades
+    
+    console.log("Navigation check:", {
+      currentStep,
+      targetStep: step,
+      highestStepReached,
+      isStepAvailable,
+      canGoForward,
+      willNavigate: canGoForward
+    });
+                         
+    if (canGoForward) {
+      // Always update the current step in localStorage before navigating
       localStorage.setItem('moodle_grader_current_step', step.toString());
+      console.log(`Successfully navigating to step ${step}`);
       
       setCurrentStep(step);
       window.scrollTo({ top: 0, behavior: "smooth" });
+    } else {
+      console.warn(`Navigation to step ${step} blocked - conditions not met`);
+      toast.warning("Please complete the current step before proceeding.");
     }
-  };
+    console.groupEnd();
+  }
 
   return {
     currentStep,
@@ -1127,6 +1306,7 @@ export function useGradingWorkflow() {
     handleContinueToDownload,
     handleReset,
     handleStepClick,
-    preloadedGrades
+    preloadedGrades,
+    highestStepReached // Expose this to the component
   };
 }
