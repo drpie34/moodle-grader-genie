@@ -2,6 +2,9 @@
 import { createWorker } from 'tesseract.js';
 import { supabase } from "@/integrations/supabase/client";
 
+// Cache for storing image text extraction results to avoid duplicate API calls
+const imageExtractionCache = new Map<string, string>();
+
 /**
  * Extract text from an image file using OpenAI's vision capabilities
  * This is the preferred method as it's more accurate and can handle various languages and image types
@@ -11,6 +14,25 @@ export async function processImageWithOpenAI(
   prompt: string = "Describe this image in detail and extract any visible text"
 ): Promise<string> {
   try {
+    // Generate a cache key for this specific file
+    const cacheKey = `${file.name}_${file.size}_${file.lastModified}`;
+    
+    // Check if we already have cached results for this image
+    if (imageExtractionCache.has(cacheKey)) {
+      console.log(`Using cached text extraction for image: ${file.name}`);
+      return imageExtractionCache.get(cacheKey) as string;
+    }
+    
+    // Also check localStorage for persistent caching between sessions
+    const localStorageKey = `image_text_${cacheKey}`;
+    const cachedText = localStorage.getItem(localStorageKey);
+    if (cachedText) {
+      console.log(`Using localStorage cached text for image: ${file.name}`);
+      // Also update in-memory cache
+      imageExtractionCache.set(cacheKey, cachedText);
+      return cachedText;
+    }
+    
     console.log(`Processing image file ${file.name} (${file.size} bytes) with OpenAI`);
     
     // Convert to base64 format required by OpenAI
@@ -91,6 +113,21 @@ export async function processImageWithOpenAI(
     if (data.choices && data.choices[0]?.message?.content) {
       const imageDescription = data.choices[0].message.content;
       console.log(`Successfully processed image: ${imageDescription.substring(0, 100)}...`);
+      
+      // Cache the result for future use
+      const cacheKey = `${file.name}_${file.size}_${file.lastModified}`;
+      imageExtractionCache.set(cacheKey, imageDescription);
+      
+      // Also save to localStorage for persistence between page loads
+      try {
+        const localStorageKey = `image_text_${cacheKey}`;
+        localStorage.setItem(localStorageKey, imageDescription);
+        console.log(`Cached image text extraction result for: ${file.name}`);
+      } catch (cacheError) {
+        // If localStorage fails (e.g., quota exceeded), just log it but continue
+        console.warn('Could not cache image text in localStorage:', cacheError);
+      }
+      
       return imageDescription;
     } else {
       console.error('Unexpected response format from OpenAI:', data);
@@ -108,6 +145,27 @@ export async function processImageWithOpenAI(
  */
 export async function extractTextFromImage(file: File): Promise<string> {
   try {
+    // Generate a cache key for this specific file
+    const cacheKey = `tesseract_${file.name}_${file.size}_${file.lastModified}`;
+    
+    // Check if we already have cached results for this image
+    if (imageExtractionCache.has(cacheKey)) {
+      console.log(`Using cached Tesseract text for image: ${file.name}`);
+      return imageExtractionCache.get(cacheKey) as string;
+    }
+    
+    // Also check localStorage for persistent caching between sessions
+    const localStorageKey = `tesseract_text_${cacheKey}`;
+    const cachedText = localStorage.getItem(localStorageKey);
+    if (cachedText) {
+      console.log(`Using localStorage cached Tesseract text for image: ${file.name}`);
+      // Also update in-memory cache
+      imageExtractionCache.set(cacheKey, cachedText);
+      return cachedText;
+    }
+    
+    console.log(`Processing image with Tesseract: ${file.name}`);
+    
     // Create a Tesseract worker with English language directly
     const worker = await createWorker('eng');
     
@@ -119,6 +177,17 @@ export async function extractTextFromImage(file: File): Promise<string> {
     
     // Terminate worker to free resources
     await worker.terminate();
+    
+    // Cache the result
+    imageExtractionCache.set(cacheKey, data.text);
+    
+    // Also save to localStorage for persistence
+    try {
+      localStorage.setItem(localStorageKey, data.text);
+      console.log(`Cached Tesseract text for: ${file.name}`);
+    } catch (cacheError) {
+      console.warn('Could not cache Tesseract text in localStorage:', cacheError);
+    }
     
     return data.text;
   } catch (error) {

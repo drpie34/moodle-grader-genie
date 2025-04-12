@@ -42,47 +42,80 @@ export async function initFileDatabase(): Promise<IDBDatabase> {
 // Cache file metadata (not the file content itself)
 export async function cacheFileMetadata(files: File[]): Promise<void> {
   try {
-    const db = await initFileDatabase();
-    const transaction = db.transaction([STORE_NAME], 'readwrite');
-    const store = transaction.objectStore(STORE_NAME);
-    
-    // Clear previous cache
-    store.clear();
-    
-    // Add file metadata to cache
-    for (const file of files) {
-      // Create a serializable object (without the actual file data)
-      const fileMetadata = {
-        id: `${file.name}_${file.size}_${file.lastModified}`,
-        name: file.name,
-        size: file.size,
-        type: file.type,
-        lastModified: file.lastModified,
-        path: file.webkitRelativePath || file.name,
-        timestamp: Date.now()
-      };
-      
-      store.add(fileMetadata);
+    // Check if IndexedDB is available
+    if (!window.indexedDB) {
+      console.log("IndexedDB not supported - falling back to sessionStorage only");
+      // Fall back to just sessionStorage
+      sessionStorage.setItem('moodle_grader_file_count', files.length.toString());
+      const filePaths = files.map(f => f.webkitRelativePath || f.name);
+      sessionStorage.setItem('moodle_grader_file_paths', JSON.stringify(filePaths.slice(0, 100)));
+      return;
     }
     
-    console.log(`Cached metadata for ${files.length} files in IndexedDB`);
-    
-    // Also store information in sessionStorage for faster access
+    // Even if IndexedDB fails, still store basic info in sessionStorage
     sessionStorage.setItem('moodle_grader_file_count', files.length.toString());
-    
-    // Store file paths for debugging
     const filePaths = files.map(f => f.webkitRelativePath || f.name);
     sessionStorage.setItem('moodle_grader_file_paths', JSON.stringify(filePaths.slice(0, 100)));
     
-    return new Promise((resolve, reject) => {
-      transaction.oncomplete = () => resolve();
-      transaction.onerror = (event) => {
-        console.error('Error caching file metadata', event);
-        reject('Failed to cache file metadata');
-      };
-    });
+    // Attempt to use IndexedDB
+    try {
+      const db = await initFileDatabase();
+      const transaction = db.transaction([STORE_NAME], 'readwrite');
+      const store = transaction.objectStore(STORE_NAME);
+      
+      // Clear previous cache
+      store.clear();
+      
+      // Add file metadata to cache
+      for (const file of files) {
+        try {
+          // Create a serializable object (without the actual file data)
+          const fileMetadata = {
+            id: `${file.name}_${file.size}_${file.lastModified}`,
+            name: file.name,
+            size: file.size,
+            type: file.type || "",
+            lastModified: file.lastModified,
+            path: file.webkitRelativePath || file.name,
+            timestamp: Date.now()
+          };
+          
+          // Explicitly check each property to ensure they're serializable
+          for (const [key, value] of Object.entries(fileMetadata)) {
+            if (value === undefined) {
+              (fileMetadata as any)[key] = ""; // Replace undefined with empty string
+            }
+          }
+          
+          store.add(fileMetadata);
+        } catch (fileError) {
+          console.warn(`Failed to cache metadata for file ${file.name}:`, fileError);
+          // Continue with next file
+        }
+      }
+      
+      console.log(`Cached metadata for ${files.length} files in IndexedDB`);
+      
+      return new Promise((resolve, reject) => {
+        transaction.oncomplete = () => {
+          console.log("IndexedDB transaction completed successfully");
+          resolve();
+        };
+        transaction.onerror = (event) => {
+          console.error('Error in IndexedDB transaction:', event);
+          // Don't reject, we already stored the basic info in sessionStorage
+          resolve();
+        };
+      });
+    } catch (dbError) {
+      console.error('Error accessing IndexedDB:', dbError);
+      // We already stored the basic info in sessionStorage, so just resolve
+      return Promise.resolve();
+    }
   } catch (error) {
     console.error('Error in cacheFileMetadata:', error);
+    // Fail gracefully - this is just for UX improvement
+    return Promise.resolve();
   }
 }
 
