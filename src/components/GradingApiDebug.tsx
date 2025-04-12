@@ -91,7 +91,10 @@ const GradingApiDebug: React.FC<GradingApiDebugProps> = ({ open, onClose }) => {
     prompt = `# System Message:\n\n${fullSystemMessage}\n\n`;
     
     // Get user message (submission text) - limit display for very large submissions
-    let userMessage = currentRequest.apiRequest.userMessage.replace('Grade this submission: ', '');
+    let userMessage = currentRequest.apiRequest?.userMessage 
+      ? currentRequest.apiRequest.userMessage.replace('Grade this submission: ', '')
+      : 'User message not available';
+    
     const isLongSubmission = userMessage.length > 15000;
     
     // For very long submissions, truncate for display but note the full length
@@ -215,15 +218,15 @@ const GradingApiDebug: React.FC<GradingApiDebugProps> = ({ open, onClose }) => {
                     </div>
                     <div>
                       <dt className="font-medium text-muted-foreground">Assignment ID</dt>
-                      <dd>{currentRequest.apiRequest.assignmentId}</dd>
+                      <dd>{currentRequest.apiRequest?.assignmentId || "Not available"}</dd>
                     </div>
                     <div>
                       <dt className="font-medium text-muted-foreground">Function Name</dt>
-                      <dd>{currentRequest.apiRequest.function}</dd>
+                      <dd>{currentRequest.apiRequest?.function || "Not available"}</dd>
                     </div>
                     <div>
                       <dt className="font-medium text-muted-foreground">Using Cached Instructions</dt>
-                      <dd>{currentRequest.apiRequest.cached ? "Yes" : "No"}</dd>
+                      <dd>{currentRequest.apiRequest?.cached ? "Yes" : "No"}</dd>
                     </div>
                     <div>
                       <dt className="font-medium text-muted-foreground">Submission Preview</dt>
@@ -241,14 +244,14 @@ const GradingApiDebug: React.FC<GradingApiDebugProps> = ({ open, onClose }) => {
                   
                   <div className="mb-4">
                     <h4 className="text-sm font-medium text-muted-foreground">Edge Function</h4>
-                    <p className="text-sm">{currentRequest.edgeFunction.description}</p>
-                    <p className="text-xs text-muted-foreground mt-1">{currentRequest.edgeFunction.benefit}</p>
+                    <p className="text-sm">{currentRequest.edgeFunction?.description || "Not available"}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{currentRequest.edgeFunction?.benefit || "Not available"}</p>
                   </div>
                   
                   <div>
                     <h4 className="text-sm font-medium text-muted-foreground">Token Optimization</h4>
-                    <p className="text-sm">{currentRequest.tokenOptimization.description}</p>
-                    <p className="text-xs text-muted-foreground mt-1">{currentRequest.tokenOptimization.benefit}</p>
+                    <p className="text-sm">{currentRequest.tokenOptimization?.description || "Not available"}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{currentRequest.tokenOptimization?.benefit || "Not available"}</p>
                   </div>
                 </div>
               </div>
