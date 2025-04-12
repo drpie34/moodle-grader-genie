@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -86,6 +86,9 @@ const DebugMenu: React.FC<DebugMenuProps> = ({ open, onClose }) => {
               <span>Debug Menu</span>
               <Badge variant="outline">Developer Options</Badge>
             </DialogTitle>
+            <DialogDescription>
+              Access advanced debugging features and settings
+            </DialogDescription>
           </DialogHeader>
           
           <Tabs defaultValue="settings">
@@ -181,16 +184,17 @@ const DebugMenu: React.FC<DebugMenuProps> = ({ open, onClose }) => {
                                 <dd>{data.filesFound || 0}</dd>
                                 
                                 <dt className="text-muted-foreground">Processing Method:</dt>
-                                <dd>{data.processingMethod || 'Standard'}</dd>
+                                <dd>{typeof data.processingMethod === 'string' ? data.processingMethod : 'Standard'}</dd>
                                 
                                 <dt className="text-muted-foreground">Selected File:</dt>
-                                <dd>{data.selectedFile || 'None'}</dd>
+                                <dd>{typeof data.selectedFile === 'string' ? data.selectedFile : 
+                                    (data.selectedFile ? '[File Object]' : 'None')}</dd>
                                 
                                 <dt className="text-muted-foreground">File Size:</dt>
                                 <dd>{data.fileSize ? `${Math.round(data.fileSize / 1024)} KB` : 'Unknown'}</dd>
                                 
                                 <dt className="text-muted-foreground">Is Empty:</dt>
-                                <dd>{data.isEmpty ? 'Yes' : 'No'}</dd>
+                                <dd>{data.isEmpty === true ? 'Yes' : 'No'}</dd>
                               </dl>
                             </div>
                           ))}
