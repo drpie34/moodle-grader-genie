@@ -62,15 +62,18 @@ const GradingPreview: React.FC<GradingPreviewProps> = ({
             <p className="text-sm text-muted-foreground">{assignmentData.courseName}</p>
           </div>
           <div className="flex items-center gap-2">
-            <Button
-              onClick={() => setShowApiDebug(true)}
-              variant="ghost"
-              size="sm"
-              className="flex items-center gap-1 mr-1 text-muted-foreground hover:text-foreground"
-            >
-              <Bug className="h-4 w-4" />
-              <span className="text-xs">View API Prompt</span>
-            </Button>
+            {/* Only show API debug button if enabled in settings */}
+            {localStorage.getItem("show_api_prompt_button") === "true" && (
+              <Button
+                onClick={() => setShowApiDebug(true)}
+                variant="ghost"
+                size="sm"
+                className="flex items-center gap-1 mr-1 text-muted-foreground hover:text-foreground"
+              >
+                <Bug className="h-4 w-4" />
+                <span className="text-xs">View API Prompt</span>
+              </Button>
+            )}
             <span className="text-sm text-muted-foreground">
               {pendingReviews} of {grades.length} pending review
             </span>
