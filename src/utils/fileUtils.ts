@@ -5,13 +5,15 @@ import * as pdfjs from 'pdfjs-dist';
 import { extractHTMLFromDOCX } from './docxUtils';
 // Import the worker script first, as it's bundled via pdfUtils
 import './pdfUtils';
-import { isImageFile, processImageWithOpenAI, extractTextFromImage } from './imageUtils';
+import { isImageFile, extractImageText } from './imageUtils';
 
-// Database name for file caching
+// DATABASE/CACHING SECTION
 const DB_NAME = 'moodle_grader_file_cache';
 const STORE_NAME = 'file_metadata';
 
-// Initialize the IndexedDB for file caching
+/**
+ * Initialize the IndexedDB for file caching
+ */
 export async function initFileDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, 1);
@@ -39,7 +41,9 @@ export async function initFileDatabase(): Promise<IDBDatabase> {
   });
 }
 
-// Cache file metadata (not the file content itself)
+/**
+ * Cache file metadata (not the file content itself)
+ */
 export async function cacheFileMetadata(files: File[]): Promise<void> {
   try {
     // Check if IndexedDB is available
@@ -119,7 +123,9 @@ export async function cacheFileMetadata(files: File[]): Promise<void> {
   }
 }
 
-// Retrieve cached file metadata
+/**
+ * Retrieve cached file metadata
+ */
 export async function getCachedFileMetadata(): Promise<any[]> {
   try {
     const db = await initFileDatabase();
@@ -143,7 +149,9 @@ export async function getCachedFileMetadata(): Promise<any[]> {
   }
 }
 
-// Clear the file cache
+/**
+ * Clear the file cache
+ */
 export async function clearFileCache(): Promise<void> {
   try {
     const db = await initFileDatabase();
@@ -169,6 +177,14 @@ export async function clearFileCache(): Promise<void> {
   }
 }
 
+// Special markers for file content
+export const CONTENT_MARKERS = {
+  EMPTY_SUBMISSION: '[EMPTY_SUBMISSION]',
+  NO_SUBMISSION: '[NO_SUBMISSION]'
+};
+
+// TEXT EXTRACTION SECTION
+
 // Log PDF.js status, but don't override worker setup from pdfUtils.ts
 console.log(`[fileUtils] PDF.js version: ${pdfjs.version}`);
 console.log(`[fileUtils] PDF.js worker status:`, {
@@ -188,36 +204,10 @@ export async function extractTextFromFile(file: File): Promise<string> {
   const fileType = file.type.toLowerCase();
   const fileName = file.name.toLowerCase();
   
-  // For image files - use OpenAI vision API
+  // For image files - delegate to imageUtils
   if (isImageFile(file)) {
     console.log(`Processing image file: ${file.name} (${file.size} bytes)`);
-    try {
-      // First try using OpenAI's vision capabilities
-      const prompt = "You are a teaching assistant grading a student's submission. " +
-                    "Please extract all text from this image, preserve formatting where possible, " +
-                    "and describe any diagrams, charts or visual elements that are relevant to academic grading. " +
-                    "If you can't extract meaningful text, please state that this appears to be an image " +
-                    "without substantial text content.";
-      
-      const oaiResult = await processImageWithOpenAI(file, prompt);
-      
-      if (oaiResult && !oaiResult.includes("Error processing image")) {
-        return oaiResult;
-      }
-      
-      // Fall back to Tesseract.js if OpenAI fails
-      console.log("Falling back to Tesseract for image text extraction");
-      return await extractTextFromImage(file);
-    } catch (error) {
-      console.error("Error processing image with OpenAI:", error);
-      // Fall back to Tesseract.js if OpenAI fails
-      try {
-        return await extractTextFromImage(file);
-      } catch (fallbackError) {
-        console.error("Fallback image processing also failed:", fallbackError);
-        return `[Image file detected: ${file.name}. Please review this submission manually.]`;
-      }
-    }
+    return await extractImageText(file);
   }
   
   // For PDF files
@@ -335,14 +325,6 @@ Please consider converting it to a Word document or text file for better results
 }
 
 /**
- * Special markers for file content
- */
-export const CONTENT_MARKERS = {
-  EMPTY_SUBMISSION: '[EMPTY_SUBMISSION]',
-  NO_SUBMISSION: '[NO_SUBMISSION]'
-};
-
-/**
  * Check if content is considered empty or missing
  */
 export function isEmptySubmission(content: string | null | undefined): boolean {
@@ -430,6 +412,8 @@ async function extractTextFromRawFile(file: File): Promise<string> {
   });
 }
 
+// STUDENT INFO EXTRACTION SECTION
+
 /**
  * Extract student information from a filename or folder name
  */
@@ -493,6 +477,8 @@ function extractStudentInfo(nameStr: string): any {
     identifier: fullName.replace(/\s+/g, '_').toLowerCase()
   };
 }
+
+// FILE SELECTION SECTION
 
 /**
  * Find the best submission file from a set of files

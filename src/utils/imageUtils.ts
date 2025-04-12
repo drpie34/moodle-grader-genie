@@ -1,9 +1,86 @@
-
 import { createWorker } from 'tesseract.js';
 import { supabase } from "@/integrations/supabase/client";
 
 // Cache for storing image text extraction results to avoid duplicate API calls
 const imageExtractionCache = new Map<string, string>();
+
+/**
+ * Unified cache utility
+ */
+const imageCache = {
+  // Get from cache (checks both in-memory and localStorage)
+  get: (cacheKey: string, useLocalStorage: boolean = true): string | null => {
+    // First check in-memory cache
+    if (imageExtractionCache.has(cacheKey)) {
+      console.log(`Using in-memory cached text for image key: ${cacheKey}`);
+      return imageExtractionCache.get(cacheKey) as string;
+    }
+    
+    // Then check localStorage if enabled
+    if (useLocalStorage) {
+      try {
+        const cachedText = localStorage.getItem(cacheKey);
+        if (cachedText) {
+          console.log(`Using localStorage cached text for image key: ${cacheKey}`);
+          // Update in-memory cache too
+          imageExtractionCache.set(cacheKey, cachedText);
+          return cachedText;
+        }
+      } catch (error) {
+        console.warn('Error reading from localStorage:', error);
+      }
+    }
+    
+    return null;
+  },
+  
+  // Store in cache (both in-memory and localStorage if enabled)
+  set: (cacheKey: string, value: string, useLocalStorage: boolean = true): void => {
+    // Always update in-memory cache
+    imageExtractionCache.set(cacheKey, value);
+    
+    // Update localStorage if enabled
+    if (useLocalStorage) {
+      try {
+        localStorage.setItem(cacheKey, value);
+        console.log(`Cached text for key: ${cacheKey}`);
+      } catch (error) {
+        console.warn('Could not cache in localStorage:', error);
+      }
+    }
+  }
+};
+
+/**
+ * File conversion utilities
+ */
+export const fileUtils = {
+  /**
+   * Convert a File object to a data URL
+   */
+  toDataURL: (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  },
+  
+  /**
+   * Convert a File object to a base64 string (alias for consistency)
+   */
+  toBase64: (file: File): Promise<string> => {
+    return fileUtils.toDataURL(file);
+  },
+  
+  /**
+   * Generate a cache key for a file
+   */
+  generateCacheKey: (file: File, prefix: string = ""): string => {
+    return `${prefix}${file.name}_${file.size}_${file.lastModified}`;
+  }
+};
 
 /**
  * Extract text from an image file using OpenAI's vision capabilities
@@ -15,28 +92,16 @@ export async function processImageWithOpenAI(
 ): Promise<string> {
   try {
     // Generate a cache key for this specific file
-    const cacheKey = `${file.name}_${file.size}_${file.lastModified}`;
+    const cacheKey = `image_text_${fileUtils.generateCacheKey(file)}`;
     
-    // Check if we already have cached results for this image
-    if (imageExtractionCache.has(cacheKey)) {
-      console.log(`Using cached text extraction for image: ${file.name}`);
-      return imageExtractionCache.get(cacheKey) as string;
-    }
-    
-    // Also check localStorage for persistent caching between sessions
-    const localStorageKey = `image_text_${cacheKey}`;
-    const cachedText = localStorage.getItem(localStorageKey);
-    if (cachedText) {
-      console.log(`Using localStorage cached text for image: ${file.name}`);
-      // Also update in-memory cache
-      imageExtractionCache.set(cacheKey, cachedText);
-      return cachedText;
-    }
+    // Check for cached result
+    const cachedResult = imageCache.get(cacheKey);
+    if (cachedResult) return cachedResult;
     
     console.log(`Processing image file ${file.name} (${file.size} bytes) with OpenAI`);
     
     // Convert to base64 format required by OpenAI
-    const base64Image = await fileToBase64(file);
+    const base64Image = await fileUtils.toBase64(file);
     
     // Extract just the base64 data part (remove data:image/jpeg;base64, prefix)
     const base64Data = base64Image.split(',')[1];
@@ -115,18 +180,7 @@ export async function processImageWithOpenAI(
       console.log(`Successfully processed image: ${imageDescription.substring(0, 100)}...`);
       
       // Cache the result for future use
-      const cacheKey = `${file.name}_${file.size}_${file.lastModified}`;
-      imageExtractionCache.set(cacheKey, imageDescription);
-      
-      // Also save to localStorage for persistence between page loads
-      try {
-        const localStorageKey = `image_text_${cacheKey}`;
-        localStorage.setItem(localStorageKey, imageDescription);
-        console.log(`Cached image text extraction result for: ${file.name}`);
-      } catch (cacheError) {
-        // If localStorage fails (e.g., quota exceeded), just log it but continue
-        console.warn('Could not cache image text in localStorage:', cacheError);
-      }
+      imageCache.set(cacheKey, imageDescription);
       
       return imageDescription;
     } else {
@@ -146,23 +200,11 @@ export async function processImageWithOpenAI(
 export async function extractTextFromImage(file: File): Promise<string> {
   try {
     // Generate a cache key for this specific file
-    const cacheKey = `tesseract_${file.name}_${file.size}_${file.lastModified}`;
+    const cacheKey = `tesseract_text_${fileUtils.generateCacheKey(file)}`;
     
-    // Check if we already have cached results for this image
-    if (imageExtractionCache.has(cacheKey)) {
-      console.log(`Using cached Tesseract text for image: ${file.name}`);
-      return imageExtractionCache.get(cacheKey) as string;
-    }
-    
-    // Also check localStorage for persistent caching between sessions
-    const localStorageKey = `tesseract_text_${cacheKey}`;
-    const cachedText = localStorage.getItem(localStorageKey);
-    if (cachedText) {
-      console.log(`Using localStorage cached Tesseract text for image: ${file.name}`);
-      // Also update in-memory cache
-      imageExtractionCache.set(cacheKey, cachedText);
-      return cachedText;
-    }
+    // Check for cached result
+    const cachedResult = imageCache.get(cacheKey);
+    if (cachedResult) return cachedResult;
     
     console.log(`Processing image with Tesseract: ${file.name}`);
     
@@ -170,7 +212,7 @@ export async function extractTextFromImage(file: File): Promise<string> {
     const worker = await createWorker('eng');
     
     // Convert file to data URL
-    const dataUrl = await fileToDataURL(file);
+    const dataUrl = await fileUtils.toDataURL(file);
     
     // Recognize text in the image
     const { data } = await worker.recognize(dataUrl);
@@ -179,15 +221,7 @@ export async function extractTextFromImage(file: File): Promise<string> {
     await worker.terminate();
     
     // Cache the result
-    imageExtractionCache.set(cacheKey, data.text);
-    
-    // Also save to localStorage for persistence
-    try {
-      localStorage.setItem(localStorageKey, data.text);
-      console.log(`Cached Tesseract text for: ${file.name}`);
-    } catch (cacheError) {
-      console.warn('Could not cache Tesseract text in localStorage:', cacheError);
-    }
+    imageCache.set(cacheKey, data.text);
     
     return data.text;
   } catch (error) {
@@ -197,27 +231,37 @@ export async function extractTextFromImage(file: File): Promise<string> {
 }
 
 /**
- * Convert a File object to a data URL
+ * Main function to extract text from an image file, using optimal method
+ * This function orchestrates both extraction methods with fallbacks
  */
-function fileToDataURL(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
-
-/**
- * Convert a File object to a base64 string
- */
-function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
+export async function extractImageText(file: File, useAI: boolean = true): Promise<string> {
+  if (!isImageFile(file)) {
+    return `[Not an image file: ${file.name}]`;
+  }
+  
+  try {
+    // Try OpenAI first if enabled
+    if (useAI) {
+      const prompt = "You are a teaching assistant grading a student's submission. " +
+                    "Please extract all text from this image, preserve formatting where possible, " +
+                    "and describe any diagrams, charts or visual elements that are relevant to academic grading. " +
+                    "If you can't extract meaningful text, please state that this appears to be an image " +
+                    "without substantial text content.";
+      
+      const oaiResult = await processImageWithOpenAI(file, prompt);
+      
+      if (oaiResult && !oaiResult.includes("Error processing image")) {
+        return oaiResult;
+      }
+    }
+    
+    // Fall back to Tesseract
+    console.log("Falling back to Tesseract for image text extraction");
+    return await extractTextFromImage(file);
+  } catch (error) {
+    console.error("Error extracting text from image:", error);
+    return `[Error processing image: ${error instanceof Error ? error.message : 'Unknown error'}]`;
+  }
 }
 
 /**
