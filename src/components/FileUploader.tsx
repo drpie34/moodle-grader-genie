@@ -47,7 +47,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({
     e.stopPropagation();
   }, []);
 
-  const validateFiles = (files: File[]): File[] => {
+  const validateFiles = (files: File[], isExtractedFromZip: boolean = false): File[] => {
     const validFiles: File[] = [];
     const errors: string[] = [];
 
@@ -55,7 +55,8 @@ const FileUploader: React.FC<FileUploaderProps> = ({
       const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
       const isOnlineText = file.name.includes('onlinetext');
       
-      const isValidType = isOnlineText || acceptedFileTypes.some(type => 
+      // Skip file type validation for files extracted from ZIP
+      const isValidType = isExtractedFromZip || isOnlineText || acceptedFileTypes.some(type => 
         type === fileExtension || type === file.type || type === '*'
       );
       
@@ -106,7 +107,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({
           const files = await processZipFile(zipFile);
           toast.success(`Extracted ${files.length} files from ${zipFile.name}`);
           
-          const validExtractedFiles = validateFiles(files);
+          const validExtractedFiles = validateFiles(files, true); // true = from ZIP
           extractedFiles = [...extractedFiles, ...validExtractedFiles];
         } catch (error) {
           console.error(`Error extracting files from ${zipFile.name}:`, error);
@@ -178,7 +179,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({
       let extractedFiles: File[] = [];
       
       if (zipFiles.length > 0) {
-        toast.info(`Processing Moodle submission files...`);
+        toast.info(`Processing ${zipFiles.length} Moodle ZIP ${zipFiles.length === 1 ? 'file' : 'files'}...`);
         
         for (const zipFile of zipFiles) {
           try {
@@ -189,7 +190,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({
               processFilesByFolder(files);
             }
             
-            const validExtractedFiles = validateFiles(files);
+            const validExtractedFiles = validateFiles(files, true); // true = from ZIP
             extractedFiles = [...extractedFiles, ...validExtractedFiles];
           } catch (error) {
             console.error(`Error extracting Moodle submissions:`, error);
