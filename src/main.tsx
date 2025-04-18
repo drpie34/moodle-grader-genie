@@ -1,6 +1,14 @@
+declare global {
+  interface Window {
+    __APP_DEBUG?: any;
+    __APP_VERSION?: string;
+  }
+}
+
 import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
 import './index.css'
+// Removed IndexedDB disabling as it was causing issues
 
 // Add fetch tracking that will survive minification
 try {
@@ -46,10 +54,6 @@ try {
 }
 
 // Add app version info
-window.__APP_VERSION = {
-  buildDate: new Date().toISOString(),
-  commit: '94097ae',
-  env: import.meta.env.MODE
-};
+window.__APP_VERSION = `buildDate=${new Date().toISOString()} | commit=94097ae | env=${import.meta.env.MODE}`;
 
 createRoot(document.getElementById("root")!).render(<App />);

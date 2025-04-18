@@ -156,66 +156,81 @@ const LandingPage: React.FC = () => {
       
       <div id="smooth-content" ref={scrollContainerRef} className="flex flex-col min-h-screen smooth-scroll">
       {/* Hero Section */}
-      <header className="relative overflow-hidden">
-        <div className="absolute inset-0">
-          <div className="absolute inset-0 bg-[url('/MoodleGraderBackground.png')] bg-cover bg-center" />
-          <div className="absolute inset-0 bg-black/30 mix-blend-multiply" />
-          <div className="absolute inset-0 bg-[url('/grid-pattern.svg')] opacity-20" />
+      <header className="relative overflow-hidden min-h-[75vh] flex items-center justify-center bg-gradient-to-br from-indigo-800 via-purple-800 to-indigo-900">
+        {/* Animated/Layered Background */}
+        <div className="absolute inset-0 z-0">
+          {/* Optional: Add a subtle looping video background for modern SaaS look */}
+          <video
+            autoPlay
+            loop
+            muted
+            playsInline
+            className="w-full h-full object-cover opacity-40"
+            src="/hero-bg.mp4" // Provide a subtle video or remove if not available
+          />
+          <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/80 via-purple-900/60 to-indigo-800/80" />
+          <div className="absolute inset-0 bg-[url('/grid-pattern.svg')] opacity-10" />
         </div>
-        <div className="relative max-w-7xl mx-auto pt-10 pb-24 px-4 sm:px-6 lg:px-8 flex flex-col items-center">
-          <nav className="relative flex items-center justify-between sm:h-10 w-full max-w-7xl">
-            <div className="flex items-center flex-grow flex-shrink-0 lg:flex-grow-0">
-              <div className="flex items-center justify-between w-full md:w-auto">
-                <Link to="/" className="flex items-center">
-                  <img
-                    className="h-12 w-auto sm:h-8"
-                    src="/MoodleGraderLogo.png"
-                    alt="Moodle Grader"
-                  />
-                  <span className="ml-1 text-2xl font-bold text-white hidden sm:block">Moodle Grader</span>
-                </Link>
-              </div>
+
+        {/* Glass Card */}
+        <div className="relative z-10 max-w-3xl w-full mx-auto px-6">
+          <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-3xl shadow-2xl p-10 md:p-16 flex flex-col items-center">
+            <div className="flex items-center mb-6">
+              <img src="/MoodleGraderLogo.png" alt="Moodle Grader" className="h-10 w-10 mr-3" />
+              <span className="text-3xl font-extrabold text-white tracking-tight drop-shadow">Moodle Grader</span>
             </div>
-            <div className="md:block md:ml-10 md:pr-4 space-x-6">
-              <Link to="/features" className="font-medium text-white hover:text-indigo-200">Features</Link>
-              <Link to="/pricing" className="font-medium text-white hover:text-indigo-200">Pricing</Link>
-              <Link to="/contact" className="font-medium text-white hover:text-indigo-200">Contact</Link>
-              <Link to="/login" className="font-medium text-white hover:text-indigo-200 px-4 py-2 border border-transparent rounded-md bg-white bg-opacity-20 hover:bg-opacity-30">
-                Sign in
-              </Link>
-            </div>
-          </nav>
-          
-          <div className="mt-20 max-w-3xl sm:mt-24 text-center">
-            <h1 className="text-4xl font-extrabold text-white sm:text-5xl md:text-6xl tracking-tight">
-              <span className="block">Grade smarter,</span>
-              <span className="block">not harder.</span>
+            <h1 className="text-4xl md:text-6xl font-extrabold text-white text-center leading-tight tracking-tight mb-4 drop-shadow-lg">
+              Grade smarter,<br className="hidden md:block" /> not harder.
             </h1>
-            <p className="mt-6 text-xl text-indigo-100 max-w-3xl">
+            <p className="mt-2 text-lg md:text-2xl text-indigo-100 text-center mb-8 max-w-2xl">
               AI-powered grading that adapts to your style, saves you time, and provides your students with detailed, meaningful feedback.
             </p>
-            <div className="mt-10 flex justify-center gap-3">
+            <div className="flex flex-wrap gap-4 justify-center">
               <Link to="/app">
-                <Button size="lg" className="px-8 py-3 text-base font-medium bg-white text-indigo-700 hover:bg-indigo-50">
-                  Get Started <ArrowRight className="ml-2 h-4 w-4" />
+                <Button
+                  size="lg"
+                  className="px-8 py-3 text-base font-semibold rounded-full bg-gradient-to-r from-indigo-400 to-purple-500 text-white shadow-lg hover:scale-105 hover:from-indigo-500 hover:to-purple-600 transition-all duration-200"
+                >
+                  Get Started <ArrowRight className="ml-2 h-5 w-5" />
                 </Button>
               </Link>
-              <Link to="/demo">
-                <Button size="lg" className="px-8 py-3 text-base font-medium bg-white text-indigo-700 hover:bg-indigo-50">
-                  Watch Demo
+              <Link to="/features">
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="px-8 py-3 text-base font-semibold rounded-full border-white/40 text-white bg-white/10 hover:bg-white/20 hover:text-indigo-200 transition-all duration-200"
+                >
+                  Learn More
                 </Button>
               </Link>
+            </div>
+            {/* Optional: Trust bar */}
+            <div className="mt-8 flex flex-col items-center">
+              <span className="text-xs uppercase tracking-widest text-indigo-100 mb-2">Trusted by educators at</span>
+              <div className="flex gap-6 opacity-80">
+                <img src="/logo1.png" alt="University 1" className="h-6" />
+                <img src="/logo2.png" alt="University 2" className="h-6" />
+                <img src="/logo3.png" alt="University 3" className="h-6" />
+              </div>
             </div>
           </div>
         </div>
-        
-        {/* Straight line divider */}
-        <div className="absolute bottom-0 left-0 right-0">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 60" className="w-full h-auto">
-            <rect width="1440" height="60" fill="#ffffff" />
-          </svg>
-        </div>
       </header>
+
+      <div className="flex flex-col items-center justify-center mt-12">
+        <Link to="/demo">
+          <Button size="lg" className="px-8 py-3 text-base font-medium bg-white text-indigo-700 hover:bg-indigo-50">
+            Watch Demo
+          </Button>
+        </Link>
+      </div>
+
+      {/* Straight line divider */}
+      <div className="absolute bottom-0 left-0 right-0">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 60" className="w-full h-auto">
+          <rect width="1440" height="60" fill="#ffffff" />
+        </svg>
+      </div>
 
       {/* Section-based Parallax Background */}
       {(() => {
@@ -295,7 +310,7 @@ const LandingPage: React.FC = () => {
                         A Better Way
                       </h3>
                       <p className="text-xl md:text-2xl text-gray-600 font-normal leading-relaxed">
-                        What if there was a better way? A way that maintains complete control and your unique voice?
+                        What if there was a better way? A way that maintains complete control and your unique voice but eliminates the busywork?
                       </p>
                     </div>
                   </div>
@@ -624,7 +639,7 @@ const LandingPage: React.FC = () => {
                 <Link to="#" className="text-gray-400 hover:text-white transition-colors duration-300">
                   <span className="sr-only">Facebook</span>
                   <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                    <path fillRule="evenodd" d="M22 12c0-5.523-4.477-10-10-10S2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.878v-6.987h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.988C18.343 21.128 22 16.991 22 12z" clipRule="evenodd" />
+                    <path fillRule="evenodd" d="M22 12c0-5.523-4.477-10-10-10S2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.878v-6.987H12v-2.5h-2v2.5H9v2.5h2v2h2.5V22h-2.5c-.414 0-.75-.364-.75-.75V16a4.965 4.965 0 00-2.913-4.28 5 5 0 016.825-2.5 3.939 3.939 0 014.355 2.5A5.002 5.002 0 0022 12zm-5 0H9.75v2.5H7.5V12h2.5V9.5h2.5V12h2.5z" clipRule="evenodd" />
                   </svg>
                 </Link>
               </div>

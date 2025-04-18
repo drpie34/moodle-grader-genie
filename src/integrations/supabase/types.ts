@@ -9,7 +9,67 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      users: {
+        Row: {
+          id: string
+          email: string
+          created_at: string
+          last_login: string | null
+          account_tier: 'free' | 'basic' | 'premium'
+          subscription_status: 'active' | 'inactive' | 'trialing' | 'past_due' | 'canceled'
+          grades_used: number
+          grades_limit: number
+        }
+        Insert: {
+          id?: string
+          email: string
+          created_at?: string
+          last_login?: string | null
+          account_tier?: 'free' | 'basic' | 'premium'
+          subscription_status?: 'active' | 'inactive' | 'trialing' | 'past_due' | 'canceled'
+          grades_used?: number
+          grades_limit?: number
+        }
+        Update: {
+          id?: string
+          email?: string
+          created_at?: string
+          last_login?: string | null
+          account_tier?: 'free' | 'basic' | 'premium'
+          subscription_status?: 'active' | 'inactive' | 'trialing' | 'past_due' | 'canceled'
+          grades_used?: number
+          grades_limit?: number
+        }
+      }
+      assignment_profiles: {
+        Row: {
+          id: string
+          user_id: string
+          name: string
+          created_at: string
+          updated_at: string
+          assignment_details: Json
+          last_used: string | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          name: string
+          created_at?: string
+          updated_at?: string
+          assignment_details: Json
+          last_used?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          name?: string
+          created_at?: string
+          updated_at?: string
+          assignment_details?: Json
+          last_used?: string | null
+        }
+      }
     }
     Views: {
       [_ in never]: never

@@ -57,19 +57,31 @@ export function useGradePersistence() {
       
       // Store all current state in localStorage
       if (assignmentData) {
-        const assignmentJson = JSON.stringify(assignmentData);
-        localStorage.setItem('moodle_grader_assignment_data', assignmentJson);
-        console.log("Saved assignment data to localStorage", 
-          {size: assignmentJson.length, sample: assignmentJson.substring(0, 100) + "..."});
+        try {
+          // Safely serialize assignment data without circular references
+          const safeAssignmentData = JSON.parse(JSON.stringify(assignmentData));
+          const assignmentJson = JSON.stringify(safeAssignmentData);
+          localStorage.setItem('moodle_grader_assignment_data', assignmentJson);
+          console.log("Saved assignment data to localStorage", 
+            {size: assignmentJson.length, sample: assignmentJson.substring(0, 100) + "..."});
+        } catch (serializeError) {
+          console.error("Error serializing assignment data:", serializeError);
+        }
       } else {
         console.warn("No assignment data to save");
       }
       
       if (grades.length > 0) {
-        const gradesJson = JSON.stringify(grades);
-        localStorage.setItem('moodle_grader_grades', gradesJson);
-        console.log("Saved grades to localStorage", 
-          {count: grades.length, size: gradesJson.length});
+        try {
+          // Safely serialize grades without circular references
+          const safeGrades = JSON.parse(JSON.stringify(grades));
+          const gradesJson = JSON.stringify(safeGrades);
+          localStorage.setItem('moodle_grader_grades', gradesJson);
+          console.log("Saved grades to localStorage", 
+            {count: grades.length, size: gradesJson.length});
+        } catch (serializeError) {
+          console.error("Error serializing grades:", serializeError);
+        }
       } else {
         console.warn("No grades to save");
       }

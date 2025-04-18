@@ -13,6 +13,8 @@ import AcademicLevelSelector from "./AcademicLevelSelector";
 import GradingScaleField from "./GradingScaleField";
 import InstructorToneField from "./InstructorToneField";
 import AdditionalInstructionsField from "./AdditionalInstructionsField";
+import AssignmentProfileSelector from "../auth/AssignmentProfileSelector";
+import { Separator } from "@/components/ui/separator";
 
 interface AssignmentFormProps {
   onSubmit: (formData: AssignmentFormData) => void;
@@ -66,6 +68,12 @@ const AssignmentForm: React.FC<AssignmentFormProps> = ({ onSubmit }) => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    // Check if the event target is inside the AssignmentProfileSelector
+    const target = e.target as HTMLElement;
+    if (target.closest('.profile-selector-container')) {
+      // Don't submit if clicking inside profile selector
+      return;
+    }
     onSubmit(formData);
   };
 
@@ -75,6 +83,15 @@ const AssignmentForm: React.FC<AssignmentFormProps> = ({ onSubmit }) => {
         <CardTitle className="text-2xl font-medium">Assignment Details</CardTitle>
       </CardHeader>
       <CardContent>
+        {/* Profile selector outside the form to prevent form submission issues */}
+        <div className="mb-6">
+          <AssignmentProfileSelector
+            onSelectProfile={(profileData) => setFormData(profileData)}
+            currentAssignmentData={formData}
+          />
+          <Separator className="my-4" />
+        </div>
+        
         <form onSubmit={handleSubmit} className="space-y-6">
           <BasicInfoFields 
             formData={formData} 

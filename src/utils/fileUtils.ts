@@ -46,20 +46,16 @@ export async function initFileDatabase(): Promise<IDBDatabase> {
  */
 export async function cacheFileMetadata(files: File[]): Promise<void> {
   try {
-    // Check if IndexedDB is available
-    if (!window.indexedDB) {
-      console.log("IndexedDB not supported - falling back to sessionStorage only");
-      // Fall back to just sessionStorage
-      sessionStorage.setItem('moodle_grader_file_count', files.length.toString());
-      const filePaths = files.map(f => f.webkitRelativePath || f.name);
-      sessionStorage.setItem('moodle_grader_file_paths', JSON.stringify(filePaths.slice(0, 100)));
-      return;
-    }
-    
-    // Even if IndexedDB fails, still store basic info in sessionStorage
+    // For now, always fall back to sessionStorage to avoid IndexedDB errors
+    console.log("Using sessionStorage for file metadata");
     sessionStorage.setItem('moodle_grader_file_count', files.length.toString());
     const filePaths = files.map(f => f.webkitRelativePath || f.name);
     sessionStorage.setItem('moodle_grader_file_paths', JSON.stringify(filePaths.slice(0, 100)));
+    
+    // Skip IndexedDB for now to avoid errors
+    return;
+    
+    // Removed duplicate code that was causing syntax errors
     
     // Attempt to use IndexedDB
     try {
@@ -154,26 +150,14 @@ export async function getCachedFileMetadata(): Promise<any[]> {
  */
 export async function clearFileCache(): Promise<void> {
   try {
-    const db = await initFileDatabase();
-    const transaction = db.transaction([STORE_NAME], 'readwrite');
-    const store = transaction.objectStore(STORE_NAME);
-    
-    store.clear();
-    console.log('File metadata cache cleared');
-    
-    // Also clear from sessionStorage
+    // Skip IndexedDB operations for now, just clear from sessionStorage
     sessionStorage.removeItem('moodle_grader_file_count');
     sessionStorage.removeItem('moodle_grader_file_paths');
-    
-    return new Promise((resolve, reject) => {
-      transaction.oncomplete = () => resolve();
-      transaction.onerror = (event) => {
-        console.error('Error clearing file cache', event);
-        reject('Failed to clear file cache');
-      };
-    });
+    console.log('File metadata cache cleared from sessionStorage');
+    return Promise.resolve();
   } catch (error) {
     console.error('Error in clearFileCache:', error);
+    return Promise.resolve();
   }
 }
 

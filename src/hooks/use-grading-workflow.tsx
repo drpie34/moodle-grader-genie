@@ -7,6 +7,7 @@ import { useFileProcessing } from "./useFileProcessing";
 import { useGradePersistence } from "./useGradePersistence";
 import { useGradeManagement } from "./useGradeManagement";
 import { findBestStudentMatch } from "./useStudentMatching";
+import { useAuth } from "./auth/use-auth";
 
 export interface StudentGrade {
   identifier: string;
@@ -34,6 +35,7 @@ export function useGradingWorkflow() {
   const fileProcessing = useFileProcessing();
   const persistence = useGradePersistence();
   const gradeManagement = useGradeManagement();
+  const { authState, incrementGradesUsed } = useAuth();
 
   // Try to restore current step from localStorage on initial load
   const [currentStep, setCurrentStep] = useState(persistence.getSavedStep());
@@ -154,6 +156,16 @@ export function useGradingWorkflow() {
     const processFiles = async () => {
       // Check if using server API key
       const hasApiKey = gradeManagement.getApiKey();
+      
+      // Check if user has reached their limit
+      const hasReachedLimit = authState.user && authState.profile && 
+        authState.profile.grades_used >= authState.profile.grades_limit;
+        
+      if (hasReachedLimit) {
+        toast.error("You've reached your grading limit. Please upgrade your plan to continue.");
+        fetchSampleData(); // Use sample data instead
+        return;
+      }
       
       if (currentStep === 3 && assignmentData && files.length > 0 && hasApiKey && !sampleDataLoaded && !gradeManagement.isProcessingGrades) {
         gradeManagement.setIsProcessingGrades(true);
@@ -328,6 +340,22 @@ export function useGradingWorkflow() {
           
           // Save grades to localStorage
           localStorage.setItem('moodle_grader_grades', JSON.stringify(finalGrades));
+          
+          // Track usage if user is logged in
+          if (authState.user && authState.profile) {
+            // Count non-null grades
+            const validGradesCount = finalGrades.filter(g => g.grade !== null).length;
+            if (validGradesCount > 0) {
+              incrementGradesUsed(validGradesCount)
+                .then(({ error }) => {
+                  if (error) {
+                    console.error("Failed to update grades usage count:", error);
+                  } else {
+                    console.log(`Updated usage count: +${validGradesCount} grades`);
+                  }
+                });
+            }
+          }
           
           toast.success("All files processed successfully!");
         } catch (error) {
