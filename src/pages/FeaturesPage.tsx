@@ -260,7 +260,7 @@ const FeaturesPage: React.FC = () => {
         <div className="absolute -top-24 -left-24 w-[600px] h-[600px] bg-blue-600 rounded-full opacity-20 blur-[120px] pointer-events-none"></div>
         <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-purple-600 rounded-full opacity-20 blur-[100px] pointer-events-none"></div>
         
-        <div className="absolute inset-0 bg-[url('/MoodleGraderBackground.png')] bg-cover bg-center opacity-40"></div>
+        <div className="absolute inset-0 bg-[url('/MoodleGraderBackground.png.webp')] bg-cover bg-center opacity-40"></div>
         <div className="absolute inset-0 bg-[url('/grid-pattern.svg')] opacity-20"></div>
         
         <div className="container mx-auto px-4 relative z-10 features-header-content">
@@ -714,7 +714,7 @@ const FeaturesPage: React.FC = () => {
       {/* CTA section */}
       <section className="relative py-32 overflow-hidden">
         <div className="absolute inset-0">
-          <div className="absolute inset-0 bg-[url('/MoodleGraderBackground.png')] bg-cover bg-center opacity-30" />
+          <div className="absolute inset-0 bg-[url('/MoodleGraderBackground.png.webp')] bg-cover bg-center opacity-30" />
           <div className="absolute inset-0 bg-gradient-to-r from-indigo-900/90 to-slate-900/90" />
           <div className="absolute inset-0 bg-[url('/grid-pattern.svg')] opacity-10" />
         </div>

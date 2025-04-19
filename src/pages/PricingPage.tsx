@@ -157,7 +157,7 @@ const PricingPage: React.FC = () => {
         <div className="absolute -top-20 -left-20 w-96 h-96 bg-blue-600 rounded-full opacity-20 blur-[100px]"></div>
         <div className="absolute top-1/3 -right-20 w-96 h-96 bg-purple-600 rounded-full opacity-20 blur-[100px]"></div>
         
-        <div className="absolute inset-0 bg-[url('/MoodleGraderBackground.png')] bg-cover bg-center opacity-40"></div>
+        <div className="absolute inset-0 bg-[url('/MoodleGraderBackground.png.webp')] bg-cover bg-center opacity-40"></div>
         
         <div className="container mx-auto px-4 relative z-10 pricing-header-content">
           <nav className="relative flex items-center justify-between py-8 w-full max-w-7xl mx-auto">
@@ -598,7 +598,7 @@ const PricingPage: React.FC = () => {
       {/* CTA section */}
       <section className="relative py-32 overflow-hidden">
         <div className="absolute inset-0">
-          <div className="absolute inset-0 bg-[url('/MoodleGraderBackground.png')] bg-cover bg-center opacity-30" />
+          <div className="absolute inset-0 bg-[url('/MoodleGraderBackground.png.webp')] bg-cover bg-center opacity-30" />
           <div className="absolute inset-0 bg-gradient-to-r from-indigo-900/90 to-slate-900/90" />
           <div className="absolute inset-0 bg-[url('/grid-pattern.svg')] opacity-10" />
         </div>
