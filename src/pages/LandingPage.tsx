@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useSectionInView } from "../hooks/useSectionInView";
+import LogoComponent from "@/components/LogoComponent";
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { ScrollToPlugin } from 'gsap/ScrollToPlugin';
@@ -314,14 +315,7 @@ const LandingPage: React.FC = () => {
             <nav className="relative flex items-center justify-between sm:h-10 w-full max-w-7xl">
               <div className="flex items-center flex-grow flex-shrink-0 lg:flex-grow-0">
                 <div className="flex items-center justify-between w-full md:w-auto">
-                  <Link to="/" className="flex items-center">
-                    <img
-                      className="h-12 w-auto sm:h-8"
-                      src="/MoodleGraderLogo.png"
-                      alt="MoodleGrader"
-                    />
-                    <span className="ml-1 text-2xl font-bold text-white hidden sm:block">MoodleGrader</span>
-                  </Link>
+                  <LogoComponent logoSize="large" textSize="large" variant="white" />
                 </div>
               </div>
               <div className="md:block md:ml-10 md:pr-4 space-x-6">
@@ -716,10 +710,7 @@ const LandingPage: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-12 gap-12">
             <div className="md:col-span-5 lg:col-span-4">
-              <div className="flex items-center">
-                <img className="h-12 w-auto" src="/MoodleGraderLogo.png" alt="MoodleGrader" />
-                <span className="ml-3 text-2xl font-bold">MoodleGrader</span>
-              </div>
+              <LogoComponent logoSize="large" textSize="large" variant="white" />
               <p className="mt-6 text-gray-300 text-base leading-relaxed">
                 AI-powered grading that adapts to your style, saves you time, and provides your students with detailed, meaningful feedback.
               </p>

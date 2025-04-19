@@ -4,6 +4,7 @@ import { Separator } from "@/components/ui/separator";
 import DemoAccountInfo from "./auth/DemoAccountInfo";
 import { Link } from "react-router-dom";
 import { HelpCircle, MessageSquare, ChevronLeft } from "lucide-react";
+import LogoComponent from "./LogoComponent";
 
 const Header: React.FC = () => {
   return (
@@ -15,14 +16,7 @@ const Header: React.FC = () => {
       <div className="bg-background/80 backdrop-blur-lg shadow-sm">
         <div className="container flex h-[var(--header-height)] items-center justify-between py-4">
           <div className="flex items-center space-x-4">
-            <Link to="/" className="flex items-center space-x-2 transition-opacity hover:opacity-90">
-              <img 
-                src="/MoodleGraderLogo.png" 
-                alt="MoodleGrader Logo" 
-                className="h-12 w-auto"
-              />
-              <span className="hidden font-semibold text-xl md:block">Moodle Grader</span>
-            </Link>
+            <LogoComponent logoSize="large" textSize="medium" />
             
             {/* App navigation breadcrumb - optional */}
             <div className="hidden md:flex items-center text-sm text-muted-foreground">

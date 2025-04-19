@@ -6,6 +6,7 @@ import UploadStep from "@/components/workflow/UploadStep";
 import AssignmentForm from "@/components/assignment/AssignmentForm";
 import ReviewStep from "@/components/workflow/ReviewStep";
 import ProcessFiles from "@/components/ProcessFiles";
+import LogoComponent from "@/components/LogoComponent";
 import { WORKFLOW_STEPS } from "@/components/workflow/steps";
 import { useGradingWorkflow } from "@/hooks/use-grading-workflow";
 import { downloadCSV, generateMoodleCSV } from "@/utils/csv";
@@ -130,13 +131,18 @@ const Index = () => {
         <div className="mx-auto max-w-3xl">
           {/* Header with premium styling */}
           <div className="mb-10 text-center">
-            <div className="inline-flex items-center justify-center mb-3">
-              <div className="h-10 w-10 flex items-center justify-center rounded-full bg-primary/10 text-primary mr-3">
-                <Sparkles className="h-5 w-5" />
+            <div className="inline-flex flex-col items-center mb-3">
+              <div className="flex items-center justify-center mb-2">
+                <div className="h-12 w-12 flex items-center justify-center rounded-full bg-primary/10 text-primary mr-3">
+                  <Sparkles className="h-6 w-6" />
+                </div>
+                <h1 className="text-4xl font-bold tracking-tight gradient-text">
+                  Grading Assistant
+                </h1>
               </div>
-              <h1 className="text-4xl font-bold tracking-tight gradient-text">
-                Grading Assistant
-              </h1>
+              <div className="text-sm text-muted-foreground uppercase tracking-widest font-medium">
+                by <span className="gradient-text font-bold">MoodleGrader</span>
+              </div>
             </div>
             <p className="text-lg text-muted-foreground max-w-md mx-auto">
               Your AI-powered grading companion for seamless Moodle integration
@@ -265,8 +271,7 @@ const Index = () => {
       <footer className="border-t">
         <div className="container mx-auto px-4 py-8 flex flex-col md:flex-row justify-between items-center">
           <div className="flex items-center mb-4 md:mb-0">
-            <img src="/MoodleGraderLogo.png" alt="MoodleGrader Logo" className="h-8 w-auto mr-2" />
-            <span className="text-sm font-medium">Moodle Grader</span>
+            <LogoComponent logoSize="small" textSize="small" />
           </div>
           <div className="text-sm text-muted-foreground">
             <p>AI-powered grading for educators — <span className="text-primary">Save time. Teach better.</span></p>
