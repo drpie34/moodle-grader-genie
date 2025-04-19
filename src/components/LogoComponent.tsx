@@ -49,14 +49,16 @@ const LogoComponent: React.FC<LogoProps> = ({
   
   // The actual component to render
   const LogoContent = () => (
-    <div className={cn("flex items-center", className)}>
-      <img 
-        src="/MoodleGraderLogo.png" 
-        alt="MoodleGrader" 
-        className={logoSizeClasses[logoSize]}
-      />
+    <div className={cn("flex items-center -space-x-0.5", className)}>
+      <div className="relative flex items-center">
+        <img 
+          src="/MoodleGraderLogo.png" 
+          alt="MoodleGrader" 
+          className={logoSizeClasses[logoSize]}
+        />
+      </div>
       {showText && (
-        <div className={cn("ml-2", textSizeClasses[textSize])}>
+        <div className={cn(textSizeClasses[textSize])}>
           <span className={cn("font-bold tracking-tight", getTextStyle())}>
             MoodleGrader
           </span>

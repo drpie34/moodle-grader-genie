@@ -16,7 +16,7 @@ const Header: React.FC = () => {
       <div className="bg-background/80 backdrop-blur-lg shadow-sm">
         <div className="container flex h-[var(--header-height)] items-center justify-between py-4">
           <div className="flex items-center space-x-4">
-            <LogoComponent logoSize="large" textSize="medium" />
+            <LogoComponent logoSize="large" textSize="large" />
             
             {/* App navigation breadcrumb - optional */}
             <div className="hidden md:flex items-center text-sm text-muted-foreground">
