@@ -387,20 +387,22 @@ const LandingPage: React.FC = () => {
             <div className="sticky top-[5vh] h-[90vh] w-full flex items-center justify-center">
               <div className={`w-full max-w-7xl px-6 md:px-20 flex items-center ${idx % 2 === 1 ? 'justify-end' : 'justify-start'}`}>
                 <div
-                  className={`card-content bg-gradient-to-br from-indigo-400/70 via-blue-500/60 to-purple-400/60 rounded-2xl shadow-3xl backdrop-blur-xl p-6 md:p-10 max-w-lg transition-all duration-300 flex flex-col gap-4 relative overflow-hidden ${idx % 2 === 1 ? 'ml-auto text-right' : 'mr-auto text-left'} fade-on-scroll`}
+                  className={`card-content bg-gradient-to-br from-indigo-800/85 via-blue-700/80 to-purple-800/85 rounded-2xl shadow-3xl backdrop-blur-xl p-6 md:p-10 max-w-lg transition-all duration-300 flex flex-col gap-4 relative overflow-hidden ${idx % 2 === 1 ? 'ml-auto text-right' : 'mr-auto text-left'} fade-on-scroll`}
                   style={{
-                    boxShadow: '0 16px 48px 0 rgba(31,38,135,0.28), 0 2px 12px 0 rgba(31,38,135,0.15)',
+                    boxShadow: '0 16px 48px 0 rgba(31,38,135,0.35), 0 2px 12px 0 rgba(31,38,135,0.2)',
                     willChange: 'transform, opacity',
                   }}
                 >
-                  <h3 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight mb-2" style={{ textShadow: '0 2px 6px rgba(0,0,0,0.32), 0 0.5px 0 #000' }}>
+                  {/* Subtle overlay for improved text contrast */}
+                  <div className="absolute inset-0 bg-black/10 backdrop-blur-[1px] z-0"></div>
+                  <h3 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight mb-2 relative z-10" style={{ textShadow: '0 2px 6px rgba(0,0,0,0.4), 0 1px 3px rgba(0,0,0,0.3)' }}>
                     {idx === 0 && 'The Dreaded Stack'}
                     {idx === 1 && 'A Better Way'}
                     {idx === 2 && 'Unleash Your Creativity'}
                     {idx === 3 && 'Unleash Your Research'}
                     {idx === 4 && 'Build Stronger Relationships'}
                   </h3>
-                  <p className="text-base md:text-lg text-black font-medium leading-relaxed font-sans">
+                  <p className="text-base md:text-lg text-indigo-50 font-medium leading-relaxed font-sans relative z-10 drop-shadow-md">
                     {idx === 0 && 'Every educator knows the feeling. That towering stack of assignments waiting to be graded, consuming your evenings and weekends.'}
                     {idx === 1 && 'What if there was a better way? A way that maintains complete control and your unique voice but eliminates the busywork?'}
                     {idx === 2 && 'With Moodle Grader handling the busywork, you’re free to get creative in the classroom and try out new ideas with your students.'}
