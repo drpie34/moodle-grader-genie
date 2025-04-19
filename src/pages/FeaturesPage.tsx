@@ -76,7 +76,7 @@ const FeaturesPage: React.FC = () => {
     {
       id: 'security',
       title: 'Enterprise-Grade Security',
-      description: 'Rest easy knowing your students' data is protected with our SOC 2 compliant, end-to-end encrypted platform designed specifically for educational institutions.',
+      description: "Rest easy knowing your students' data is protected with our SOC 2 compliant, end-to-end encrypted platform designed specifically for educational institutions.",
       icon: <Shield className="h-8 w-8 text-indigo-300" />,
       image: '/assets/images/Moodle Grader final.png.webp',
       bulletPoints: [
