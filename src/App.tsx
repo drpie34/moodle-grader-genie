@@ -11,6 +11,7 @@ import NotFound from "./pages/NotFound";
 import LoginPage from "./pages/LoginPage";
 import ProfilePage from "./pages/ProfilePage";
 import LandingPage from "./pages/LandingPage";
+import PricingPage from "./pages/PricingPage";
 import DebugMenu from "./components/DebugMenu";
 // Using our simplified demo auth 
 // import { AuthProvider } from "@/hooks/auth/use-auth";
@@ -57,6 +58,7 @@ const App = () => {
               <Route path="/app" element={<Index />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/profile" element={<ProfilePage />} />
+              <Route path="/pricing" element={<PricingPage />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
