@@ -63,83 +63,103 @@ body {
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 210 20% 15%;
+    /* Main color palette - aligned with landing page */
+    --background: 240 20% 99%;
+    --foreground: 222 47% 11%;
 
     --card: 0 0% 100%;
-    --card-foreground: 210 20% 15%;
+    --card-foreground: 222 47% 11%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 210 20% 15%;
+    --popover-foreground: 222 47% 11%;
 
-    --primary: 210 100% 50%;
+    /* Primary color - indigo to match landing page gradient start */
+    --primary: 239 84% 67%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 210 20% 96%;
-    --secondary-foreground: 210 30% 20%;
+    /* Secondary color - soft purple to match landing page gradient end */
+    --secondary: 252 100% 67%;
+    --secondary-foreground: 0 0% 100%;
 
-    --muted: 210 15% 95%;
-    --muted-foreground: 210 15% 45%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215 16% 47%;
 
-    --accent: 210 15% 95%;
-    --accent-foreground: 210 30% 20%;
+    --accent: 239 84% 97%;
+    --accent-foreground: 222 47% 11%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 210 15% 90%;
-    --input: 210 15% 90%;
-    --ring: 210 100% 50%;
+    /* Refined borders and input styling */
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 239 84% 67%;
 
-    --radius: 0.5rem;
+    /* Increased border radius for modern feel */
+    --radius: 0.75rem;
 
-    --sidebar-background: 210 30% 98%;
-    --sidebar-foreground: 210 30% 25%;
-    --sidebar-primary: 210 100% 50%;
+    /* Sidebar styling */
+    --sidebar-background: 240 20% 97%;
+    --sidebar-foreground: 222 47% 11%;
+    --sidebar-primary: 239 84% 67%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 210 30% 95%;
-    --sidebar-accent-foreground: 210 30% 25%;
-    --sidebar-border: 210 30% 90%;
-    --sidebar-ring: 210 100% 50%;
+    --sidebar-accent: 252 100% 97%;
+    --sidebar-accent-foreground: 222 47% 11%;
+    --sidebar-border: 214 32% 91%;
+    --sidebar-ring: 239 84% 67%;
+    
+    /* Premium glow and shadow effects */
+    --shadow-color: 239 84% 67%;
+    --shadow-strength: 0.05;
+    --glow-color: 252 100% 67%;
   }
 
   .dark {
-    --background: 210 30% 10%;
-    --foreground: 210 5% 95%;
+    /* Dark theme aligned with premium aesthetic */
+    --background: 232 47% 10%;
+    --foreground: 210 20% 98%;
 
-    --card: 210 30% 12%;
-    --card-foreground: 210 5% 95%;
+    --card: 230 47% 12%;
+    --card-foreground: 210 20% 98%;
 
-    --popover: 210 30% 12%;
-    --popover-foreground: 210 5% 95%;
+    --popover: 230 47% 12%;
+    --popover-foreground: 210 20% 98%;
 
-    --primary: 210 100% 60%;
+    /* Premium indigo in dark mode */
+    --primary: 239 84% 67%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 210 30% 15%;
-    --secondary-foreground: 210 5% 95%;
+    /* Premium purple in dark mode */
+    --secondary: 252 100% 67%;
+    --secondary-foreground: 0 0% 100%;
 
-    --muted: 210 30% 15%;
-    --muted-foreground: 210 15% 65%;
+    --muted: 232 35% 18%;
+    --muted-foreground: 210 20% 70%;
 
-    --accent: 210 30% 15%;
-    --accent-foreground: 210 5% 95%;
+    --accent: 239 50% 20%;
+    --accent-foreground: 210 20% 98%;
 
     --destructive: 0 70% 50%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 210 30% 20%;
-    --input: 210 30% 20%;
-    --ring: 210 100% 60%;
+    --border: 232 35% 18%;
+    --input: 232 35% 18%;
+    --ring: 239 84% 67%;
 
-    --sidebar-background: 210 30% 10%;
-    --sidebar-foreground: 210 5% 95%;
-    --sidebar-primary: 210 100% 60%;
+    /* Sidebar dark theme styling */
+    --sidebar-background: 232 50% 8%;
+    --sidebar-foreground: 210 20% 98%;
+    --sidebar-primary: 239 84% 67%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 210 30% 15%;
-    --sidebar-accent-foreground: 210 5% 95%;
-    --sidebar-border: 210 30% 20%;
-    --sidebar-ring: 210 100% 60%;
+    --sidebar-accent: 252 100% 67%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 232 35% 18%;
+    --sidebar-ring: 239 84% 67%;
+    
+    /* Premium glow and shadow effects for dark mode */
+    --shadow-color: 239 84% 67%;
+    --shadow-strength: 0.1;
+    --glow-color: 252 100% 67%;
   }
 }
 
@@ -155,33 +175,122 @@ body {
 }
 
 @layer components {
+  /* Premium glass effects */
   .glass-panel {
-    @apply bg-white/80 dark:bg-black/50 backdrop-blur-md border border-white/20 dark:border-black/20 shadow-lg;
+    @apply bg-white/90 dark:bg-black/60 backdrop-blur-md border border-white/30 dark:border-white/5 
+    shadow-lg hover:shadow-xl transition-all duration-300;
   }
   
   .glass-button {
     @apply bg-white/90 dark:bg-white/10 hover:bg-white/100 dark:hover:bg-white/20 backdrop-blur-md 
-    shadow-md hover:shadow-lg transition duration-300 ease-soft-out border border-white/30 dark:border-white/5;
+    shadow-md hover:shadow-xl transition-all duration-300 ease-soft-out border border-white/30 dark:border-white/5
+    hover:border-primary/30 dark:hover:border-primary/20;
   }
   
+  /* Premium card styling */
+  .premium-card {
+    @apply rounded-xl bg-card border border-border/50 shadow-lg hover:shadow-xl transition-all duration-300
+    hover:border-primary/30 dark:hover:border-primary/20;
+  }
+  
+  /* Gradient border effects */
+  .gradient-border {
+    @apply relative p-[1px] bg-gradient-to-br from-primary to-secondary rounded-xl overflow-hidden;
+  }
+  
+  .gradient-border-content {
+    @apply relative bg-card rounded-xl z-10 h-full w-full overflow-hidden;
+  }
+  
+  /* Glow effects */
   .glow-sm {
-    box-shadow: 0 0 15px 1px rgba(var(--primary-rgb), 0.25);
+    box-shadow: 0 0 15px 1px hsla(var(--shadow-color), 0.25);
   }
   
   .glow-md {
-    box-shadow: 0 0 30px 2px rgba(var(--primary-rgb), 0.25);
+    box-shadow: 0 0 30px 2px hsla(var(--shadow-color), 0.25);
   }
   
+  .glow-lg {
+    box-shadow: 0 0 50px 3px hsla(var(--shadow-color), 0.3);
+  }
+  
+  .glow-hover {
+    @apply transition-shadow duration-300;
+  }
+  
+  .glow-hover:hover {
+    box-shadow: 0 0 20px 2px hsla(var(--shadow-color), 0.3);
+  }
+  
+  /* Shimmer loading effect */
   .shimmer-effect {
     @apply relative overflow-hidden before:absolute before:inset-0 before:-translate-x-full 
     before:animate-shimmer before:bg-gradient-to-r before:from-transparent before:via-white/20 before:to-transparent;
   }
+  
+  /* Gradient text */
+  .gradient-text {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-primary to-secondary;
+  }
+  
+  /* Premium button */
+  .premium-button {
+    @apply rounded-full bg-gradient-to-r from-primary to-secondary text-white font-medium
+    shadow-md hover:shadow-lg transition-all duration-300 hover:scale-[1.02] active:scale-[0.98]
+    border border-white/10 px-6 py-2.5;
+  }
+  
+  /* Premium input */
+  .premium-input {
+    @apply rounded-lg border border-input bg-background px-3 py-2 text-sm ring-offset-background 
+    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2
+    transition-all duration-200 placeholder:text-muted-foreground;
+  }
+  
+  /* Floating label input */
+  .floating-label-input {
+    @apply relative;
+  }
+  
+  .floating-label-input input {
+    @apply pt-6 focus:pt-6;
+  }
+  
+  .floating-label-input label {
+    @apply absolute text-sm top-1/2 left-3 -translate-y-1/2 transition-all duration-200 text-muted-foreground;
+  }
+  
+  .floating-label-input input:focus + label,
+  .floating-label-input input:not(:placeholder-shown) + label {
+    @apply text-xs top-3 -translate-y-0 text-primary;
+  }
+  
+  /* Tooltips and badges with premium styling */
+  .premium-tooltip {
+    @apply px-3 py-1.5 rounded-md bg-popover text-popover-foreground text-xs shadow-lg
+    border border-border/50 backdrop-blur-sm;
+  }
+  
+  .premium-badge {
+    @apply inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors
+    focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 text-foreground;
+  }
+  
+  .premium-badge-gradient {
+    @apply bg-gradient-to-r from-primary to-secondary text-white border-transparent;
+  }
 }
 
 :root {
-  --primary-rgb: 0, 122, 255;
-  --header-height: 64px;
+  --primary-rgb: 98, 102, 227;
+  --header-height: 80px; /* Slightly taller header for premium feel */
   --scroll-speed: 0;
+  --card-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.1);
+  --card-shadow-hover: 0 20px 40px -5px rgba(0, 0, 0, 0.15);
+  --gradient-primary: linear-gradient(135deg, hsl(239, 84%, 67%), hsl(252, 100%, 67%));
+  --gradient-surface: linear-gradient(120deg, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.95));
+  --gradient-surface-dark: linear-gradient(120deg, rgba(23, 24, 43, 0.7), rgba(28, 29, 53, 0.8));
 }
 
 /* Fonts */
@@ -273,4 +382,89 @@ html {
 
 .scroll-indicator-dot {
   animation: scroll 1.5s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+
+/* Premium animations */
+@keyframes float {
+  0% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+  100% {
+    transform: translateY(0px);
+  }
+}
+
+@keyframes pulse-glow {
+  0% {
+    box-shadow: 0 0 0 0 hsla(var(--primary), 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 10px hsla(var(--primary), 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 hsla(var(--primary), 0);
+  }
+}
+
+@keyframes gradient-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@keyframes border-glow {
+  0% {
+    border-color: hsla(var(--primary), 0.6);
+    box-shadow: 0 0 5px hsla(var(--primary), 0.3);
+  }
+  50% {
+    border-color: hsla(var(--secondary), 0.8);
+    box-shadow: 0 0 15px hsla(var(--secondary), 0.5);
+  }
+  100% {
+    border-color: hsla(var(--primary), 0.6);
+    box-shadow: 0 0 5px hsla(var(--primary), 0.3);
+  }
+}
+
+/* Apply animations with utility classes */
+.animate-float {
+  animation: float 5s ease-in-out infinite;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.animate-gradient-shift {
+  background-size: 200% 200%;
+  animation: gradient-shift 5s ease infinite;
+}
+
+.animate-border-glow {
+  animation: border-glow 3s ease-in-out infinite;
+}
+
+/* Premium scroll effects */
+.smooth-scroll-container {
+  @apply overflow-y-auto;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+.scroll-snap-y {
+  scroll-snap-type: y mandatory;
+}
+
+.scroll-snap-item {
+  scroll-snap-align: start;
 }

@@ -10,6 +10,7 @@ import { WORKFLOW_STEPS } from "@/components/workflow/steps";
 import { useGradingWorkflow } from "@/hooks/use-grading-workflow";
 import { downloadCSV, generateMoodleCSV } from "@/utils/csv";
 import { toast } from "sonner";
+import { Sparkles, Lightbulb, BookOpen, Braces } from "lucide-react";
 
 const Index = () => {
   const [moodleFile, setMoodleFile] = useState<File | null>(null);
@@ -105,18 +106,42 @@ const Index = () => {
     }
   };
 
+  // Create a subtle background effect with decorative elements
+  const renderBackgroundEffects = () => (
+    <>
+      {/* Decorative elements for visual interest */}
+      <div className="fixed top-0 left-0 right-0 h-[30vh] bg-gradient-to-b from-primary/5 to-transparent -z-10 pointer-events-none"></div>
+      
+      {/* Decorative gradient orbs */}
+      <div className="fixed -top-20 -left-20 w-96 h-96 bg-primary/10 rounded-full opacity-30 blur-[120px] pointer-events-none -z-10"></div>
+      <div className="fixed top-1/3 -right-20 w-96 h-96 bg-secondary/10 rounded-full opacity-30 blur-[120px] pointer-events-none -z-10"></div>
+      
+      {/* Background grid pattern */}
+      <div className="fixed inset-0 bg-[url('/grid-pattern.svg')] opacity-[0.015] -z-10 pointer-events-none"></div>
+    </>
+  );
+
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background relative overflow-x-hidden">
+      {renderBackgroundEffects()}
       <Header />
       
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-12">
         <div className="mx-auto max-w-3xl">
-          <h1 className="mb-2 text-center text-3xl font-bold tracking-tight">
-            MoodleGrader
-          </h1>
-          <p className="mb-4 text-center text-muted-foreground">
-            Use AI to grade your Moodle assignments
-          </p>
+          {/* Header with premium styling */}
+          <div className="mb-10 text-center">
+            <div className="inline-flex items-center justify-center mb-3">
+              <div className="h-10 w-10 flex items-center justify-center rounded-full bg-primary/10 text-primary mr-3">
+                <Sparkles className="h-5 w-5" />
+              </div>
+              <h1 className="text-4xl font-bold tracking-tight gradient-text">
+                Grading Assistant
+              </h1>
+            </div>
+            <p className="text-lg text-muted-foreground max-w-md mx-auto">
+              Your AI-powered grading companion for seamless Moodle integration
+            </p>
+          </div>
           
           <StepIndicator 
             currentStep={currentStep} 
@@ -125,52 +150,132 @@ const Index = () => {
             highestStepReached={highestStepReached}
           />
           
-          {currentStep === 1 && (
-            <UploadStep 
-              files={files}
-              onFilesSelected={handleFilesSelected}
-              onMoodleGradebookUploaded={handleMoodleGradebookUploaded}
-              onContinue={handleStepOneComplete}
-            />
-          )}
+          {/* Main content area with shadow and subtle animation */}
+          <div className="relative">
+            {currentStep === 1 && (
+              <div className="animate-scale-in">
+                <UploadStep 
+                  files={files}
+                  onFilesSelected={handleFilesSelected}
+                  onMoodleGradebookUploaded={handleMoodleGradebookUploaded}
+                  onContinue={handleStepOneComplete}
+                />
+              </div>
+            )}
+            
+            {currentStep === 2 && (
+              <div className="animate-scale-in">
+                <AssignmentForm onSubmit={handleAssignmentSubmit} />
+              </div>
+            )}
+            
+            {currentStep === 3 && assignmentData && (
+              <div className="animate-scale-in">
+                <ReviewStep 
+                  files={files}
+                  assignmentData={assignmentData}
+                  grades={grades}
+                  isProcessing={isProcessing}
+                  onUpdateGrade={handleUpdateGrade}
+                  onApproveAll={handleApproveAll}
+                  onContinue={handleContinueToDownload}
+                />
+              </div>
+            )}
+            
+            {currentStep === 4 && assignmentData && (
+              <div className="animate-scale-in">
+                <ProcessFiles 
+                  files={files} 
+                  assignmentData={assignmentData}
+                  moodleFormatHeaders={moodleGradebook?.headers}
+                  assignmentColumn={moodleGradebook?.assignmentColumn}
+                  feedbackColumn={moodleGradebook?.feedbackColumn} 
+                  onDownload={handleDownload}
+                  onReset={handleReset}
+                />
+              </div>
+            )}
+          </div>
           
-          {currentStep === 2 && (
-            <div className="animate-scale-in">
-              <AssignmentForm onSubmit={handleAssignmentSubmit} />
+          {/* Features section below main workflow area */}
+          <div className="mt-24 mb-12">
+            <h2 className="text-2xl font-semibold mb-6 text-center">Why Educators Love Moodle Grader</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Feature 1 */}
+              <div className="premium-card p-6 relative group hover:translate-y-[-5px] transition-all duration-300">
+                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary to-secondary rounded-t-xl"></div>
+                <div className="flex items-center mb-4">
+                  <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center mr-3">
+                    <Sparkles className="h-5 w-5 text-primary" />
+                  </div>
+                  <h3 className="font-semibold text-xl">Save Time</h3>
+                </div>
+                <p className="text-muted-foreground">
+                  Reduce grading time by up to 70% while providing more detailed, personalized feedback to students.
+                </p>
+              </div>
+              
+              {/* Feature 2 */}
+              <div className="premium-card p-6 relative group hover:translate-y-[-5px] transition-all duration-300">
+                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary to-secondary rounded-t-xl"></div>
+                <div className="flex items-center mb-4">
+                  <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center mr-3">
+                    <Lightbulb className="h-5 w-5 text-primary" />
+                  </div>
+                  <h3 className="font-semibold text-xl">Full Control</h3>
+                </div>
+                <p className="text-muted-foreground">
+                  AI suggests, but you maintain complete authority over final grades and feedback.
+                </p>
+              </div>
+              
+              {/* Feature 3 */}
+              <div className="premium-card p-6 relative group hover:translate-y-[-5px] transition-all duration-300">
+                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary to-secondary rounded-t-xl"></div>
+                <div className="flex items-center mb-4">
+                  <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center mr-3">
+                    <BookOpen className="h-5 w-5 text-primary" />
+                  </div>
+                  <h3 className="font-semibold text-xl">Personalized Style</h3>
+                </div>
+                <p className="text-muted-foreground">
+                  The AI adapts to your unique grading voice and style, ensuring feedback feels authentically yours.
+                </p>
+              </div>
+              
+              {/* Feature 4 */}
+              <div className="premium-card p-6 relative group hover:translate-y-[-5px] transition-all duration-300">
+                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary to-secondary rounded-t-xl"></div>
+                <div className="flex items-center mb-4">
+                  <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center mr-3">
+                    <Braces className="h-5 w-5 text-primary" />
+                  </div>
+                  <h3 className="font-semibold text-xl">Seamless Integration</h3>
+                </div>
+                <p className="text-muted-foreground">
+                  Works directly with Moodle's gradebook format for effortless importing and exporting.
+                </p>
+              </div>
             </div>
-          )}
-          
-          {currentStep === 3 && assignmentData && (
-            <ReviewStep 
-              files={files}
-              assignmentData={assignmentData}
-              grades={grades}
-              isProcessing={isProcessing}
-              onUpdateGrade={handleUpdateGrade}
-              onApproveAll={handleApproveAll}
-              onContinue={handleContinueToDownload}
-            />
-          )}
-          
-          {currentStep === 4 && assignmentData && (
-            <div className="animate-scale-in">
-              <ProcessFiles 
-                files={files} 
-                assignmentData={assignmentData}
-                moodleFormatHeaders={moodleGradebook?.headers}
-                assignmentColumn={moodleGradebook?.assignmentColumn}
-                feedbackColumn={moodleGradebook?.feedbackColumn} 
-                onDownload={handleDownload}
-                onReset={handleReset}
-              />
-            </div>
-          )}
+          </div>
         </div>
       </main>
       
-      <footer className="mt-auto border-t">
-        <div className="container mx-auto px-4 py-6 text-center text-sm text-muted-foreground">
-          <p>MoodleGrader — An AI tool for educators</p>
+      <footer className="border-t">
+        <div className="container mx-auto px-4 py-8 flex flex-col md:flex-row justify-between items-center">
+          <div className="flex items-center mb-4 md:mb-0">
+            <img src="/MoodleGraderLogo.png" alt="MoodleGrader Logo" className="h-8 w-auto mr-2" />
+            <span className="text-sm font-medium">Moodle Grader</span>
+          </div>
+          <div className="text-sm text-muted-foreground">
+            <p>AI-powered grading for educators — <span className="text-primary">Save time. Teach better.</span></p>
+          </div>
+          <div className="flex space-x-6 mt-4 md:mt-0">
+            <a href="#" className="text-sm text-muted-foreground hover:text-primary transition-colors">Privacy</a>
+            <a href="#" className="text-sm text-muted-foreground hover:text-primary transition-colors">Terms</a>
+            <a href="#" className="text-sm text-muted-foreground hover:text-primary transition-colors">Support</a>
+          </div>
         </div>
       </footer>
     </div>
