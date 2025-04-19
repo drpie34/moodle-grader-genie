@@ -12,6 +12,7 @@ import LoginPage from "./pages/LoginPage";
 import ProfilePage from "./pages/ProfilePage";
 import LandingPage from "./pages/LandingPage";
 import PricingPage from "./pages/PricingPage";
+import FeaturesPage from "./pages/FeaturesPage";
 import DebugMenu from "./components/DebugMenu";
 // Using our simplified demo auth 
 // import { AuthProvider } from "@/hooks/auth/use-auth";
@@ -59,6 +60,7 @@ const App = () => {
               <Route path="/login" element={<LoginPage />} />
               <Route path="/profile" element={<ProfilePage />} />
               <Route path="/pricing" element={<PricingPage />} />
+              <Route path="/features" element={<FeaturesPage />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
