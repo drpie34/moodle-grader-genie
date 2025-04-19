@@ -75,6 +75,19 @@ const LandingPage: React.FC = () => {
       }
     });
     
+    // Fade out the scroll indicator when scrolling starts
+    gsap.to('.scroll-indicator', {
+      autoAlpha: 0,
+      y: 20,
+      ease: "power2.inOut",
+      scrollTrigger: {
+        trigger: 'body',
+        start: 'top top+=100',
+        end: 'top+=200',
+        scrub: true
+      }
+    });
+    
     const cardSections = document.querySelectorAll('.card-content');
     
     cardSections.forEach((card, index) => {
@@ -337,6 +350,16 @@ const LandingPage: React.FC = () => {
                     </Button>
                   </Link>
                 </div>
+              </div>
+            </div>
+          </div>
+          
+          {/* Elegant scroll indicator */}
+          <div className="scroll-indicator absolute bottom-10 left-0 right-0 flex justify-center items-center">
+            <div className="flex flex-col items-center backdrop-blur-sm px-4 py-2 rounded-full bg-black/10">
+              <span className="text-white/90 text-sm tracking-widest uppercase mb-2 font-light">Scroll to explore</span>
+              <div className="w-[30px] h-[50px] rounded-full border-2 border-white/40 flex justify-center relative overflow-hidden">
+                <div className="w-1.5 h-3 bg-white/80 rounded-full absolute top-2 scroll-indicator-dot"></div>
               </div>
             </div>
           </div>

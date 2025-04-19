@@ -252,3 +252,25 @@ html {
   opacity: 0;
   transition: opacity 200ms;
 }
+
+/* Custom scroll indicator animation */
+@keyframes scroll {
+  0% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  30% {
+    opacity: 1;
+  }
+  60% {
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+}
+
+.scroll-indicator-dot {
+  animation: scroll 1.5s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
