@@ -50,7 +50,7 @@ const LogoComponent: React.FC<LogoProps> = ({
   // The actual component to render
   const LogoContent = () => (
     <div className={cn("flex items-center -space-x-1", className)}>
-      <div className="relative flex items-center -translate-y-[5px]">
+      <div className="relative flex items-center -translate-y-[8px]">
         <img 
           src="/MoodleGraderLogo.png" 
           alt="MoodleGrader" 
