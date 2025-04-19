@@ -166,9 +166,9 @@ const PricingPage: React.FC = () => {
                 <img 
                   className="h-10 w-auto sm:h-8" 
                   src="/MoodleGraderLogo.png" 
-                  alt="Moodle Grader" 
+                  alt="MoodleGrader" 
                 />
-                <span className="ml-2 text-xl font-bold text-white">Moodle Grader</span>
+                <span className="ml-2 text-xl font-bold text-white">MoodleGrader</span>
               </Link>
             </div>
             <div className="hidden md:flex md:space-x-8">
@@ -205,7 +205,7 @@ const PricingPage: React.FC = () => {
               <div className="p-8">
                 <div className="text-indigo-400 font-semibold mb-3 uppercase tracking-wider text-sm">Starter</div>
                 <h3 className="text-3xl font-bold mb-6">Free</h3>
-                <p className="text-slate-300 mb-6">Perfect for individual educators trying out Moodle Grader.</p>
+                <p className="text-slate-300 mb-6">Perfect for individual educators trying out MoodleGrader.</p>
                 
                 <ul className="space-y-4 mb-10">
                   <li className="flex items-start">
@@ -396,7 +396,7 @@ const PricingPage: React.FC = () => {
       <section ref={section1Ref} className="relative py-24 bg-gradient-to-b from-slate-900 to-indigo-950">
         <div className="container mx-auto px-4">
           <div className="max-w-5xl mx-auto text-center mb-16">
-            <h2 className="text-4xl font-bold mb-6">What makes Moodle Grader different?</h2>
+            <h2 className="text-4xl font-bold mb-6">What makes MoodleGrader different?</h2>
             <p className="text-xl text-indigo-100">
               Our platform is designed specifically for the needs of educators and academic institutions.
             </p>
@@ -475,7 +475,7 @@ const PricingPage: React.FC = () => {
                 </div>
               </div>
               <p className="text-slate-200 text-lg leading-relaxed mb-6">
-                "As a computer science professor with over 200 students per semester, Moodle Grader has revolutionized how I provide feedback. The AI understands code submissions in ways I didn't think possible."
+                "As a computer science professor with over 200 students per semester, MoodleGrader has revolutionized how I provide feedback. The AI understands code submissions in ways I didn't think possible."
               </p>
               <div className="flex text-yellow-400">
                 {[...Array(5)].map((_, i) => (
@@ -535,7 +535,7 @@ const PricingPage: React.FC = () => {
                 </div>
               </div>
               <p className="text-slate-200 text-lg leading-relaxed mb-6">
-                "We've integrated Moodle Grader across our entire engineering department. The analytics feature gives us unprecedented insights into student progress and areas where our curriculum needs improvement."
+                "We've integrated MoodleGrader across our entire engineering department. The analytics feature gives us unprecedented insights into student progress and areas where our curriculum needs improvement."
               </p>
               <div className="flex text-yellow-400">
                 {[...Array(5)].map((_, i) => (
@@ -557,7 +557,7 @@ const PricingPage: React.FC = () => {
             
             <div className="space-y-6">
               <div className="faq-item bg-slate-800/30 backdrop-blur-sm rounded-xl p-8 border border-slate-700/40">
-                <h3 className="text-xl font-bold mb-4">How secure is Moodle Grader?</h3>
+                <h3 className="text-xl font-bold mb-4">How secure is MoodleGrader?</h3>
                 <p className="text-slate-300">
                   Extremely secure. We're FERPA compliant, SOC 2 certified, and use end-to-end encryption for all data. Your students' information never leaves our secure environment, and we don't train our models on your data.
                 </p>
@@ -573,7 +573,7 @@ const PricingPage: React.FC = () => {
               <div className="faq-item bg-slate-800/30 backdrop-blur-sm rounded-xl p-8 border border-slate-700/40">
                 <h3 className="text-xl font-bold mb-4">What file formats are supported?</h3>
                 <p className="text-slate-300">
-                  Moodle Grader supports a wide range of file formats including PDF, DOCX, TXT, programming files (like .py, .java, .cpp), and can extract text from images. We also support direct Moodle integration through CSV import/export on all plans.
+                  MoodleGrader supports a wide range of file formats including PDF, DOCX, TXT, programming files (like .py, .java, .cpp), and can extract text from images. We also support direct Moodle integration through CSV import/export on all plans.
                 </p>
               </div>
               
@@ -637,8 +637,8 @@ const PricingPage: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-12 gap-12">
             <div className="md:col-span-4">
               <div className="flex items-center mb-6">
-                <img className="h-10 w-auto" src="/MoodleGraderLogo.png" alt="Moodle Grader" />
-                <span className="ml-3 text-xl font-bold">Moodle Grader</span>
+                <img className="h-10 w-auto" src="/MoodleGraderLogo.png" alt="MoodleGrader" />
+                <span className="ml-3 text-xl font-bold">MoodleGrader</span>
               </div>
               <p className="text-slate-300 mb-6">
                 AI-powered grading that adapts to your style, saves you time, and provides your students with detailed, meaningful feedback.
@@ -690,7 +690,7 @@ const PricingPage: React.FC = () => {
           </div>
           <div className="mt-12 pt-8 border-t border-slate-800 flex flex-col md:flex-row justify-between">
             <p className="text-slate-400">
-              &copy; {new Date().getFullYear()} Moodle Grader. All rights reserved.
+              &copy; {new Date().getFullYear()} MoodleGrader. All rights reserved.
             </p>
             <div className="mt-4 md:mt-0 flex space-x-6">
               <Link to="/terms" className="text-slate-400 hover:text-white transition-colors">Terms</Link>

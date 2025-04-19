@@ -12,7 +12,7 @@ const Header: React.FC = () => {
           <Link to="/">
             <img 
               src="/MoodleGraderLogo.png" 
-              alt="Moodle Grader Logo" 
+              alt="MoodleGrader Logo" 
               className="h-16 w-auto"
             />
           </Link>

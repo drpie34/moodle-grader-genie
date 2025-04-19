@@ -112,7 +112,7 @@ const Index = () => {
       <main className="container mx-auto px-4 py-8">
         <div className="mx-auto max-w-3xl">
           <h1 className="mb-2 text-center text-3xl font-bold tracking-tight">
-            Moodle Grader
+            MoodleGrader
           </h1>
           <p className="mb-4 text-center text-muted-foreground">
             Use AI to grade your Moodle assignments
@@ -170,7 +170,7 @@ const Index = () => {
       
       <footer className="mt-auto border-t">
         <div className="container mx-auto px-4 py-6 text-center text-sm text-muted-foreground">
-          <p>Moodle Grader — An AI tool for educators</p>
+          <p>MoodleGrader — An AI tool for educators</p>
         </div>
       </footer>
     </div>

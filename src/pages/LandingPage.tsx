@@ -318,9 +318,9 @@ const LandingPage: React.FC = () => {
                     <img
                       className="h-12 w-auto sm:h-8"
                       src="/MoodleGraderLogo.png"
-                      alt="Moodle Grader"
+                      alt="MoodleGrader"
                     />
-                    <span className="ml-1 text-2xl font-bold text-white hidden sm:block">Moodle Grader</span>
+                    <span className="ml-1 text-2xl font-bold text-white hidden sm:block">MoodleGrader</span>
                   </Link>
                 </div>
               </div>
@@ -403,6 +403,16 @@ const LandingPage: React.FC = () => {
               position: 'absolute',
               top: 0, left: 0, right: 0, bottom: 0,
             }}
+            role="img"
+            aria-label={
+              i === 0 ? "AI grading tool for Moodle: before batch grading screenshot"
+                : i === 1 ? "Batch grading in Moodle: after AI-assisted grading screenshot"
+                : i === 2 ? "Automated assignment grading: teacher using AI-assisted grading"
+                : i === 3 ? "Moodle grading automation: research dashboard screenshot"
+                : i === 4 ? "Efficient assignment evaluation: MoodleGrader connection dashboard"
+                : undefined
+            }
+            aria-hidden={false}
           >
             {i >= 1 && (
               <div style={{
@@ -449,9 +459,9 @@ const LandingPage: React.FC = () => {
                   <p className="text-base md:text-lg text-indigo-50 font-medium leading-relaxed font-sans relative z-10 drop-shadow-md">
                     {idx === 0 && 'Every educator knows the feeling. That towering stack of assignments waiting to be graded, consuming your evenings and weekends.'}
                     {idx === 1 && 'What if there was a better way? A way that maintains complete control and your unique voice but eliminates the busywork?'}
-                    {idx === 2 && 'With Moodle Grader handling the busywork, you’re free to get creative in the classroom and try out new ideas with your students.'}
-                    {idx === 3 && 'Unleash your research potential and make a greater impact in your field. Moodle Grader gives you the time and freedom to pursue your academic passions.'}
-                    {idx === 4 && 'Build stronger relationships with your students through meaningful, personalized feedback. Moodle Grader helps you connect on a deeper level.'}
+                    {idx === 2 && 'With MoodleGrader handling the busywork, you’re free to get creative in the classroom and try out new ideas with your students.'}
+                    {idx === 3 && 'Unleash your research potential and make a greater impact in your field. MoodleGrader gives you the time and freedom to pursue your academic passions.'}
+                    {idx === 4 && 'Build stronger relationships with your students through meaningful, personalized feedback. MoodleGrader helps you connect on a deeper level.'}
                   </p>
                 </div>
               </div>
@@ -576,7 +586,7 @@ const LandingPage: React.FC = () => {
                       </div>
                       <div className="mt-6">
                         <p className="text-lg text-gray-600 leading-relaxed">
-                          "Moodle Grader has revolutionized how I provide feedback to my 200+ students. The AI understands the nuances of programming assignments and generates feedback that's genuinely helpful for student learning."
+                          "MoodleGrader has revolutionized how I provide feedback to my 200+ students. The AI understands the nuances of programming assignments and generates feedback that's genuinely helpful for student learning."
                         </p>
                       </div>
                     </div>
@@ -683,7 +693,7 @@ const LandingPage: React.FC = () => {
               Ready to Transform Your Grading Experience?
             </h2>
             <p className="text-xl text-indigo-100 max-w-2xl mx-auto mb-12">
-              Join thousands of educators using Moodle Grader to provide better feedback in less time. Experience the future of grading today.
+              Join thousands of educators using MoodleGrader to provide better feedback in less time. Experience the future of grading today.
             </p>
             <div className="flex flex-col sm:flex-row justify-center sm:space-x-6 space-y-4 sm:space-y-0">
               <Link to="/app">
@@ -707,8 +717,8 @@ const LandingPage: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-12 gap-12">
             <div className="md:col-span-5 lg:col-span-4">
               <div className="flex items-center">
-                <img className="h-12 w-auto" src="/MoodleGraderLogo.png" alt="Moodle Grader" />
-                <span className="ml-3 text-2xl font-bold">Moodle Grader</span>
+                <img className="h-12 w-auto" src="/MoodleGraderLogo.png" alt="MoodleGrader" />
+                <span className="ml-3 text-2xl font-bold">MoodleGrader</span>
               </div>
               <p className="mt-6 text-gray-300 text-base leading-relaxed">
                 AI-powered grading that adapts to your style, saves you time, and provides your students with detailed, meaningful feedback.
@@ -767,7 +777,7 @@ const LandingPage: React.FC = () => {
           </div>
           <div className="mt-16 pt-8 border-t border-gray-800 flex flex-col md:flex-row justify-between items-center">
             <p className="text-gray-400 text-base">
-              &copy; {new Date().getFullYear()} Moodle Grader. All rights reserved.
+              &copy; {new Date().getFullYear()} MoodleGrader. All rights reserved.
             </p>
             <p className="mt-4 md:mt-0 text-gray-400 text-base">
               Designed with ❤️ for educators everywhere

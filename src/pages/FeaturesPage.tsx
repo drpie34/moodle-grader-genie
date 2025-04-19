@@ -39,7 +39,7 @@ const FeaturesPage: React.FC = () => {
       title: 'Advanced AI Feedback',
       description: 'Generate comprehensive, context-aware feedback that captures your personal grading style and tone. Our proprietary AI models understand the nuance of each submission.',
       icon: <Brain className="h-8 w-8 text-indigo-300" />,
-      image: '/assets/images/Moodle Grader teaching.png.webp',
+      image: '/assets/images/MoodleGrader teaching.png.webp',
       bulletPoints: [
         'Personalized feedback in your unique voice and tone',
         'Contextual understanding of subject matter',
@@ -52,7 +52,7 @@ const FeaturesPage: React.FC = () => {
       title: 'Save 70% of Grading Time',
       description: 'Process an entire class worth of assignments in minutes instead of hours. Our benchmarks show an average time savings of 70% compared to traditional manual grading.',
       icon: <Clock className="h-8 w-8 text-indigo-300" />,
-      image: '/assets/images/Moodle Grader before pic.png.webp',
+      image: '/assets/images/MoodleGrader before pic.png.webp',
       bulletPoints: [
         'Batch processing of multiple assignments',
         'Intelligent student submission grouping',
@@ -65,7 +65,7 @@ const FeaturesPage: React.FC = () => {
       title: 'Comprehensive Analytics',
       description: 'Gain deep insights into student performance, identify knowledge gaps, and track progress over time with our powerful analytics dashboard.',
       icon: <BarChart3 className="h-8 w-8 text-indigo-300" />,
-      image: '/assets/images/Moodle Grader research final.png',
+      image: '/assets/images/MoodleGrader research final.png',
       bulletPoints: [
         'Class-wide performance visualization',
         'Individual student progress tracking',
@@ -78,7 +78,7 @@ const FeaturesPage: React.FC = () => {
       title: 'Enterprise-Grade Security',
       description: "Rest easy knowing your students' data is protected with our SOC 2 compliant, end-to-end encrypted platform designed specifically for educational institutions.",
       icon: <Shield className="h-8 w-8 text-indigo-300" />,
-      image: '/assets/images/Moodle Grader final.png.webp',
+      image: '/assets/images/MoodleGrader final.png.webp',
       bulletPoints: [
         'FERPA compliant data handling',
         'End-to-end encryption',
@@ -89,9 +89,9 @@ const FeaturesPage: React.FC = () => {
     {
       id: 'integration',
       title: 'Seamless Integration',
-      description: 'Connect Moodle Grader with your existing LMS and workflows. Our platform works with all major Learning Management Systems and supports multiple file formats.',
+      description: 'Connect MoodleGrader with your existing LMS and workflows. Our platform works with all major Learning Management Systems and supports multiple file formats.',
       icon: <Maximize2 className="h-8 w-8 text-indigo-300" />,
-      image: '/assets/images/Moodle Grader Connection.png',
+      image: '/assets/images/MoodleGrader Connection.png',
       bulletPoints: [
         'Direct LMS integration with single sign-on',
         'Support for all document formats including PDF, DOCX, TXT',
@@ -270,9 +270,9 @@ const FeaturesPage: React.FC = () => {
                 <img 
                   className="h-10 w-auto" 
                   src="/MoodleGraderLogo.png" 
-                  alt="Moodle Grader" 
+                  alt="MoodleGrader" 
                 />
-                <span className="ml-2 text-xl font-bold text-white">Moodle Grader</span>
+                <span className="ml-2 text-xl font-bold text-white">MoodleGrader</span>
               </Link>
             </div>
             <div className="hidden md:flex md:space-x-8">
@@ -294,7 +294,7 @@ const FeaturesPage: React.FC = () => {
               <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400">the grading experience.</span>
             </h1>
             <p className="text-xl text-indigo-100 max-w-2xl mx-auto mb-10">
-              Discover how Moodle Grader combines cutting-edge AI with intuitive design to revolutionize the way educators provide feedback.
+              Discover how MoodleGrader combines cutting-edge AI with intuitive design to revolutionize the way educators provide feedback.
             </p>
             <div className="flex flex-wrap justify-center gap-4">
               <Link to="/app">
@@ -404,7 +404,7 @@ const FeaturesPage: React.FC = () => {
           <div className="text-center mb-16">
             <h2 className="text-4xl font-bold mb-6">Powerful Features</h2>
             <p className="text-xl text-indigo-100 max-w-3xl mx-auto">
-              Discover the innovative technology that makes Moodle Grader the leading choice for educators worldwide.
+              Discover the innovative technology that makes MoodleGrader the leading choice for educators worldwide.
             </p>
           </div>
 
@@ -493,7 +493,7 @@ const FeaturesPage: React.FC = () => {
           <div className="text-center mb-20">
             <h2 className="text-4xl font-bold mb-6">Transforming Education</h2>
             <p className="text-xl text-indigo-100 max-w-3xl mx-auto">
-              Moodle Grader is revolutionizing how educators provide feedback and assess student work.
+              MoodleGrader is revolutionizing how educators provide feedback and assess student work.
             </p>
           </div>
           
@@ -602,7 +602,7 @@ const FeaturesPage: React.FC = () => {
         
         <div className="container mx-auto px-4 relative z-10">
           <div className="text-center mb-20">
-            <h2 className="text-4xl font-bold mb-6">How Moodle Grader Works</h2>
+            <h2 className="text-4xl font-bold mb-6">How MoodleGrader Works</h2>
             <p className="text-xl text-indigo-100 max-w-3xl mx-auto">
               A simplified look at our powerful AI-driven grading workflow.
             </p>
@@ -699,7 +699,7 @@ const FeaturesPage: React.FC = () => {
                           size="lg"
                           className="px-8 py-6 bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white border-0 shadow-lg shadow-indigo-500/20 text-lg"
                         >
-                          Start Using Moodle Grader <ArrowRight className="ml-2 h-5 w-5" />
+                          Start Using MoodleGrader <ArrowRight className="ml-2 h-5 w-5" />
                         </Button>
                       </Link>
                     </div>
@@ -729,7 +729,7 @@ const FeaturesPage: React.FC = () => {
               Ready to reclaim your time?
             </h2>
             <p className="text-xl text-indigo-100 mb-10 max-w-2xl mx-auto">
-              Join thousands of educators who have transformed their grading process with Moodle Grader.
+              Join thousands of educators who have transformed their grading process with MoodleGrader.
             </p>
             <div className="flex flex-col sm:flex-row justify-center gap-4">
               <Link to="/app">
@@ -753,8 +753,8 @@ const FeaturesPage: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-12 gap-12">
             <div className="md:col-span-4">
               <div className="flex items-center mb-6">
-                <img className="h-10 w-auto" src="/MoodleGraderLogo.png" alt="Moodle Grader" />
-                <span className="ml-3 text-xl font-bold">Moodle Grader</span>
+                <img className="h-10 w-auto" src="/MoodleGraderLogo.png" alt="MoodleGrader" />
+                <span className="ml-3 text-xl font-bold">MoodleGrader</span>
               </div>
               <p className="text-slate-300 mb-6">
                 AI-powered grading that adapts to your style, saves you time, and provides your students with detailed, meaningful feedback.
@@ -806,7 +806,7 @@ const FeaturesPage: React.FC = () => {
           </div>
           <div className="mt-12 pt-8 border-t border-slate-800 flex flex-col md:flex-row justify-between">
             <p className="text-slate-400">
-              &copy; {new Date().getFullYear()} Moodle Grader. All rights reserved.
+              &copy; {new Date().getFullYear()} MoodleGrader. All rights reserved.
             </p>
             <div className="mt-4 md:mt-0 flex space-x-6">
               <Link to="/terms" className="text-slate-400 hover:text-white transition-colors">Terms</Link>
