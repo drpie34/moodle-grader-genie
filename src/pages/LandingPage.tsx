@@ -18,6 +18,7 @@ import {
   Sparkles,
   ChevronRight
 } from 'lucide-react';
+import ScrollFadeArrow from '../components/ScrollFadeArrow';
 
 const LandingPage: React.FC = () => {
   const backgrounds = [
@@ -87,6 +88,24 @@ const LandingPage: React.FC = () => {
         scrub: true
       }
     });
+
+    // Subtle scroll arrow fade in/out logic (bottom center)
+    gsap.fromTo('#scroll-fade-arrow',
+      { autoAlpha: 0 },
+      {
+        autoAlpha: 1,
+        y: 0,
+        ease: 'power2.inOut',
+        scrollTrigger: {
+          trigger: '#bg-section-0',
+          start: 'top top+=2', // fade in almost immediately on scroll
+          end: 'top top+=30', // fade in is very fast
+          scrub: true,
+          toggleActions: 'play reverse play reverse',
+        }
+      }
+    );
+
     
     const cardSections = document.querySelectorAll('.card-content');
     
@@ -367,6 +386,8 @@ const LandingPage: React.FC = () => {
       </header>
       {/* Section-based Parallax Background */}
       <div className="fixed inset-0 w-full h-screen -z-10 pointer-events-none">
+        {/* Subtle scroll arrow over 'before' background */}
+        <ScrollFadeArrow />
         {backgrounds.map((bg, i) => (
           <div 
             key={i}
