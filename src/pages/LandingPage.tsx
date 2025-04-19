@@ -40,23 +40,19 @@ const LandingPage: React.FC = () => {
   const [currentSection, sectionRefs] = useSectionInView(backgrounds.length);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const headerCardRef = useRef<HTMLDivElement>(null);
 
-  // Setup smooth scrolling with GSAP and ScrollTrigger
   useEffect(() => {
-    // Register ScrollTrigger and ScrollToPlugin plugins
     gsap.registerPlugin(ScrollTrigger, ScrollToPlugin);
     
-    // Configure smoother scrolling behavior
     gsap.defaults({
       overwrite: 'auto',
       ease: 'power2.out'
     });
     
-    // Add a small delay to ensure DOM is fully ready
     let mm = gsap.matchMedia();
     
     mm.add("(min-width: 800px)", () => {
-      // Only apply custom scrolling on desktop
       gsap.to("html", {
         scrollBehavior: "smooth",
         scrollTo: {
@@ -68,7 +64,6 @@ const LandingPage: React.FC = () => {
       });
     });
 
-    // Create a scroll progress indicator
     gsap.to('.scroll-progress-bar', {
       width: '100%',
       ease: 'none',
@@ -80,11 +75,9 @@ const LandingPage: React.FC = () => {
       }
     });
     
-    // Create animations for each card section
     const cardSections = document.querySelectorAll('.card-content');
     
     cardSections.forEach((card, index) => {
-      // Create animation for each card
       const section = document.querySelector(`#section-${index}`);
       if (section) {
         gsap.fromTo(card, 
@@ -112,13 +105,10 @@ const LandingPage: React.FC = () => {
       }
     });
 
-    // Query DOM after render
     const sections = document.querySelectorAll('.bg-section-container');
     const cards = document.querySelectorAll('.card-content');
 
-    // Animate professional background crossfade with GSAP timeline (faster fade) and parallax
     sections.forEach((section, idx) => {
-      // Background crossfade
       ScrollTrigger.create({
         trigger: section,
         start: 'top center',
@@ -156,7 +146,6 @@ const LandingPage: React.FC = () => {
           }
         },
       });
-      // Background parallax y movement
       if (backgrounds[idx]) {
         gsap.to(`#bg-section-${idx}`, {
           y: -30,
@@ -169,12 +158,41 @@ const LandingPage: React.FC = () => {
             // markers: true, // Uncomment for debugging
           }
         });
+        // Only the first background animates from grayscale to color
+        if (idx === 0) {
+          // Keep first background muted (almost black and white)
+          gsap.to(`#bg-section-0`, {
+            filter: 'grayscale(0.85)',
+            scale: 1.06,
+            ease: 'none',
+            scrollTrigger: {
+              trigger: section,
+              start: 'top bottom',
+              end: 'bottom top',
+              scrub: true,
+              // markers: true,
+            }
+          });
+        } else {
+          gsap.to(`#bg-section-${idx}`,
+            {
+              filter: 'grayscale(0)',
+              scale: 1.06,
+              ease: 'none',
+              scrollTrigger: {
+                trigger: section,
+                start: 'top bottom',
+                end: 'bottom top',
+                scrub: true,
+                // markers: true,
+              }
+            }
+          );
+        }
       }
     });
 
-    // Animate card entrance/exit with professional fade/slide using timeline and extra polish
     cards.forEach((card, idx) => {
-      // Parallax: card scrolls at half speed relative to section scroll
       gsap.to(card, {
         yPercent: -50,
         ease: 'none',
@@ -185,7 +203,6 @@ const LandingPage: React.FC = () => {
           scrub: true,
         }
       });
-      // Entrance/exit fade/slide, scale/shadow, blur/desaturate, staggered content
       const cardChildren = card.children ? Array.from(card.children) : [];
       const tl = gsap.timeline({
         scrollTrigger: {
@@ -195,7 +212,6 @@ const LandingPage: React.FC = () => {
           scrub: true,
         }
       });
-      // Card entrance: fade in, scale up, shadow deepen
       tl.fromTo(card,
         { opacity: 0, filter: 'blur(16px) grayscale(1)', scale: 1, boxShadow: '0 8px 32px 0 rgba(31,38,135,0.18)' },
         {
@@ -207,7 +223,6 @@ const LandingPage: React.FC = () => {
           ease: 'power2.inOut',
         }
       );
-      // Staggered reveal for children
       if (cardChildren.length) {
         tl.fromTo(cardChildren,
           { opacity: 0, y: 24 },
@@ -215,7 +230,6 @@ const LandingPage: React.FC = () => {
           '-=0.3' // overlap with card fade
         );
       }
-      // Card exit: fade/blur/desaturate, scale/shadow revert
       tl.to(card,
         {
           opacity: 0,
@@ -229,7 +243,22 @@ const LandingPage: React.FC = () => {
       );
     });
 
-    // Clean up all ScrollTriggers on unmount
+    if (headerCardRef.current) {
+      gsap.fromTo(headerCardRef.current,
+        { y: 0 },
+        {
+          y: -240,
+          ease: 'none',
+          scrollTrigger: {
+            trigger: scrollContainerRef.current,
+            start: 'top top',
+            end: 'bottom top',
+            scrub: true,
+          }
+        }
+      );
+    }
+
     return () => {
       ScrollTrigger.getAll().forEach(trigger => trigger.kill());
       gsap.killTweensOf(window);
@@ -238,7 +267,6 @@ const LandingPage: React.FC = () => {
 
   return (
     <>
-      {/* Scroll progress indicator */}
       <div className="scroll-progress-bar"></div>
       
       <header className="relative h-screen">
@@ -270,9 +298,9 @@ const LandingPage: React.FC = () => {
               </div>
             </nav>
             <div className="flex-1 flex flex-col justify-center items-center">
-              <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-3xl shadow-2xl p-10 md:p-16 flex flex-col items-center w-full max-w-3xl mt-20 sm:mt-24">
+              <div ref={headerCardRef} className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-3xl shadow-2xl p-10 md:p-16 flex flex-col items-center w-full max-w-3xl mt-20 sm:mt-24">
                 <h1 className="text-4xl md:text-6xl font-extrabold text-white text-center leading-tight tracking-tight mb-4 drop-shadow-lg">
-                  Grade smarter,<br className="hidden md:block" /> not harder.
+                  Reclaim your time.<br className="hidden md:block" /> Redisover your calling.
                 </h1>
                 <p className="mt-2 text-lg md:text-2xl text-indigo-100 text-center mb-8 max-w-2xl">
                   AI-powered grading that adapts to your style, saves you time, and provides your students with detailed, meaningful feedback.
@@ -322,9 +350,23 @@ const LandingPage: React.FC = () => {
               backgroundPosition: 'center',
               opacity: i === 0 ? 1 : 0,
               willChange: 'opacity',
-              transition: 'opacity 0.7s cubic-bezier(0.4,0,0.2,1)'
+              transition: 'opacity 0.7s cubic-bezier(0.4,0,0.2,1)',
+              position: 'absolute',
+              top: 0, left: 0, right: 0, bottom: 0,
             }}
-          />
+          >
+            {i >= 1 && (
+              <div style={{
+                position: 'absolute',
+                inset: 0,
+                background: 'linear-gradient(120deg, rgba(60,110,255,0.32) 0%, rgba(80,200,255,0.20) 100%)',
+                mixBlendMode: 'multiply',
+                pointerEvents: 'none',
+                borderRadius: 'inherit',
+                zIndex: 2,
+              }} />
+            )}
+          </div>
         ))}
       </div>
 
@@ -340,20 +382,20 @@ const LandingPage: React.FC = () => {
             <div className="sticky top-[5vh] h-[90vh] w-full flex items-center justify-center">
               <div className={`w-full max-w-7xl px-6 md:px-20 flex items-center ${idx % 2 === 1 ? 'justify-end' : 'justify-start'}`}>
                 <div
-                  className={`card-content bg-white/60 border border-indigo-100/60 rounded-2xl shadow-2xl backdrop-blur-xl p-6 md:p-10 max-w-lg transition-all duration-300 flex flex-col gap-4 relative overflow-hidden ${idx % 2 === 1 ? 'ml-auto text-right' : 'mr-auto text-left'} fade-on-scroll`}
+                  className={`card-content bg-gradient-to-br from-indigo-400/70 via-blue-500/60 to-purple-400/60 rounded-2xl shadow-3xl backdrop-blur-xl p-6 md:p-10 max-w-lg transition-all duration-300 flex flex-col gap-4 relative overflow-hidden ${idx % 2 === 1 ? 'ml-auto text-right' : 'mr-auto text-left'} fade-on-scroll`}
                   style={{
-                    boxShadow: '0 16px 48px 0 rgba(99,102,241,0.10), 0 2px 8px 0 rgba(31,38,135,0.08)',
+                    boxShadow: '0 16px 48px 0 rgba(31,38,135,0.28), 0 2px 12px 0 rgba(31,38,135,0.15)',
                     willChange: 'transform, opacity',
                   }}
                 >
-                  <h3 className="text-2xl md:text-3xl font-extrabold text-indigo-700 tracking-tight mb-2">
+                  <h3 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight mb-2">
                     {idx === 0 && 'The Dreaded Stack'}
                     {idx === 1 && 'A Better Way'}
                     {idx === 2 && 'Unleash Your Creativity'}
                     {idx === 3 && 'Unleash Your Research'}
                     {idx === 4 && 'Build Stronger Relationships'}
                   </h3>
-                  <p className="text-base md:text-lg text-gray-700 font-medium leading-relaxed font-sans">
+                  <p className="text-base md:text-lg text-black font-medium leading-relaxed font-sans">
                     {idx === 0 && 'Every educator knows the feeling. That towering stack of assignments waiting to be graded, consuming your evenings and weekends.'}
                     {idx === 1 && 'What if there was a better way? A way that maintains complete control and your unique voice but eliminates the busywork?'}
                     {idx === 2 && 'With Moodle Grader handling the busywork, you’re free to get creative in the classroom and try out new ideas with your students.'}
