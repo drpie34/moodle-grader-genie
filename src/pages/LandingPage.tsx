@@ -275,7 +275,7 @@ const LandingPage: React.FC = () => {
           <div className="absolute -top-20 -left-20 w-96 h-96 bg-blue-600 rounded-full opacity-20 blur-[100px] pointer-events-none"></div>
           <div className="absolute top-1/3 -right-20 w-96 h-96 bg-purple-600 rounded-full opacity-20 blur-[100px] pointer-events-none"></div>
           
-          <div className="absolute inset-0 bg-[url('/MoodleGraderBackground.png')] bg-cover bg-center" />
+          <div className="absolute inset-0 bg-[url('/MoodleGraderBackground.png.webp')] bg-cover bg-center" />
           <div className="absolute inset-0 bg-[url('/grid-pattern.svg')] opacity-20" />
         
           <div className="relative max-w-7xl mx-auto flex-1 w-full flex flex-col pt-10 pb-24 px-4 sm:px-6 lg:px-8">
@@ -622,7 +622,7 @@ const LandingPage: React.FC = () => {
       {/* CTA Section */}
       <section className="relative py-32 overflow-hidden">
         <div className="absolute inset-0">
-          <div className="absolute inset-0 bg-[url('/MoodleGraderBackground.png')] bg-cover bg-center" />
+          <div className="absolute inset-0 bg-[url('/MoodleGraderBackground.png.webp')] bg-cover bg-center" />
           <div className="absolute inset-0 bg-black/30 mix-blend-multiply" />
           <div className="absolute inset-0 bg-[url('/grid-pattern.svg')] opacity-20" />
         </div>
