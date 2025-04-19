@@ -271,6 +271,10 @@ const LandingPage: React.FC = () => {
       
       <header className="relative h-screen">
         <div id="smooth-content" ref={scrollContainerRef} className="flex flex-col h-screen smooth-scroll">
+          {/* Glowing orbs */}
+          <div className="absolute -top-20 -left-20 w-96 h-96 bg-blue-600 rounded-full opacity-20 blur-[100px] pointer-events-none"></div>
+          <div className="absolute top-1/3 -right-20 w-96 h-96 bg-purple-600 rounded-full opacity-20 blur-[100px] pointer-events-none"></div>
+          
           <div className="absolute inset-0 bg-[url('/MoodleGraderBackground.png')] bg-cover bg-center" />
           <div className="absolute inset-0 bg-[url('/grid-pattern.svg')] opacity-20" />
         
@@ -298,9 +302,10 @@ const LandingPage: React.FC = () => {
               </div>
             </nav>
             <div className="flex-1 flex flex-col justify-center items-center">
-              <div ref={headerCardRef} className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-3xl shadow-2xl p-10 md:p-16 flex flex-col items-center w-full max-w-3xl mt-20 sm:mt-24">
+              <div ref={headerCardRef} className="flex flex-col items-center w-full max-w-3xl mt-20 sm:mt-24">
                 <h1 className="text-4xl md:text-6xl font-extrabold text-white text-center leading-tight tracking-tight mb-4 drop-shadow-lg">
-                  Reclaim your time.<br className="hidden md:block" /> Redisover your calling.
+                  Reclaim your time.<br className="hidden md:block" /> 
+                  <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400">Rediscover your calling.</span>
                 </h1>
                 <p className="mt-2 text-lg md:text-2xl text-indigo-100 text-center mb-8 max-w-2xl">
                   AI-powered grading that adapts to your style, saves you time, and provides your students with detailed, meaningful feedback.
@@ -388,7 +393,7 @@ const LandingPage: React.FC = () => {
                     willChange: 'transform, opacity',
                   }}
                 >
-                  <h3 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight mb-2">
+                  <h3 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight mb-2" style={{ textShadow: '0 2px 6px rgba(0,0,0,0.32), 0 0.5px 0 #000' }}>
                     {idx === 0 && 'The Dreaded Stack'}
                     {idx === 1 && 'A Better Way'}
                     {idx === 2 && 'Unleash Your Creativity'}
