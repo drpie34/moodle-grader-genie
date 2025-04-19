@@ -20,6 +20,25 @@ import {
 } from 'lucide-react';
 
 const LandingPage: React.FC = () => {
+  const backgrounds = [
+    {
+      imgSrc: "/assets/images/Moodle%20Grader%20before%20pic.png.webp",
+    },
+    {
+      imgSrc: "/assets/images/Moodle%20grader%20after.png.webp",
+    },
+    {
+      imgSrc: "/assets/images/Moodle%20Grader%20teaching.png.webp",
+    },
+    {
+      imgSrc: "/assets/images/Moodle%20Grader%20research%20final.png",
+    },
+    {
+      imgSrc: "/assets/images/Moodle%20Grader%20Connection.png",
+    },
+  ];
+  const [currentSection, sectionRefs] = useSectionInView(backgrounds.length);
+
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   // Setup smooth scrolling with GSAP and ScrollTrigger
@@ -92,54 +111,122 @@ const LandingPage: React.FC = () => {
         );
       }
     });
-    
-    // Set up scroll speed controller and background tracking
-    ScrollTrigger.create({
-      trigger: "#smooth-content",
-      start: "top top",
-      end: "bottom bottom",
-      onUpdate: (self) => {
-        // Control scroll speed here if needed
-        document.documentElement.style.setProperty('--scroll-speed', self.getVelocity() * 0.005 + '');
-        
-        // Backup method: check which section is closest to the center of the screen
-        const sections = document.querySelectorAll('.bg-section-container');
-        let closestSection = 0;
-        let minDistance = Infinity;
-        
-        // Special case: if at the very top, always show the first background
-        if (window.scrollY < 10) {
-          const bgSections = document.querySelectorAll('.bg-section');
-          bgSections.forEach((bg, idx) => {
-            if (bg instanceof HTMLElement) {
-              bg.style.opacity = idx === 0 ? "1" : "0";
-            }
-          });
-          return;
-        }
 
-        sections.forEach((section, idx) => {
-          const rect = section.getBoundingClientRect();
-          const sectionCenter = rect.top + rect.height / 2;
-          const viewportCenter = window.innerHeight / 2;
-          const distance = Math.abs(sectionCenter - viewportCenter);
-          
-          if (distance < minDistance) {
-            minDistance = distance;
-            closestSection = idx;
+    // Query DOM after render
+    const sections = document.querySelectorAll('.bg-section-container');
+    const cards = document.querySelectorAll('.card-content');
+
+    // Animate professional background crossfade with GSAP timeline (faster fade) and parallax
+    sections.forEach((section, idx) => {
+      // Background crossfade
+      ScrollTrigger.create({
+        trigger: section,
+        start: 'top center',
+        end: 'bottom center',
+        onEnter: () => {
+          if (backgrounds[idx]) {
+            gsap.to('.bg-section', {
+              opacity: (i) => (i === idx ? 1 : 0),
+              zIndex: (i) => (i === idx ? 2 : 1),
+              duration: 0.35,
+              stagger: { amount: 0.10 },
+              ease: 'power2.inOut',
+              overwrite: 'auto',
+            });
+            gsap.fromTo(`#bg-section-${idx}`,
+              { scale: 1.04 },
+              { scale: 1, duration: 0.7, ease: 'power3.out', overwrite: 'auto' }
+            );
+          }
+        },
+        onEnterBack: () => {
+          if (backgrounds[idx]) {
+            gsap.to('.bg-section', {
+              opacity: (i) => (i === idx ? 1 : 0),
+              zIndex: (i) => (i === idx ? 2 : 1),
+              duration: 0.35,
+              stagger: { amount: 0.10 },
+              ease: 'power2.inOut',
+              overwrite: 'auto',
+            });
+            gsap.fromTo(`#bg-section-${idx}`,
+              { scale: 1.04 },
+              { scale: 1, duration: 0.7, ease: 'power3.out', overwrite: 'auto' }
+            );
+          }
+        },
+      });
+      // Background parallax y movement
+      if (backgrounds[idx]) {
+        gsap.to(`#bg-section-${idx}`, {
+          y: -30,
+          ease: 'none',
+          scrollTrigger: {
+            trigger: section,
+            start: 'top bottom',
+            end: 'bottom top',
+            scrub: true,
+            // markers: true, // Uncomment for debugging
           }
         });
-        
-        // If we're at least 20% into the sections area, update background
-        if (self.progress > 0.2) {
-          const bgSections = document.querySelectorAll('.bg-section');
-          bgSections.forEach((bg, idx) => {
-            if (bg instanceof HTMLElement) {
-              bg.style.opacity = idx === closestSection ? "1" : "0";
-            }
-          });
+      }
+    });
+
+    // Animate card entrance/exit with professional fade/slide using timeline and extra polish
+    cards.forEach((card, idx) => {
+      // Parallax: card scrolls at half speed relative to section scroll
+      gsap.to(card, {
+        yPercent: -50,
+        ease: 'none',
+        scrollTrigger: {
+          trigger: sections[idx],
+          start: 'top bottom',
+          end: 'bottom top',
+          scrub: true,
         }
-      },
+      });
+      // Entrance/exit fade/slide, scale/shadow, blur/desaturate, staggered content
+      const cardChildren = card.children ? Array.from(card.children) : [];
+      const tl = gsap.timeline({
+        scrollTrigger: {
+          trigger: sections[idx],
+          start: 'top 70%',
+          end: 'bottom top',
+          scrub: true,
+        }
+      });
+      // Card entrance: fade in, scale up, shadow deepen
+      tl.fromTo(card,
+        { opacity: 0, filter: 'blur(16px) grayscale(1)', scale: 1, boxShadow: '0 8px 32px 0 rgba(31,38,135,0.18)' },
+        {
+          opacity: 1,
+          filter: 'blur(0px) grayscale(0)',
+          scale: 1.04,
+          boxShadow: '0 16px 64px 0 rgba(31,38,135,0.32)',
+          duration: 0.5,
+          ease: 'power2.inOut',
+        }
+      );
+      // Staggered reveal for children
+      if (cardChildren.length) {
+        tl.fromTo(cardChildren,
+          { opacity: 0, y: 24 },
+          { opacity: 1, y: 0, duration: 0.5, stagger: 0.13, ease: 'power2.out' },
+          '-=0.3' // overlap with card fade
+        );
+      }
+      // Card exit: fade/blur/desaturate, scale/shadow revert
+      tl.to(card,
+        {
+          opacity: 0,
+          filter: 'blur(16px) grayscale(1)',
+          scale: 1,
+          boxShadow: '0 8px 32px 0 rgba(31,38,135,0.18)',
+          duration: 0.5,
+          ease: 'power2.inOut',
+        },
+        '-=0.2' // overlap
+      );
     });
 
     // Clean up all ScrollTriggers on unmount
@@ -154,231 +241,131 @@ const LandingPage: React.FC = () => {
       {/* Scroll progress indicator */}
       <div className="scroll-progress-bar"></div>
       
-      <div id="smooth-content" ref={scrollContainerRef} className="flex flex-col min-h-screen smooth-scroll">
-      {/* Hero Section */}
-      <header className="relative overflow-hidden min-h-screen flex flex-col justify-between">
-        <div className="absolute inset-0">
+      <header className="relative h-screen">
+        <div id="smooth-content" ref={scrollContainerRef} className="flex flex-col h-screen smooth-scroll">
           <div className="absolute inset-0 bg-[url('/MoodleGraderBackground.png')] bg-cover bg-center" />
-          <div className="absolute inset-0 bg-black/30 mix-blend-multiply" />
           <div className="absolute inset-0 bg-[url('/grid-pattern.svg')] opacity-20" />
-        </div>
-        <div className="relative max-w-7xl mx-auto flex-1 w-full flex flex-col pt-10 pb-24 px-4 sm:px-6 lg:px-8">
-          <nav className="relative flex items-center justify-between sm:h-10 w-full max-w-7xl">
-            <div className="flex items-center flex-grow flex-shrink-0 lg:flex-grow-0">
-              <div className="flex items-center justify-between w-full md:w-auto">
-                <Link to="/" className="flex items-center">
-                  <img
-                    className="h-12 w-auto sm:h-8"
-                    src="/MoodleGraderLogo.png"
-                    alt="Moodle Grader"
-                  />
-                  <span className="ml-1 text-2xl font-bold text-white hidden sm:block">Moodle Grader</span>
+        
+          <div className="relative max-w-7xl mx-auto flex-1 w-full flex flex-col pt-10 pb-24 px-4 sm:px-6 lg:px-8">
+            <nav className="relative flex items-center justify-between sm:h-10 w-full max-w-7xl">
+              <div className="flex items-center flex-grow flex-shrink-0 lg:flex-grow-0">
+                <div className="flex items-center justify-between w-full md:w-auto">
+                  <Link to="/" className="flex items-center">
+                    <img
+                      className="h-12 w-auto sm:h-8"
+                      src="/MoodleGraderLogo.png"
+                      alt="Moodle Grader"
+                    />
+                    <span className="ml-1 text-2xl font-bold text-white hidden sm:block">Moodle Grader</span>
+                  </Link>
+                </div>
+              </div>
+              <div className="md:block md:ml-10 md:pr-4 space-x-6">
+                <Link to="/features" className="font-medium text-white hover:text-indigo-200">Features</Link>
+                <Link to="/pricing" className="font-medium text-white hover:text-indigo-200">Pricing</Link>
+                <Link to="/contact" className="font-medium text-white hover:text-indigo-200">Contact</Link>
+                <Link to="/login" className="font-medium text-white hover:text-indigo-200 px-4 py-2 border border-transparent rounded-md bg-white bg-opacity-20 hover:bg-opacity-30">
+                  Sign in
                 </Link>
               </div>
-            </div>
-            <div className="md:block md:ml-10 md:pr-4 space-x-6">
-              <Link to="/features" className="font-medium text-white hover:text-indigo-200">Features</Link>
-              <Link to="/pricing" className="font-medium text-white hover:text-indigo-200">Pricing</Link>
-              <Link to="/contact" className="font-medium text-white hover:text-indigo-200">Contact</Link>
-              <Link to="/login" className="font-medium text-white hover:text-indigo-200 px-4 py-2 border border-transparent rounded-md bg-white bg-opacity-20 hover:bg-opacity-30">
-                Sign in
-              </Link>
-            </div>
-          </nav>
-          <div className="flex-1 flex flex-col justify-center items-center">
-            <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-3xl shadow-2xl p-10 md:p-16 flex flex-col items-center w-full max-w-3xl mt-20 sm:mt-24">
-              <h1 className="text-4xl md:text-6xl font-extrabold text-white text-center leading-tight tracking-tight mb-4 drop-shadow-lg">
-                Grade smarter,<br className="hidden md:block" /> not harder.
-              </h1>
-              <p className="mt-2 text-lg md:text-2xl text-indigo-100 text-center mb-8 max-w-2xl">
-                AI-powered grading that adapts to your style, saves you time, and provides your students with detailed, meaningful feedback.
-              </p>
-              <div className="flex flex-wrap gap-4 justify-center mb-6">
-                <Link to="/app">
-                  <Button
-                    size="lg"
-                    className="px-8 py-3 text-base font-semibold rounded-full bg-gradient-to-r from-indigo-400 to-purple-500 text-white shadow-lg hover:scale-105 hover:from-indigo-500 hover:to-purple-600 transition-all duration-200"
-                  >
-                    Get Started <ArrowRight className="ml-2 h-5 w-5" />
-                  </Button>
-                </Link>
-                <Link to="/features">
-                  <Button
-                    variant="outline"
-                    size="lg"
-                    className="px-8 py-3 text-base font-semibold rounded-full border-white/40 text-white bg-white/10 hover:bg-white/20 hover:text-indigo-200 transition-all duration-200"
-                  >
-                    Learn More
-                  </Button>
-                </Link>
-                <Link to="/demo">
-                  <Button
-                    size="lg"
-                    className="px-8 py-3 text-base font-medium bg-white text-indigo-700 hover:bg-indigo-50 rounded-full"
-                  >
-                    Watch Demo
-                  </Button>
-                </Link>
-              </div>
-              {/* Optional: Trust bar */}
-              <div className="mt-4 flex flex-col items-center">
-                <span className="text-xs uppercase tracking-widest text-indigo-100 mb-2">Trusted by educators at</span>
-                <div className="flex gap-6 opacity-80">
-                  <img src="/logo1.png" alt="University 1" className="h-6" />
-                  <img src="/logo2.png" alt="University 2" className="h-6" />
-                  <img src="/logo3.png" alt="University 3" className="h-6" />
+            </nav>
+            <div className="flex-1 flex flex-col justify-center items-center">
+              <div className="backdrop-blur-xl bg-white/10 border border-white/20 rounded-3xl shadow-2xl p-10 md:p-16 flex flex-col items-center w-full max-w-3xl mt-20 sm:mt-24">
+                <h1 className="text-4xl md:text-6xl font-extrabold text-white text-center leading-tight tracking-tight mb-4 drop-shadow-lg">
+                  Grade smarter,<br className="hidden md:block" /> not harder.
+                </h1>
+                <p className="mt-2 text-lg md:text-2xl text-indigo-100 text-center mb-8 max-w-2xl">
+                  AI-powered grading that adapts to your style, saves you time, and provides your students with detailed, meaningful feedback.
+                </p>
+                <div className="flex flex-wrap gap-4 justify-center mb-6">
+                  <Link to="/app">
+                    <Button
+                      size="lg"
+                      className="px-8 py-3 text-base font-semibold rounded-full bg-gradient-to-r from-indigo-400 to-purple-500 text-white shadow-lg hover:scale-105 hover:from-indigo-500 hover:to-purple-600 transition-all duration-200"
+                    >
+                      Get Started <ArrowRight className="ml-2 h-5 w-5" />
+                    </Button>
+                  </Link>
+                  <Link to="/features">
+                    <Button
+                      variant="outline"
+                      size="lg"
+                      className="px-8 py-3 text-base font-semibold rounded-full border-white/40 text-white bg-white/10 hover:bg-white/20 hover:text-indigo-200 transition-all duration-200"
+                    >
+                      Learn More
+                    </Button>
+                  </Link>
+                  <Link to="/demo">
+                    <Button
+                      size="lg"
+                      className="px-8 py-3 text-base font-medium bg-white text-indigo-700 hover:bg-indigo-50 rounded-full"
+                    >
+                      Watch Demo
+                    </Button>
+                  </Link>
                 </div>
               </div>
             </div>
           </div>
         </div>
       </header>
-
-
-      {/* Straight line divider */}
-      <div className="absolute bottom-0 left-0 right-0">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 60" className="w-full h-auto">
-          <rect width="1440" height="60" fill="#ffffff" />
-        </svg>
+      {/* Section-based Parallax Background */}
+      <div className="fixed inset-0 w-full h-screen -z-10 pointer-events-none">
+        {backgrounds.map((bg, i) => (
+          <div 
+            key={i}
+            className="absolute inset-0 w-full h-full bg-section"
+            id={`bg-section-${i}`}
+            style={{
+              backgroundImage: `url(${bg.imgSrc})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              opacity: i === 0 ? 1 : 0,
+              willChange: 'opacity',
+              transition: 'opacity 0.7s cubic-bezier(0.4,0,0.2,1)'
+            }}
+          />
+        ))}
       </div>
 
-      {/* Section-based Parallax Background */}
-      {(() => {
-        // Section backgrounds and overlay gradients
-        // Fix missing leading slashes in image paths and ensure proper encoding
-        const backgrounds = [
-          {
-            imgSrc: "/assets/images/Moodle%20Grader%20before%20pic.png",
-            overlayGradient: "from-indigo-900/80 to-white/10",
-          },
-          {
-            imgSrc: "/assets/images/Moodle%20grader%20after.png",
-            overlayGradient: "from-indigo-900/70 to-white/5",
-          },
-          {
-            imgSrc: "/assets/images/Moodle%20Grader%20research%20final.png",
-            overlayGradient: "from-indigo-900/80 to-white/10",
-          },
-          {
-            imgSrc: "/assets/images/Moodle%20Grader%20Connection.png",
-            overlayGradient: "from-indigo-900/70 to-white/5",
-          },
-        ];
-        const [currentSection, sectionRefs] = useSectionInView(backgrounds.length);
-        return (
-          <>
-            {/* For debugging - log the image paths */}
-            {backgrounds.forEach((bg, idx) => {
-              console.log(`Background ${idx} path: ${bg.imgSrc}`);
-            })}
-            
-            {/* Fixed background container for fading effect */}
-            <div className="fixed inset-0 w-full h-screen -z-10">
-              {backgrounds.map((bg, i) => (
-                <div 
-                  key={i}
-                  className="absolute inset-0 w-full h-full bg-section"
-                  id={`bg-section-${i}`}
+      {/* Scrollable container with sticky cards */}
+      <div className="relative">
+        {backgrounds.slice(0, 5).map((bg, idx) => (
+          <section
+            ref={sectionRefs[idx]}
+            key={idx}
+            className="min-h-[260vh] flex items-center justify-center bg-section-container"
+            id={`section-${idx}`}
+          >
+            <div className="sticky top-[5vh] h-[90vh] w-full flex items-center justify-center">
+              <div className={`w-full max-w-7xl px-6 md:px-20 flex items-center ${idx % 2 === 1 ? 'justify-end' : 'justify-start'}`}>
+                <div
+                  className={`card-content bg-white/60 border border-indigo-100/60 rounded-2xl shadow-2xl backdrop-blur-xl p-6 md:p-10 max-w-lg transition-all duration-300 flex flex-col gap-4 relative overflow-hidden ${idx % 2 === 1 ? 'ml-auto text-right' : 'mr-auto text-left'} fade-on-scroll`}
                   style={{
-                    backgroundImage: `url(${bg.imgSrc})`,
-                    backgroundSize: 'cover',
-                    backgroundPosition: 'center',
-                    opacity: i === 0 ? 1 : 0, // Start with first image visible
-                    transition: 'opacity 0.8s ease-in-out'
+                    boxShadow: '0 16px 48px 0 rgba(99,102,241,0.10), 0 2px 8px 0 rgba(31,38,135,0.08)',
+                    willChange: 'transform, opacity',
                   }}
                 >
-                  {/* Overlay gradient */}
-                  <div className={`absolute inset-0 bg-gradient-to-br ${bg.overlayGradient} pointer-events-none`} />
-                </div>
-              ))}
-            </div>
-
-            {/* Scrollable container with sections */}
-            <div className="relative">
-              {/* Section 1 - Card sticks to middle for a while */}
-              <section ref={sectionRefs[0]} className="min-h-[130vh] relative bg-section-container" id="section-0">
-                <div className="sticky top-[30vh] h-[60vh] w-full flex items-center justify-center">
-                  <div className="w-full max-w-7xl px-6 md:px-20">
-                    <div className="bg-white/80 backdrop-blur-xl rounded-3xl border border-white/20 shadow-[0_20px_80px_-15px_rgba(0,0,0,0.2)] p-10 md:p-16 max-w-2xl mr-auto card-content fade-on-scroll">
-                      <h3 className="text-3xl md:text-4xl xl:text-5xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-indigo-700 to-purple-600 mb-6 leading-tight">
-                        The Dreaded Stack
-                      </h3>
-                      <p className="text-xl md:text-2xl text-gray-600 font-normal leading-relaxed">
-                        Every educator knows the feeling. That towering stack of assignments waiting to be graded, consuming your evenings and weekends.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </section>
-              
-              {/* Section 2 - Card sticks to middle for a while */}
-              <section ref={sectionRefs[1]} className="min-h-[130vh] relative bg-section-container" id="section-1">
-                <div className="sticky top-[30vh] h-[60vh] w-full flex items-center justify-center">
-                  <div className="w-full max-w-7xl px-6 md:px-20">
-                    <div className="bg-white/80 backdrop-blur-xl rounded-3xl border border-white/20 shadow-[0_20px_80px_-15px_rgba(0,0,0,0.2)] p-10 md:p-16 max-w-2xl ml-auto text-right card-content fade-on-scroll">
-                      <h3 className="text-3xl md:text-4xl xl:text-5xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-indigo-700 to-purple-600 mb-6 leading-tight">
-                        A Better Way
-                      </h3>
-                      <p className="text-xl md:text-2xl text-gray-600 font-normal leading-relaxed">
-                        What if there was a better way? A way that maintains complete control and your unique voice but eliminates the busywork?
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </section>
-              
-              {/* Section 3 - Card sticks to middle for a while */}
-              <section ref={sectionRefs[2]} className="min-h-[130vh] relative bg-section-container" id="section-2">
-                <div className="sticky top-[30vh] h-[60vh] w-full flex items-center justify-center">
-                  <div className="w-full max-w-7xl px-6 md:px-20">
-                    <div className="bg-white/80 backdrop-blur-xl rounded-3xl border border-white/20 shadow-[0_20px_80px_-15px_rgba(0,0,0,0.2)] p-10 md:p-16 max-w-2xl mr-auto card-content fade-on-scroll">
-                      <h3 className="text-3xl md:text-4xl xl:text-5xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-indigo-700 to-purple-600 mb-6 leading-tight">
-                        Regain Your Time
-                      </h3>
-                      <p className="text-xl md:text-2xl text-gray-600 font-normal leading-relaxed">
-                        Regain time to pursue your research and academic interests.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </section>
-              
-              {/* Section 4 - Card sticks to middle for a while */}
-              <section ref={sectionRefs[3]} className="min-h-[130vh] relative bg-section-container" id="section-3">
-                <div className="sticky top-[30vh] h-[60vh] w-full flex items-center justify-center">
-                  <div className="w-full max-w-7xl px-6 md:px-20">
-                    <div className="bg-white/80 backdrop-blur-xl rounded-3xl border border-white/20 shadow-[0_20px_80px_-15px_rgba(0,0,0,0.2)] p-10 md:p-16 max-w-2xl ml-auto text-right card-content fade-on-scroll">
-                      <h3 className="text-3xl md:text-4xl xl:text-5xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-indigo-700 to-purple-600 mb-6 leading-tight">
-                        Deeper Connections
-                      </h3>
-                      <p className="text-xl md:text-2xl text-gray-600 font-normal leading-relaxed">
-                        Build stronger relationships with your students through meaningful, personalized feedback.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </section>
-              
-              {/* Scroll indicator dots */}
-              <div className="fixed bottom-8 left-0 right-0 flex flex-col items-center gap-4 z-20">
-                <div className="flex justify-center gap-3">
-                  {backgrounds.map((_, idx) => (
-                    <div 
-                      key={idx}
-                      className={`w-2 h-2 rounded-full transition-all duration-500 ${
-                        currentSection === idx ? 'bg-white scale-150' : 'bg-white/50'
-                      }`}
-                    />
-                  ))}
-                </div>
-                <div className="mt-3 text-white/70 text-xs font-medium tracking-wider uppercase">
-                  <span className="animate-pulse">Scroll to explore</span>
+                  <h3 className="text-2xl md:text-3xl font-extrabold text-indigo-700 tracking-tight mb-2">
+                    {idx === 0 && 'The Dreaded Stack'}
+                    {idx === 1 && 'A Better Way'}
+                    {idx === 2 && 'Unleash Your Creativity'}
+                    {idx === 3 && 'Unleash Your Research'}
+                    {idx === 4 && 'Build Stronger Relationships'}
+                  </h3>
+                  <p className="text-base md:text-lg text-gray-700 font-medium leading-relaxed font-sans">
+                    {idx === 0 && 'Every educator knows the feeling. That towering stack of assignments waiting to be graded, consuming your evenings and weekends.'}
+                    {idx === 1 && 'What if there was a better way? A way that maintains complete control and your unique voice but eliminates the busywork?'}
+                    {idx === 2 && 'With Moodle Grader handling the busywork, you’re free to get creative in the classroom and try out new ideas with your students.'}
+                    {idx === 3 && 'Unleash your research potential and make a greater impact in your field. Moodle Grader gives you the time and freedom to pursue your academic passions.'}
+                    {idx === 4 && 'Build stronger relationships with your students through meaningful, personalized feedback. Moodle Grader helps you connect on a deeper level.'}
+                  </p>
                 </div>
               </div>
             </div>
-          </>
-        );
-      })()}
+          </section>
+        ))}
+      </div>
 
       {/* Features Section */}
       <section className="py-24 bg-white">
@@ -695,7 +682,6 @@ const LandingPage: React.FC = () => {
           </div>
         </div>
       </footer>
-    </div>
     </>
   );
 };
